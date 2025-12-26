@@ -61,7 +61,7 @@ fn get_driver_for_file(path_str: &str) -> Result<Box<dyn crate::drivers::Refacto
     let driver: Box<dyn RefactorDriver> = match lang {
         "python" => Box::new(crate::drivers::python::PythonDriver::new()),
         "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
-        "rust" => Box::new(crate::drivers::rust::RustDriver),
+        "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
         _ => bail!("Unsupported language: {}", lang), // This case should ideally not be reached if `lang` is derived correctly
     };
     Ok(driver)

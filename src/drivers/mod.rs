@@ -28,4 +28,5 @@ pub mod python;
 pub mod python_rope;
 pub mod python_pyrefly;
 pub mod typescript;
+pub mod lsp_client;
 pub mod rust;

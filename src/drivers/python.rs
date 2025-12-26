@@ -14,7 +14,7 @@ impl PythonDriver {
     pub fn new() -> Self {
         Self {
             rope: RopeDriver,
-            pyrefly: PyreflyDriver,
+            pyrefly: PyreflyDriver::new(),
         }
     }
 }
