@@ -68,7 +68,40 @@ Identify the best backend tools for a Rust-based MCP Refactoring Server capable 
 
 ---
 
-## 4. Multi-Language / Structural
+## 4. Go
+
+| Tool | Type | Rename | Move File | Performance | Rating |
+| :--- | :--- | :---: | :---: | :--- | :---: |
+| **gopls** | LSP | ✅ | ✅ | High | 10/10 |
+| **gopatch** | CLI | ⚠️ | ❌ | High | 8/10 |
+| **gorename** | CLI | ✅ | ❌ | Moderate | 6/10 (Obsolete) |
+| **gomove** | CLI | ❌ | ✅ | Moderate | 6/10 |
+
+### Top Recommendation: **gopls** (Official Language Server)
+
+- **Pros**: The industry standard. Supports type-safe renames and complex refactorings (extract/inline) via CLI `gopls rename` and `gopls codeaction`.
+- **Cons**: Most robust when used as a live LSP, but CLI mode is powerful for headless tasks.
+- **Use Case**: All semantic Go refactoring. Use `gopatch` for structural transformations.
+
+---
+
+## 5. Dart
+
+| Tool | Type | Rename | Move File | Performance | Rating |
+| :--- | :--- | :---: | :---: | :--- | :---: |
+| **Analysis Server** | LSP | ✅ | ✅ | High | 9/10 |
+| **dart fix** | CLI | ⚠️ | ❌ | High | 8/10 |
+| **mass_refactor** | CLI | ⚠️ | ✅ (Basic) | Moderate | 6/10 |
+
+### Top Recommendation: **Dart Analysis Server** (Headless LSP)
+
+- **Pros**: Powers all Dart IDEs. Handles intelligent symbol renames and file moves with high precision.
+- **Cons**: Requires JSON-RPC/LSP communication for most operations. No simple "rename" CLI subcommand.
+- **Use Case**: Deep semantic refactoring. Use `dart fix` for automated linting/API migrations.
+
+---
+
+## 6. Multi-Language / Structural
 
 | Tool | Type | Rename | Move File | Performance | Rating |
 | :--- | :--- | :---: | :---: | :--- | :---: |
