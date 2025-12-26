@@ -57,7 +57,6 @@ impl RefactorDriver for PythonDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -65,7 +64,7 @@ mod tests {
         let dir = tempdir()?;
         let root = dir.path();
         let source_path = root.join("source.py");
-        let target_path = root.join("target.py");
+        let _target_path = root.join("target.py");
         
         // Create dummy python file
         std::fs::write(&source_path, "print('hello')")?;
