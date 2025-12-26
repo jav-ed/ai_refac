@@ -1,0 +1,1 @@
+You can follow along using playwright mcp at localhost 1420. The tauri instance is already running.
