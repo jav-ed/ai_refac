@@ -62,6 +62,8 @@ fn get_driver_for_file(path_str: &str) -> Result<Box<dyn crate::drivers::Refacto
         "python" => Box::new(crate::drivers::python::PythonDriver::new()),
         "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
         "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
+        "go" => Box::new(crate::drivers::go::GoDriver::new()),
+        "dart" => Box::new(crate::drivers::dart::DartDriver::new()),
         _ => bail!("Unsupported language: {}", lang), // This case should ideally not be reached if `lang` is derived correctly
     };
     Ok(driver)

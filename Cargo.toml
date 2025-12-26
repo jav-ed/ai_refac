@@ -15,6 +15,7 @@ async-trait = "0.1"
 schemars = { version = "1.2", features = ["derive"] }
 lsp-types = "0.97.0"
 url = "2.5.7"
+which = "8.0.0"
 
 [dev-dependencies]
 tempfile = "3.8"

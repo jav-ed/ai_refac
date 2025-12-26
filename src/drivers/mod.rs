@@ -30,3 +30,5 @@ pub mod python_pyrefly;
 pub mod typescript;
 pub mod lsp_client;
 pub mod rust;
+pub mod go;
+pub mod dart;

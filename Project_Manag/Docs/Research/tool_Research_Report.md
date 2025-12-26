@@ -114,6 +114,27 @@ Identify the best backend tools for a Rust-based MCP Refactoring Server capable 
 
 ---
 
+## 7. Rust-Based Refactoring Engines (Cross-Language)
+
+For a Rust-based MCP server, leveraging Rust-native engines provides the best performance and easiest integration (via FFI or direct crate usage).
+
+| Language | Top Rust Option | Status | Capability |
+| :--- | :--- | :--- | :--- |
+| **JS/TS** | **oxc** | Production-ready | High-speed AST transformation and lint-fixing. |
+| **Python** | **Pyrefly** | Production-ready | High-speed type checking and import refactoring. |
+| **Multi** | **ast-grep** | Production-ready | Sgrep-like structural search and rewrite in Rust. |
+| **Go** | **go_parser** / **Gold** | Library / Linter | AST parsing in Rust; full refactor engine requires wrapping. |
+| **Dart** | **oak-dart** | Library | High-performance Dart parsing and AST generation in Rust. |
+| **Foundation** | **tree-sitter** | Universal | The "gold standard" for incremental parsing used by these engines. |
+
+### Architectural Recommendation for Rust MCP Server
+
+- **Native Drivers**: Use `oxc` and `Pyrefly` directly for maximum throughput in JS/Python.
+- **LSP Drivers**: Use `rust-analyzer` (Rust), `gopls` (Go), and `Analysis Server` (Dart) as "Semantic Oracles" when deep symbol resolution across modules is required.
+- **Pattern Drivers**: Use `ast-grep` for simpler, language-agnostic structural transformations.
+
+---
+
 ## Final Synthesis for MCP Refactoring Server
 
 For a Rust-based MCP Refactoring Server, the ideal architecture would be:
