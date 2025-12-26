@@ -20,3 +20,19 @@
 
 - **Integration Detail**: How to structure the "Sidecar" processes (Node/Python) within the Rust binary?
 - **Packaging**: How to bundle these dependencies? or do we expect the user to have `node`/`python` installed? (Decision: Assume environment has them for now).
+
+## 4. Implementation Findings
+
+### Python Driver Strategy
+
+- **Primary Tool**: `Pyrefly` (Rust-based).
+  - Integrated via LSP (`workspace/willRenameFiles`).
+  - Spawns standard binary from `.venv/bin/pyrefly`.
+  - Fast and type-aware.
+- **Fallback Tool**: `Rope` (Python-based).
+  - Wrapped in `scripts/python_refactor.py`.
+  - Used if Pyrefly is unavailable or fails.
+- **Verification**:
+  - Implemented dispatcher in `src/drivers/python.rs`.
+  - Added availability checks and fallback logic.
+  - Verified with integration tests.

@@ -25,5 +25,7 @@ pub trait RefactorDriver: Send + Sync {
 
 // Submodules for specific drivers (to be implemented)
 pub mod python;
+pub mod python_rope;
+pub mod python_pyrefly;
 pub mod typescript;
 pub mod rust;

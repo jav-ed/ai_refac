@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 use crate::validation::initial_sanity_check;
+use crate::drivers::RefactorDriver;
 
 /// Parameters for a refactoring request.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -50,10 +51,18 @@ fn get_driver_for_file(path_str: &str) -> Result<Box<dyn crate::drivers::Refacto
     let path = std::path::Path::new(path_str);
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     
-    match ext {
-        "py" => Ok(Box::new(crate::drivers::python::PythonDriver)),
-        "ts" | "tsx" | "js" | "jsx" => Ok(Box::new(crate::drivers::typescript::TypeScriptDriver)),
-        "rs" => Ok(Box::new(crate::drivers::rust::RustDriver)),
+    let lang = match ext {
+        "py" => "python",
+        "ts" | "tsx" | "js" | "jsx" => "typescript",
+        "rs" => "rust",
         _ => bail!("No refactoring driver found for extension: .{}", ext),
-    }
+    };
+
+    let driver: Box<dyn RefactorDriver> = match lang {
+        "python" => Box::new(crate::drivers::python::PythonDriver::new()),
+        "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
+        "rust" => Box::new(crate::drivers::rust::RustDriver),
+        _ => bail!("Unsupported language: {}", lang), // This case should ideally not be reached if `lang` is derived correctly
+    };
+    Ok(driver)
 }
