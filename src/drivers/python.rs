@@ -32,10 +32,10 @@ impl RefactorDriver for PythonDriver {
         Ok(rope_avail || pyrefly_avail)
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
         // Try Pyrefly first
         if self.pyrefly.check_availability().await.unwrap_or(false) {
-             match self.pyrefly.move_file(source, target).await {
+             match self.pyrefly.move_files(file_map.clone()).await {
                  Ok(_) => return Ok(()),
                  Err(e) => {
                      tracing::warn!("Pyrefly failed, falling back to Rope: {}", e);
@@ -44,7 +44,7 @@ impl RefactorDriver for PythonDriver {
         }
         
         // Fallback to Rope
-        self.rope.move_file(source, target).await
+        self.rope.move_files(file_map).await
     }
 }
 

@@ -15,12 +15,11 @@ pub trait RefactorDriver: Send + Sync {
     /// Checks if the driver is available (e.g., is the underlying tool installed?).
     async fn check_availability(&self) -> Result<bool>;
 
-    /// Executes a move/rename operation.
+    /// Executes a batch move/rename operation.
     /// 
     /// # Arguments
-    /// * `source` - The source file path (relative).
-    /// * `target` - The target file path (relative).
-    async fn move_file(&self, source: &str, target: &str) -> Result<()>;
+    /// * `file_map` - A list of (source, target) relative paths.
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()>;
 }
 
 // Submodules for specific drivers (to be implemented)

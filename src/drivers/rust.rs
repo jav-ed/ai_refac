@@ -29,14 +29,19 @@ impl RefactorDriver for RustDriver {
         }
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
         // rust-analyzer doesn't use standard "init" command like pyrefly might
         // It's a standard LSP.
         
-        self.client.initialize_and_rename(&[], source, target).await?;
+        self.client.initialize_and_rename_files(&[], file_map.clone()).await?;
         
-        // Perform file move
-        tokio::fs::rename(source, target).await?;
+        // Perform file moves
+        for (source, target) in file_map {
+            if let Some(parent) = std::path::Path::new(&target).parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+            tokio::fs::rename(source, target).await?;
+        }
 
         Ok(())
     }

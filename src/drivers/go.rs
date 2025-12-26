@@ -45,22 +45,17 @@ impl RefactorDriver for GoDriver {
         self.client.check_availability().await
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
         // gopls supports standard textDocument/rename and executeCommand
-        // For moves, gopls is interesting. It doesn't strictly have a "move file" refactoring in the LSP spec v3.16 directly mapped.
-        // But `gopls` CLI does: `gopls rename old.go new.go`? No `gopls rename` is for symbols.
-        // Wait, `gomove` or `gopls imports`.
         
-        // Actually, for Go, moving a file inside the same package is trivial (just file move).
-        // Moving to a new package requires updating 'package X' declaration.
-        // Moving *imports* of that file in other files is the hard part.
+        self.client.initialize_and_rename_files(&[], file_map.clone()).await?;
         
-        // `gopls` recently added support for file renaming via `workspace/willRenameFiles`.
-        // So generic LspClient logic should work if gopls is running and watching the workspace.
-
-        self.client.initialize_and_rename(&[], source, target).await?;
-        
-        tokio::fs::rename(source, target).await?;
+        for (source, target) in file_map {
+            if let Some(parent) = std::path::Path::new(&target).parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+            tokio::fs::rename(source, target).await?;
+        }
 
         Ok(())
     }

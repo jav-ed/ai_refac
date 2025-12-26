@@ -25,7 +25,7 @@ impl RefactorDriver for PyreflyDriver {
         self.client.check_availability().await
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
         let bin = ".venv/bin/pyrefly";
         
         // Ensure init
@@ -33,11 +33,13 @@ impl RefactorDriver for PyreflyDriver {
              let _ = tokio::process::Command::new(bin).arg("init").output().await;
         }
 
-        // Use generic client
-        self.client.initialize_and_rename(&["lsp"], source, target).await?;
+        // Use generic client with batch support
+        self.client.initialize_and_rename_files(&["lsp"], file_map.clone()).await?;
         
-        // Perform file move
-        tokio::fs::rename(source, target).await?;
+        // Perform file moves
+        for (source, target) in file_map {
+            tokio::fs::rename(source, target).await?;
+        }
 
         Ok(())
     }

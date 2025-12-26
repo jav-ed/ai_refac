@@ -25,11 +25,10 @@ impl LspClient {
         Ok(std::path::Path::new(&self.binary_path).exists())
     }
 
-    pub async fn initialize_and_rename(
+    pub async fn initialize_and_rename_files(
         &self,
         args: &[&str],
-        source: &str,
-        target: &str,
+        file_map: Vec<(String, String)>,
     ) -> Result<()> {
         // 1. Start LSP Process
         let mut child = Command::new(&self.binary_path)
@@ -60,17 +59,22 @@ impl LspClient {
         Self::send_request(&mut stdin, "initialized", 2, serde_json::json!({})).await?;
 
         // 3. Send workspace/willRenameFiles
-        let source_abs = root_dir.join(source);
-        let target_abs = root_dir.join(target);
-        
-        let source_uri = Url::from_file_path(&source_abs).map_err(|_| anyhow::anyhow!("Invalid source path"))?;
-        let target_uri = Url::from_file_path(&target_abs).map_err(|_| anyhow::anyhow!("Invalid target path"))?;
+        let mut file_renames = Vec::new();
+        for (source, target) in file_map {
+             let source_abs = root_dir.join(source);
+             let target_abs = root_dir.join(target);
+             
+             let source_uri = Url::from_file_path(&source_abs).map_err(|_| anyhow::anyhow!("Invalid source path"))?;
+             let target_uri = Url::from_file_path(&target_abs).map_err(|_| anyhow::anyhow!("Invalid target path"))?;
+             
+             file_renames.push(FileRename {
+                 old_uri: source_uri.to_string(),
+                 new_uri: target_uri.to_string(),
+             });
+        }
 
         let rename_params = RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: source_uri.to_string(),
-                new_uri: target_uri.to_string(),
-            }],
+            files: file_renames,
         };
 
         Self::send_request(&mut stdin, "workspace/willRenameFiles", 3, rename_params).await?;

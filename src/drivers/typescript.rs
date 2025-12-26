@@ -18,24 +18,29 @@ impl RefactorDriver for TypeScriptDriver {
         }
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
-        let script_path = "scripts/ts_refactor.js";
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+        let payload = serde_json::to_string(&file_map)?;
         
+        // Call the script once with "batch" command
         let output = tokio::process::Command::new("node")
-            .arg(script_path)
-            .arg(source)
-            .arg(target)
+            .arg("scripts/ts_refactor.js")
+            .arg("batch")
+            .arg(&payload)
             .output()
             .await?;
 
         if !output.status.success() {
-             let error = String::from_utf8_lossy(&output.stderr);
-             anyhow::bail!("TypeScript refactor failed: {}", error);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::error!("TS-Morph batch stderr: {}", stderr);
+            anyhow::bail!("TS-Morph batch failed: {}", stderr);
         }
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        tracing::info!("TS-Morph batch output: {}", stdout);
 
-        tracing::info!("TypeScript refactor output: {}", String::from_utf8_lossy(&output.stdout));
         Ok(())
     }
+
 }
 
 #[cfg(test)]
@@ -68,7 +73,7 @@ mod tests {
         tokio::fs::write(source, "export const x = 1;").await?;
 
         // Run move
-        let result = driver.move_file(source, target).await;
+        let result = driver.move_files(vec![(source.to_string(), target.to_string())]).await;
         
         // Assert success
         assert!(result.is_ok(), "Move failed: {:?}", result.err());

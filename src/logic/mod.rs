@@ -25,46 +25,58 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // 1. Validation
     initial_sanity_check(&req.source_path, &req.operation, req.target_path.as_ref())?;
 
-    // 2. Dispatch
-    let source_file = &req.source_path[0];
-    let driver = get_driver_for_file(source_file)?;
+    // 2. Group files by language
+    let targets = req.target_path.as_ref().ok_or_else(|| anyhow::anyhow!("Target path required for move"))?;
     
-    // Check availability
-    if !driver.check_availability().await? {
-        bail!("Driver for '{}' is not available in this environment.", driver.lang());
+    // Map: Language -> Vec<(Source, Target)>
+    let mut batch_map: std::collections::HashMap<String, Vec<(String, String)>> = std::collections::HashMap::new();
+
+    for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
+        let path = std::path::Path::new(src);
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        
+        let lang = match ext {
+            "py" => "python".to_string(),
+            "ts" | "tsx" | "js" | "jsx" => "typescript".to_string(),
+            "rs" => "rust".to_string(),
+            "go" => "go".to_string(),
+            "dart" => "dart".to_string(),
+            _ => {
+                tracing::warn!("Skipping file with unsupported extension: {}", src);
+                continue;
+            }
+        };
+
+        batch_map.entry(lang).or_default().push((src.clone(), tgt.clone()));
     }
 
-    match req.operation.as_str() {
-        "move" => {
-             let targets = req.target_path.as_ref().ok_or_else(|| anyhow::anyhow!("Target path required for move"))?;
-             // For now, handle single file move. Loop for multiple.
-             for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
-                 driver.move_file(src, tgt).await?;
-             }
-             Ok(format!("Successfully moved {} files.", req.source_path.len()))
-        },
-        _ => bail!("Unsupported operation: {}", req.operation),
+    // 3. Dispatch Batches
+    let mut results = Vec::new();
+    
+    for (lang, files) in batch_map {
+        let driver = get_driver_by_lang(&lang)?;
+        
+        if !driver.check_availability().await? {
+            bail!("Driver for '{}' is not available.", lang);
+        }
+
+        match driver.move_files(files.clone()).await {
+            Ok(_) => results.push(format!("Moved {} {} files.", files.len(), lang)),
+            Err(e) => results.push(format!("Failed to move {} files: {}", lang, e)),
+        }
     }
+
+    Ok(results.join("\n"))
 }
 
-fn get_driver_for_file(path_str: &str) -> Result<Box<dyn crate::drivers::RefactorDriver>> {
-    let path = std::path::Path::new(path_str);
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    
-    let lang = match ext {
-        "py" => "python",
-        "ts" | "tsx" | "js" | "jsx" => "typescript",
-        "rs" => "rust",
-        _ => bail!("No refactoring driver found for extension: .{}", ext),
-    };
-
+fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriver>> {
     let driver: Box<dyn RefactorDriver> = match lang {
         "python" => Box::new(crate::drivers::python::PythonDriver::new()),
         "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
         "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
         "go" => Box::new(crate::drivers::go::GoDriver::new()),
         "dart" => Box::new(crate::drivers::dart::DartDriver::new()),
-        _ => bail!("Unsupported language: {}", lang), // This case should ideally not be reached if `lang` is derived correctly
+        _ => bail!("Unsupported language: {}", lang),
     };
     Ok(driver)
 }

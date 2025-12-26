@@ -27,25 +27,26 @@ impl RefactorDriver for RopeDriver {
         Ok(output.status.success())
     }
 
-    async fn move_file(&self, source: &str, target: &str) -> Result<()> {
-        let script_path = "scripts/python_refactor.py";
-        let python_bin = ".venv/bin/python";
-        
-        let bin = if std::path::Path::new(python_bin).exists() { python_bin } else { "python3" };
 
-        let output = tokio::process::Command::new(bin)
-            .arg(script_path)
-            .arg(source)
-            .arg(target)
+    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+        let payload = serde_json::to_string(&file_map)?;
+
+        let output = tokio::process::Command::new("python3")
+            .arg("scripts/python_refactor.py")
+            .arg("batch")
+            .arg(&payload)
             .output()
             .await?;
 
         if !output.status.success() {
-             let error = String::from_utf8_lossy(&output.stderr);
-             anyhow::bail!("Python refactor failed: {}", error);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::error!("Rope batch stderr: {}", stderr);
+            anyhow::bail!("Rope batch failed: {}", stderr);
         }
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        tracing::info!("Rope batch output: {}", stdout);
 
-        tracing::info!("Python refactor output: {}", String::from_utf8_lossy(&output.stdout));
         Ok(())
     }
 }
