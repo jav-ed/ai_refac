@@ -38,3 +38,54 @@ pub fn initial_sanity_check(source_paths: &[String], operation: &str, target_pat
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_valid_move_operation() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("source.txt");
+        File::create(&file_path)?;
+
+        let source = vec![file_path.to_str().unwrap().to_string()];
+        let target = vec!["target.txt".to_string()];
+
+        initial_sanity_check(&source, "move", Some(&target))?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_operation() {
+        let source = vec!["any.txt".to_string()];
+        let result = initial_sanity_check(&source, "delete", None);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Operation 'delete' is not supported. Only 'move' is currently implemented.");
+    }
+
+    #[test]
+    fn test_missing_source_file() {
+        let source = vec!["non_existent.txt".to_string()];
+        let result = initial_sanity_check(&source, "move", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Source path does not exist"));
+    }
+
+    #[test]
+    fn test_mismatched_target_count() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("source.txt");
+        File::create(&file_path)?;
+        
+        let source = vec![file_path.to_str().unwrap().to_string()];
+        let target = vec!["t1.txt".to_string(), "t2.txt".to_string()];
+
+        let result = initial_sanity_check(&source, "move", Some(&target));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Mismatch check"));
+        Ok(())
+    }
+}
