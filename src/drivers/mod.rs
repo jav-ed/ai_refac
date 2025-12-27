@@ -31,3 +31,33 @@ pub mod lsp_client;
 pub mod rust;
 pub mod go;
 pub mod dart;
+
+/// Resolves a path relative to the executable location (finding the project root).
+/// Handles "debug", "release", and "deps" directory structures.
+pub fn resolve_resource_path(relative_path: &str) -> Result<std::path::PathBuf> {
+    let exe_path = std::env::current_exe()?;
+    let mut current_dir = exe_path.parent();
+
+    // Traverse up to find the "scripts" or ".venv" folder or Cargo.toml
+    while let Some(dir) = current_dir {
+        let candidate = dir.join(relative_path);
+        if candidate.exists() {
+            return Ok(std::fs::canonicalize(candidate)?);
+        }
+        
+        // Also check if we are in target/release or target/debug, root is 2 levels up
+        // But "scripts" is in root.
+        
+        // Safety check: don't traverse beyond reasonable limits or "/"
+        if dir.parent().is_none() { break; }
+        current_dir = dir.parent();
+    }
+    
+    // Fallback: Check CWD
+    let cwd_res = std::env::current_dir()?.join(relative_path);
+    if cwd_res.exists() {
+        return Ok(std::fs::canonicalize(cwd_res)?);
+    }
+
+    anyhow::bail!("Could not find resource: {}", relative_path)
+}

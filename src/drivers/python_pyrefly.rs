@@ -5,12 +5,18 @@ use super::lsp_client::LspClient;
 
 pub struct PyreflyDriver {
     client: LspClient,
+    bin_path: String,
 }
 
 impl PyreflyDriver {
     pub fn new() -> Self {
+        let bin_path = super::resolve_resource_path(".venv/bin/pyrefly")
+             .map(|p| p.to_string_lossy().to_string())
+             .unwrap_or_else(|_| ".venv/bin/pyrefly".to_string());
+        
         Self {
-            client: LspClient::new(".venv/bin/pyrefly"),
+            client: LspClient::new(&bin_path),
+            bin_path,
         }
     }
 }
@@ -26,10 +32,18 @@ impl RefactorDriver for PyreflyDriver {
     }
 
     async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
-        let bin = ".venv/bin/pyrefly";
+        let bin = &self.bin_path;
         
-        // Ensure init
-        if !std::path::Path::new("pyrefly.toml").exists() {
+        // Ensure init - check if pyrefly.toml exists in the PROJECT ROOT (Refac_Mcp root)
+        // We resolve it relative to binary location
+        let config_path = super::resolve_resource_path("pyrefly.toml")
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "pyrefly.toml".to_string());
+
+        if !std::path::Path::new(&config_path).exists() {
+             // We can't easily run "init" effectively if we aren't in the right dir, 
+             // but assuming we are using the bundled pyrefly, it might expect to be initialized.
+             // For now, let's try to run init if missing, using the resolved binary.
              let _ = tokio::process::Command::new(bin).arg("init").output().await;
         }
 

@@ -19,11 +19,12 @@ impl RefactorDriver for TypeScriptDriver {
     }
 
     async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+        let script_path = super::resolve_resource_path("scripts/ts_refactor.js")?;
         let payload = serde_json::to_string(&file_map)?;
         
         // Call the script once with "batch" command
         let output = tokio::process::Command::new("node")
-            .arg("scripts/ts_refactor.js")
+            .arg(script_path)
             .arg("batch")
             .arg(&payload)
             .output()

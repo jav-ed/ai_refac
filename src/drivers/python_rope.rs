@@ -29,10 +29,11 @@ impl RefactorDriver for RopeDriver {
 
 
     async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+        let script_path = super::resolve_resource_path("scripts/python_refactor.py")?;
         let payload = serde_json::to_string(&file_map)?;
 
         let output = tokio::process::Command::new("python3")
-            .arg("scripts/python_refactor.py")
+            .arg(script_path)
             .arg("batch")
             .arg(&payload)
             .output()
