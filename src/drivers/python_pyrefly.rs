@@ -38,6 +38,11 @@ impl RefactorDriver for PyreflyDriver {
         
         // Perform file moves
         for (source, target) in file_map {
+            if let Some(parent) = std::path::Path::new(&target).parent() {
+                if !parent.exists() {
+                     tokio::fs::create_dir_all(parent).await?;
+                }
+            }
             tokio::fs::rename(source, target).await?;
         }
 

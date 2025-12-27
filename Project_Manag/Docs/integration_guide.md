@@ -62,7 +62,7 @@ Add the following entry to the `mcpServers` object:
 {
   "mcpServers": {
     "refactor_server": {
-      "command": "/your/absolute/path/to/projects/refac_mcp/target/release/refac_mcp",
+      "command": "/home/jav/Schreibtisch/Javed/0_Right_Sirat/1_Code/07_Coding_Env/0_MCPs/0_Code/03_Refac_Mcp/target/release/refac_mcp",
       "args": [],
       "env": {
         "PATH": "/usr/local/bin:/usr/bin:/bin" 

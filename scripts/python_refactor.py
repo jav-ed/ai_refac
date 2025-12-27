@@ -78,6 +78,12 @@ def perform_move(project, source_rel, target_rel):
     src_name = os.path.basename(source_rel)
     tgt_name = os.path.basename(target_rel)
 
+    # Ensure target directory exists for MOVE operations
+    if src_dir != tgt_dir:
+         full_tgt_dir = os.path.join(project.address, tgt_dir)
+         if not os.path.exists(full_tgt_dir):
+             os.makedirs(full_tgt_dir, exist_ok=True)
+
     print(f"Processing: {source_rel} -> {target_rel}")
 
     if src_dir == tgt_dir and src_name != tgt_name:

@@ -71,6 +71,11 @@ async function performMove(sourcePath, targetPath, projectRoot) {
         process.exit(1);
     }
 
+    const targetDir = path.dirname(absTarget);
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+    }
+
     const project = await getProject(projectRoot);
     const sourceFile = project.getSourceFile(absSource);
 
@@ -110,6 +115,11 @@ async function performBatchMove(fileMap, projectRoot) {
         if (!sourceFile) {
             console.warn(`Skipping missing source in batch: ${absSource}`);
             continue;
+        }
+
+        const targetDir = path.dirname(absTarget);
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
         }
 
         try {
