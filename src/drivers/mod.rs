@@ -90,7 +90,7 @@ mod tests {
         // explicitly checks the executable's relative paths.
         // pass.
         
-        let path = resolve_resource_path("scripts/ts_refactor.js")?;
+        let path = resolve_resource_path("scripts/ts_refactor.ts")?;
         assert!(path.exists(), "Should find script even if CWD was weird (logic analysis)");
         assert!(path.to_string_lossy().contains("scripts"), "Should point to scripts dir");
         

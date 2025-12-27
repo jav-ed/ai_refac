@@ -11,19 +11,19 @@ impl RefactorDriver for TypeScriptDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        // Check if node is available
-        match tokio::process::Command::new("node").arg("--version").output().await {
+        // Check if bun is available
+        match tokio::process::Command::new("bun").arg("--version").output().await {
             std::result::Result::Ok(output) => Ok(output.status.success()),
             Err(_) => Ok(false),
         }
     }
 
     async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
-        let script_path = super::resolve_resource_path("scripts/ts_refactor.js")?;
+        let script_path = super::resolve_resource_path("scripts/ts_refactor.ts")?;
         let payload = serde_json::to_string(&file_map)?;
         
-        // Call the script once with "batch" command
-        let mut cmd = tokio::process::Command::new("node");
+        // Call the script using "bun"
+        let mut cmd = tokio::process::Command::new("bun");
         cmd.arg(script_path)
            .arg("batch")
            .arg(&payload);

@@ -13,7 +13,7 @@ The system uses a dispatcher pattern (`RefactorServer` -> `Validation` -> `Logic
 - **Python**: Composite driver.
   - **Primary**: `PyreflyDriver` (Rust-based). Integrated via a generic `LspClient` interacting with the `pyrefly` LSP binary.
   - **Fallback**: `RopeDriver` (Python-based). Interacts with a `python_refactor.py` script using the `rope` library.
-- **TypeScript**: `TypeScriptDriver`. Interacts with `scripts/ts_refactor.js` using `ts-morph` for robust AST manipulations.
+- **TypeScript**: `TypeScriptDriver`. Interacts with `scripts/ts_refactor.ts` using `bun` (replacing Node.js) and `ts-morph` for robust AST manipulations and directory moves.
 - **Rust**: `RustDriver`. Integrated via the shared `LspClient` interacting with `rust-analyzer`.
 - **Go**: `GoDriver`. Integrated via the shared `LspClient` interacting with `gopls`.
 - **Dart**: `DartDriver`. Integrated via the shared `LspClient` interacting with `dart language-server`.
