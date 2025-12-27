@@ -31,11 +31,13 @@ impl RefactorDriver for PyreflyDriver {
         self.client.check_availability().await
     }
 
-    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
         let bin = &self.bin_path;
         
         // Ensure init - check if pyrefly.toml exists in the PROJECT ROOT (Refac_Mcp root)
         // We resolve it relative to binary location
+        // NOTE: If root_path is provided (user project), pyrefly might expect initialization there?
+        // But we are using the bundled pyrefly. For now keep as is.
         let config_path = super::resolve_resource_path("pyrefly.toml")
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "pyrefly.toml".to_string());
@@ -48,7 +50,7 @@ impl RefactorDriver for PyreflyDriver {
         }
 
         // Use generic client with batch support
-        self.client.initialize_and_rename_files(&["lsp"], file_map.clone()).await?;
+        self.client.initialize_and_rename_files(&["lsp"], file_map.clone(), root_path).await?;
         
         // Perform file moves
         for (source, target) in file_map {

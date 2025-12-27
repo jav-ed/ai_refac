@@ -11,6 +11,8 @@ pub struct RefactorRequest {
     pub target_path: Option<Vec<String>>,
     #[schemars(description = "Type of operation (currently only 'move' is supported)")]
     pub operation: String,
+    #[schemars(description = "Absolute path to the project root. Required if source/target paths are relative.")]
+    pub project_path: Option<String>,
 }
 
 /// Central entry point for handling refactor requests.
@@ -60,7 +62,8 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             bail!("Driver for '{}' is not available.", lang);
         }
 
-        match driver.move_files(files.clone()).await {
+        let root = req.project_path.as_ref().map(std::path::Path::new);
+        match driver.move_files(files.clone(), root).await {
             Ok(_) => results.push(format!("Moved {} {} files.", files.len(), lang)),
             Err(e) => results.push(format!("Failed to move {} files: {}", lang, e)),
         }

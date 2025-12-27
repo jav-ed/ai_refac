@@ -45,10 +45,10 @@ impl RefactorDriver for GoDriver {
         self.client.check_availability().await
     }
 
-    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
         // gopls supports standard textDocument/rename and executeCommand
         
-        self.client.initialize_and_rename_files(&[], file_map.clone()).await?;
+        self.client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
         
         for (source, target) in file_map {
             if let Some(parent) = std::path::Path::new(&target).parent() {

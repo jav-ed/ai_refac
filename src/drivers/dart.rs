@@ -28,9 +28,9 @@ impl RefactorDriver for DartDriver {
         }
     }
 
-    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
         // The command to start LSP is `dart language-server`
-        self.client.initialize_and_rename_files(&["language-server"], file_map.clone()).await?;
+        self.client.initialize_and_rename_files(&["language-server"], file_map.clone(), root_path).await?;
         
         // Perform file moves
         for (source, target) in file_map {

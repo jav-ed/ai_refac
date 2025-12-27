@@ -18,8 +18,9 @@ pub trait RefactorDriver: Send + Sync {
     /// Executes a batch move/rename operation.
     /// 
     /// # Arguments
-    /// * `file_map` - A list of (source, target) relative paths.
-    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()>;
+    /// * `file_map` - A list of (source, target) paths.
+    /// * `root_path` - Optional project root path for resolving relative paths.
+    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()>;
 }
 
 // Submodules for specific drivers (to be implemented)

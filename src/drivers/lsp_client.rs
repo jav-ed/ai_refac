@@ -29,6 +29,7 @@ impl LspClient {
         &self,
         args: &[&str],
         file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
     ) -> Result<()> {
         // 1. Start LSP Process
         let mut child = Command::new(&self.binary_path)
@@ -43,7 +44,12 @@ impl LspClient {
         let mut reader = BufReader::new(stdout);
 
         // 2. Initialize
-        let root_dir = std::env::current_dir()?;
+        let root_dir = if let Some(r) = root_path {
+            r.to_path_buf()
+        } else {
+            std::env::current_dir()?
+        };
+        
         let root_uri = Url::from_directory_path(&root_dir).map_err(|_| anyhow::anyhow!("Invalid root path"))?;
 
         let init_params = InitializeParams {

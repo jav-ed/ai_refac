@@ -28,16 +28,20 @@ impl RefactorDriver for RopeDriver {
     }
 
 
-    async fn move_files(&self, file_map: Vec<(String, String)>) -> Result<()> {
+    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
         let script_path = super::resolve_resource_path("scripts/python_refactor.py")?;
         let payload = serde_json::to_string(&file_map)?;
 
-        let output = tokio::process::Command::new("python3")
-            .arg(script_path)
-            .arg("batch")
-            .arg(&payload)
-            .output()
-            .await?;
+        let mut cmd = tokio::process::Command::new("python3");
+        cmd.arg(script_path)
+           .arg("batch")
+           .arg(&payload);
+
+        if let Some(r) = root_path {
+            cmd.arg("--root").arg(r.to_string_lossy().to_string());
+        }
+
+        let output = cmd.output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
