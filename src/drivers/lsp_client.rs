@@ -68,7 +68,7 @@ impl LspClient {
         Self::send_request(&mut stdin, "initialize", 1, init_params).await?;
         let _init_resp = Self::read_response(&mut reader).await?;
 
-        Self::send_request(&mut stdin, "initialized", 2, serde_json::json!({})).await?;
+        Self::send_notification(&mut stdin, "initialized", serde_json::json!({})).await?;
 
         // 3. Send workspace/willRenameFiles
         let mut file_renames = Vec::new();
@@ -120,6 +120,24 @@ impl LspClient {
             "params": params_json,
         });
         let body = serde_json::to_string(&request)?;
+        let message = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
+        stdin.write_all(message.as_bytes()).await?;
+        stdin.flush().await?;
+        Ok(())
+    }
+
+    async fn send_notification<T: serde::Serialize>(
+        stdin: &mut tokio::process::ChildStdin,
+        method: &str,
+        params: T,
+    ) -> Result<()> {
+        let params_json = serde_json::to_value(params)?;
+        let notification = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params_json,
+        });
+        let body = serde_json::to_string(&notification)?;
         let message = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
         stdin.write_all(message.as_bytes()).await?;
         stdin.flush().await?;

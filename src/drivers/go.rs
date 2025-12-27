@@ -50,11 +50,18 @@ impl RefactorDriver for GoDriver {
         
         self.client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
         
+        // Perform file moves
         for (source, target) in file_map {
-            if let Some(parent) = std::path::Path::new(&target).parent() {
+            let (source_abs, target_abs) = if let Some(root) = root_path {
+                (root.join(&source), root.join(&target))
+            } else {
+                (std::path::PathBuf::from(&source), std::path::PathBuf::from(&target))
+            };
+
+            if let Some(parent) = target_abs.parent() {
                 tokio::fs::create_dir_all(parent).await?;
             }
-            tokio::fs::rename(source, target).await?;
+            tokio::fs::rename(source_abs, target_abs).await?;
         }
 
         Ok(())

@@ -3,6 +3,7 @@ mod typescript;
 mod python;
 mod rust;
 mod go;
+mod dart;
 
 use std::fs;
 
@@ -27,6 +28,7 @@ fn main() -> std::io::Result<()> {
     python::generate(&refac_tree_dir)?;
     rust::generate(&refac_tree_dir)?;
     go::generate(&refac_tree_dir)?;
+    dart::generate(&refac_tree_dir)?;
 
     println!("\n✅ Complex Testbed successfully created at:");
     println!("{}", refac_tree_dir.display());

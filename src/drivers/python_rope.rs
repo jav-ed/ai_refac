@@ -32,7 +32,13 @@ impl RefactorDriver for RopeDriver {
         let script_path = super::resolve_resource_path("scripts/python_refactor.py")?;
         let payload = serde_json::to_string(&file_map)?;
 
-        let mut cmd = tokio::process::Command::new("python3");
+        // Determine python binary
+        let mut python_bin = "python3".to_string();
+        if std::path::Path::new(".venv/bin/python").exists() {
+            python_bin = ".venv/bin/python".to_string();
+        }
+
+        let mut cmd = tokio::process::Command::new(&python_bin);
         cmd.arg(script_path)
            .arg("batch")
            .arg(&payload);

@@ -98,15 +98,30 @@ def perform_move(project, source_rel, target_rel):
         project.do(changes)
         
     elif src_dir != tgt_dir:
-         # MOVE
-         if src_name != tgt_name:
-             print(f"Warning: Cross-directory rename for {source_rel} is not fully supported by this script script logic yet. Skipping.")
-             return
-        
+         # MOVE operation
          tgt_folder = project.get_resource(tgt_dir)
          mover = create_move(project, resource)
          changes = mover.get_changes(tgt_folder)
          project.do(changes)
+         
+         # Check if we also need to RENAME (e.g. A.py -> B.py in new folder)
+         if src_name != tgt_name:
+             # Look for the moved file in the target directory
+             new_loc_rel = os.path.join(tgt_dir, src_name)
+             try:
+                 moved_resource = project.get_resource(new_loc_rel)
+                 renamer = Rename(project, moved_resource)
+                 
+                 # Derive new module/name (strip extension)
+                 if tgt_name.endswith('.py'):
+                     new_stem = tgt_name[:-3]
+                 else:
+                     new_stem = tgt_name
+                     
+                 changes = renamer.get_changes(new_stem)
+                 project.do(changes)
+             except Exception as e:
+                 print(f"Error renaming after move: {e}")
 
     else:
         print(f"No op for {source_rel}")

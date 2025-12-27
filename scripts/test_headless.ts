@@ -8,10 +8,10 @@ const SERVER_DIR = process.cwd();
 const SERVER_CMD = "cargo";
 const SERVER_ARGS = ["run", "--bin", "refac_mcp", "--quiet"];
 
-// Point to the REAL generated testbed
-const TRIALS_ROOT = join(SERVER_DIR, "Trials", "0_Refac_Tree", "typescript");
-const TEST_SRC = "src/models/TaskManager.ts";
-const TEST_DST = "src/core/TaskManager.ts";
+// Dart Test Configuration
+const TRIALS_ROOT = join(SERVER_DIR, "Trials", "0_Refac_Tree", "dart");
+const TEST_SRC = "lib/models/app_model.dart";
+const TEST_DST = "lib/core/app_state.dart";
 
 const SRC_ABS = join(TRIALS_ROOT, TEST_SRC);
 const DST_ABS = join(TRIALS_ROOT, TEST_DST);
