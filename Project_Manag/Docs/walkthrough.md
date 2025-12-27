@@ -52,3 +52,16 @@ Ran `cargo test` which covers:
 ## 4. Usage
 
 The server expose an implementation prompt that uses these drivers. The core interface `handle_refactor` now accepts a list of sources and targets, automatically efficiently routing them.
+
+## 5. Recent Enhancements (User Feedback Integration)
+
+### 5.1 Project Context & Path Resolution
+
+- **Issue**: Relative paths were resolving incorrectly (relative to server binary instead of user project) or failing entirely.
+- **Fix**: Added optional `project_path` parameter to the API. Updated all drivers to pass this path to underlying tools. `ts-morph` and other scripts now resolve all paths physically against this root.
+- **Regression Testing**: Added `test_resolve_resource_path_from_foreign_dir` to ensure the server finds its own scripts matching the binary location, regardless of CWD.
+
+### 5.2 TypeScript Directory Support
+
+- **Insight**: Analysis of previous `typescript_refactor_bridge.ts` revealed native support for directory moves (moving a folder and automatically updating imports in all children).
+- **Implementation**: Updated `scripts/ts_refactor.js` to detect if a source is a directory. If so, it uses `project.getDirectory(src).move(target)` instead of file-only logic. This allows moving entire components (`src/auth`) with one operation.

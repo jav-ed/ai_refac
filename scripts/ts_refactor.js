@@ -111,9 +111,12 @@ async function performBatchMove(fileMap, projectRoot) {
         const absSource = path.resolve(projectRoot, sourcePath);
         const absTarget = path.resolve(projectRoot, targetPath);
 
-        const sourceFile = project.getSourceFile(absSource);
-        if (!sourceFile) {
-            console.warn(`Skipping missing source in batch: ${absSource}`);
+        let isDir = false;
+        try {
+            const stats = fs.statSync(absSource);
+            isDir = stats.isDirectory();
+        } catch (e) {
+            console.warn(`Source path not found on disk: ${absSource}`);
             continue;
         }
 
@@ -123,8 +126,34 @@ async function performBatchMove(fileMap, projectRoot) {
         }
 
         try {
-            sourceFile.move(absTarget);
-            successCount++;
+            if (isDir) {
+                // Handle Directory Move
+                const directory = project.getDirectory(absSource);
+                if (directory) {
+                    directory.move(absTarget);
+                    successCount++;
+                } else {
+                    console.warn(`Directory found on disk but not in project: ${absSource}. Trying to add it.`);
+                    // Try to add directory if not in project
+                    const addedDir = project.addDirectoryAtPath(absSource);
+                    addedDir.move(absTarget);
+                    successCount++;
+                }
+            } else {
+                // Handle File Move
+                const sourceFile = project.getSourceFile(absSource);
+                if (!sourceFile) {
+                    console.warn(`Skipping missing source file in project: ${absSource}`);
+                    // Try adding it if it exists on disk but wasn't loaded?
+                    if (fs.existsSync(absSource)) {
+                        project.addSourceFileAtPath(absSource).move(absTarget);
+                        successCount++;
+                    }
+                    continue;
+                }
+                sourceFile.move(absTarget);
+                successCount++;
+            }
         } catch (e) {
             console.error(`Failed to move ${absSource} -> ${absTarget}: ${e.message}`);
         }
