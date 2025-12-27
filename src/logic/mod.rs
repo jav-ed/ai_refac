@@ -32,6 +32,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     
     // Map: Language -> Vec<(Source, Target)>
     let mut batch_map: std::collections::HashMap<String, Vec<(String, String)>> = std::collections::HashMap::new();
+    let mut skipped_files = Vec::new();
 
     for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
         let path = std::path::Path::new(src);
@@ -45,6 +46,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             "dart" => "dart".to_string(),
             _ => {
                 tracing::warn!("Skipping file with unsupported extension: {}", src);
+                skipped_files.push(src.clone());
                 continue;
             }
         };
@@ -110,6 +112,19 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             };
 
             response.push_str(&format!("{} -> {}  \n", src_disp, tgt_disp));
+        }
+    }
+
+    if !skipped_files.is_empty() {
+        response.push_str("\n// Following files were not refactored (unsupported extension):  \n\n");
+        for file in skipped_files {
+             // Try to display relative path for skipped files too
+             let file_disp = if let Some(r) = req.project_path.as_ref().map(std::path::Path::new) {
+                std::path::Path::new(&file).strip_prefix(r).unwrap_or(std::path::Path::new(&file)).display().to_string()
+            } else {
+                file.clone()
+            };
+            response.push_str(&format!("{}  \n", file_disp));
         }
     }
 
