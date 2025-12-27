@@ -42,13 +42,18 @@ impl RefactorDriver for GoDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        self.client.check_availability().await
+        let binary = Self::find_gopls().unwrap_or_else(|| "gopls".to_string());
+        match tokio::process::Command::new(&binary).arg("version").output().await {
+            std::result::Result::Ok(output) => Ok(output.status.success()),
+            Err(_) => Ok(false),
+        }
     }
 
     async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
-        // gopls supports standard textDocument/rename and executeCommand
+        let binary = Self::find_gopls().unwrap_or_else(|| "gopls".to_string());
+        let client = LspClient::new(&binary);
         
-        self.client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
+        client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
         
         // Perform file moves
         for (source, target) in file_map {

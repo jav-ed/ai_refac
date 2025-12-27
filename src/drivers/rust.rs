@@ -22,18 +22,26 @@ impl RefactorDriver for RustDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        // rust-analyzer usually is in PATH
-        match tokio::process::Command::new("rust-analyzer").arg("--version").output().await {
-            std::result::Result::Ok(output) => Ok(output.status.success()),
-            Err(_) => Ok(false),
+        let ra_bin = self.get_rust_analyzer_command();
+        tracing::info!("Checking rust-analyzer availability at: {}", ra_bin);
+        match tokio::process::Command::new(&ra_bin).arg("--version").output().await {
+            std::result::Result::Ok(output) => {
+                let success = output.status.success();
+                tracing::info!("rust-analyzer --version success: {}", success);
+                Ok(success)
+            },
+            Err(e) => {
+                tracing::warn!("Failed to executed rust-analyzer --version: {:?}", e);
+                Ok(false)
+            },
         }
     }
 
     async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
-        // rust-analyzer doesn't use standard "init" command like pyrefly might
-        // It's a standard LSP.
+        let ra_bin = self.get_rust_analyzer_command();
+        let client = LspClient::new(&ra_bin);
         
-        self.client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
+        client.initialize_and_rename_files(&[], file_map.clone(), root_path).await?;
         
         // Perform file moves
         for (source, target) in file_map {
@@ -50,6 +58,31 @@ impl RefactorDriver for RustDriver {
         }
 
         Ok(())
+    }
+}
+
+impl RustDriver {
+    fn get_rust_analyzer_command(&self) -> String {
+        // 1. Check if in PATH
+        if which::which("rust-analyzer").is_ok() {
+            tracing::info!("Found rust-analyzer in PATH");
+            return "rust-analyzer".to_string();
+        }
+
+        // 2. Check standard cargo bin location
+        if let Some(home) = std::env::var_os("HOME") {
+            let home_path = std::path::Path::new(&home);
+            let cargo_bin = home_path.join(".cargo").join("bin").join("rust-analyzer");
+            tracing::info!("Checking cargo_bin: {:?} (exists: {})", cargo_bin, cargo_bin.exists());
+            if cargo_bin.exists() {
+                return cargo_bin.to_string_lossy().to_string();
+            }
+        } else {
+            tracing::warn!("HOME environment variable not set");
+        }
+
+        tracing::warn!("rust-analyzer not found in PATH or .cargo/bin");
+        "rust-analyzer".to_string()
     }
 }
 
