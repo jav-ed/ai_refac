@@ -2,17 +2,38 @@
 
 This guide explains how to configure various AI coding assistants to use the `refac_mcp` server.
 
-## Prerequisites
+## 1. Path Configuration Rules
 
-First, ensure you have built the release binary of the server:
+The most common error is pointing to the **project folder** instead of the **executable binary**.
 
-```bash
-cargo build --release
-# The binary will be located at:
-# <project_root>/target/release/refac_mcp
+The path is composed of two parts:
+
+1. **`<PROJECT_ROOT>`**: The absolute path to where you cloned/downloaded this repository.
+    * *Example*: `/home/username/code/refac_mcp`
+2. **`<BINARY_PATH>`**: The constant location of the compiled executable inside the project.
+    * *Value*: `/target/release/refac_mcp`
+
+**Final Command to Use:**
+
+```text
+<PROJECT_ROOT>/target/release/refac_mcp
 ```
 
-Get the absolute path to this binary. For the examples below, we will use `/absolute/path/to/refac_mcp`.
+### Example Construction
+
+If your project is at `/home/jav/code/mcp/refac_mcp`, your full command string is:
+`/home/jav/code/mcp/refac_mcp/target/release/refac_mcp`
+
+---
+
+## 2. Global Integration Steps
+
+First, ensure you have built the release binary:
+
+```bash
+cd <PROJECT_ROOT>
+cargo build --release
+```
 
 ---
 
@@ -25,15 +46,15 @@ Claude uses a JSON configuration file to manage MCP servers.
 If you are using the `claude` CLI tool:
 
 ```bash
-claude mcp add refactor_server --transport stdio -- /absolute/path/to/refac_mcp
+claude mcp add refactor_server --transport stdio -- <PROJECT_ROOT>/target/release/refac_mcp
 ```
 
 ### Manual Config Method (Claude Desktop)
 
 Edit your config file typically located at:
 
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+* **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+* **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 Add the following entry to the `mcpServers` object:
 
@@ -41,7 +62,7 @@ Add the following entry to the `mcpServers` object:
 {
   "mcpServers": {
     "refactor_server": {
-      "command": "/absolute/path/to/refac_mcp",
+      "command": "/your/absolute/path/to/projects/refac_mcp/target/release/refac_mcp",
       "args": [],
       "env": {
         "PATH": "/usr/local/bin:/usr/bin:/bin" 
@@ -68,7 +89,7 @@ To add this server to a Google Antigravity agent session:
 ```json
 {
   "refactor_server": {
-    "command": "/absolute/path/to/refac_mcp",
+    "command": "/your/absolute/path/to/projects/refac_mcp/target/release/refac_mcp",
     "transport": "stdio"
   }
 }
@@ -85,20 +106,20 @@ For the OpenAI Codex CLI or compatible extensions, configurations are typically 
 ### CLI Method
 
 ```bash
-codex mcp add refactor_server --command "/absolute/path/to/refac_mcp"
+codex mcp add refactor_server --command "<PROJECT_ROOT>/target/release/refac_mcp"
 ```
 
 ### Manual Config Method (`config.toml`)
 
 ```toml
 [mcp_servers.refactor_server]
-command = "/absolute/path/to/refac_mcp"
+command = "/your/absolute/path/to/refac_mcp/target/release/refac_mcp"
 args = []
 ```
 
 ---
 
-## 4. VS Code (via MCP Extension)
+## 6. VS Code (via MCP Extension)
 
 If you are using an MCP extension for VS Code:
 
@@ -109,11 +130,11 @@ If you are using an MCP extension for VS Code:
 {
   "mcpServers": {
     "refactor_server": {
-      "command": "/absolute/path/to/refac_mcp",
+      "command": "/your/absolute/path/to/refac_mcp/target/release/refac_mcp",
       "args": []
     }
   }
 }
 ```
 
-3. Restart VS Code or reload the window to apply changes.
+1. Restart VS Code or reload the window to apply changes.
