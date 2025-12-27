@@ -13,3 +13,6 @@ Repos/
 # System
 .DS_Store
 .venv
+
+# Testbed
+Trials/

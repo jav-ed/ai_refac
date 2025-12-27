@@ -52,9 +52,15 @@ impl LspClient {
         
         let root_uri = Url::from_directory_path(&root_dir).map_err(|_| anyhow::anyhow!("Invalid root path"))?;
 
+        #[allow(deprecated)]
         let init_params = InitializeParams {
             process_id: Some(std::process::id()),
-            root_uri: Some(Uri::from_str(root_uri.as_str()).map_err(|e| anyhow::anyhow!("Invalid URI: {}", e))?),
+            // root_uri is deprecated, use workspace_folders
+            root_uri: None, // Explicitly set to None to avoid warning if we were using it
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Uri::from_str(root_uri.as_str()).map_err(|e| anyhow::anyhow!("Invalid URI: {}", e))?,
+                name: "project".to_string(),
+            }]),
             capabilities: ClientCapabilities::default(), // Minimal capabilities
             ..Default::default()
         };

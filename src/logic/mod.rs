@@ -25,7 +25,7 @@ pub struct RefactorRequest {
 pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     
     // 1. Validation
-    initial_sanity_check(&req.source_path, &req.operation, req.target_path.as_ref())?;
+    initial_sanity_check(&req.source_path, &req.operation, req.target_path.as_ref(), req.project_path.as_deref())?;
 
     // 2. Group files by language
     let targets = req.target_path.as_ref().ok_or_else(|| anyhow::anyhow!("Target path required for move"))?;
@@ -64,7 +64,26 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
 
         let root = req.project_path.as_ref().map(std::path::Path::new);
         match driver.move_files(files.clone(), root).await {
-            Ok(_) => results.push(format!("Moved {} {} files.", files.len(), lang)),
+            Ok(_) => {
+                let mut msg = String::from("alhamdulillah, file refactoring was successful. the following files were renamed:\n");
+                for (src, tgt) in &files {
+                    // Try to display relative paths if possible
+                    let src_disp = if let Some(r) = root {
+                        std::path::Path::new(src).strip_prefix(r).unwrap_or(std::path::Path::new(src)).display()
+                    } else {
+                        std::path::Path::new(src).display()
+                    };
+                    
+                    let tgt_disp = if let Some(r) = root {
+                        std::path::Path::new(tgt).strip_prefix(r).unwrap_or(std::path::Path::new(tgt)).display()
+                    } else {
+                        std::path::Path::new(tgt).display()
+                    };
+
+                    msg.push_str(&format!("{} -> {}\n", src_disp, tgt_disp));
+                }
+                results.push(msg);
+            },
             Err(e) => results.push(format!("Failed to move {} files: {}", lang, e)),
         }
     }
