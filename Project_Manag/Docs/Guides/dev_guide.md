@@ -63,6 +63,7 @@ cargo run -- move \
 Useful CLI notes:
 
 - `--project-path` should point at the concrete package root.
+- If you reuse the same root often, set `REFAC_PROJECT_PATH=/absolute/path/to/project` and omit `--project-path`.
 - `--source-path` and `--target-path` are relative to `--project-path`.
 - Repeat `--source-path` and `--target-path` to run a batch move.
 - Add `--json` for machine-readable output.

@@ -31,7 +31,7 @@ enum Commands {
 
 #[derive(Debug, Args)]
 struct MoveArgs {
-    /// Absolute path to the concrete package root.
+    /// Absolute path to the concrete package root. Can also be set via REFAC_PROJECT_PATH.
     #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     project_path: Option<std::path::PathBuf>,
 

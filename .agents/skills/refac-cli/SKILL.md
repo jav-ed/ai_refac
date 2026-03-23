@@ -7,4 +7,22 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 
 `refac` moves or renames files while updating affected references, and it currently supports TypeScript/JavaScript, Python, Rust, Go, and Dart.
 
-Use `refac move --project-path <project-root> --source-path <old-path> --target-path <new-path>` to move a file, with `--source-path` and `--target-path` resolved relative to `--project-path`.
+Use it like this when you want to set the project root once via `REFAC_PROJECT_PATH`:
+
+```bash
+export REFAC_PROJECT_PATH=/absolute/path/to/project
+refac move \
+  --source-path src/old_file.ts \
+  --target-path src/new_file.ts
+```
+
+Use it like this when you want to pass the project root explicitly on the command:
+
+```bash
+refac move \
+  --project-path /absolute/path/to/project \
+  --source-path src/old_file.ts \
+  --target-path src/new_file.ts
+```
+
+Repeat `--source-path` and `--target-path` in matching order for batch moves.
