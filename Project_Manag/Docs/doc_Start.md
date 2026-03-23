@@ -4,7 +4,7 @@ This repo is a CLI-first code refactoring tool. Its job is to move files and upd
 
 Use this file as the top-level handoff. Do not paste large doc contents into agent context by default. Read only the linked files that are relevant to the task at hand.
 
-Operational decision: after building `refac`, we want it available via `~/Progs/bin`. During active development, the preferred setup is a symlink from `~/Progs/bin/refac` to the built binary. That keeps the command stable while letting rebuilt binaries take effect without reinstall steps beyond rebuilding.
+Operational decision: after building `refac`, we want it available via `~/Progs/Bins`. During active development, the preferred setup is a symlink from `~/Progs/Bins/refac` to the built binary. That keeps the command stable while letting rebuilt binaries take effect without reinstall steps beyond rebuilding.
 
 ## Quick Reference — What to Read for What
 
