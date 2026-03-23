@@ -58,6 +58,13 @@ pub fn initial_sanity_check(
                 final_path
             );
         }
+
+        if final_path.is_dir() {
+            bail!(
+                "Directory moves are not supported: '{}'. Only individual files can be moved. Move files inside the directory one at a time.",
+                path_str
+            );
+        }
     }
 
     Ok(())
@@ -118,6 +125,38 @@ mod tests {
         let result = initial_sanity_check(&source, "move", Some(&target), None);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Mismatch check"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_directory_source_is_rejected() {
+        // A directory path must produce a clear error, not be silently skipped.
+        let dir = tempdir().unwrap();
+        let source = vec![dir.path().to_str().unwrap().to_string()];
+        let target = vec!["anywhere/foo".to_string()];
+
+        let result = initial_sanity_check(&source, "move", Some(&target), None);
+        assert!(result.is_err(), "directory source should be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Directory moves are not supported"),
+            "expected directory-specific error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_relative_path_resolved_against_project_path() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("sub").join("file.ts");
+        std::fs::create_dir_all(file_path.parent().unwrap())?;
+        File::create(&file_path)?;
+
+        // Pass relative path + project_path — should resolve and find the file
+        let source = vec!["sub/file.ts".to_string()];
+        let target = vec!["sub/renamed.ts".to_string()];
+        let project_root = dir.path().to_str().unwrap();
+
+        initial_sanity_check(&source, "move", Some(&target), Some(project_root))?;
         Ok(())
     }
 }

@@ -44,14 +44,37 @@ async function main() {
     }
 }
 
-async function getProject(projectRoot: string) {
+const LARGE_PROJECT_FILE_THRESHOLD = 500;
+
+async function getProject(projectRoot: string, filesToMove?: string[]) {
     const tsConfigPath = path.join(projectRoot, "tsconfig.json");
     let project: Project;
 
     if (fs.existsSync(tsConfigPath)) {
-        project = new Project({
-            tsConfigFilePath: tsConfigPath,
+        // Count files first to decide strategy — loading a 10k+ file project
+        // via tsconfig causes multi-minute freezes with no output.
+        const { globSync } = await import("glob");
+        const allFiles = globSync("**/*.{ts,tsx,js,jsx}", {
+            cwd: projectRoot,
+            ignore: ["**/node_modules/**", "**/dist/**", "**/build/**", "**/.next/**"],
+            absolute: true,
         });
+
+        if (allFiles.length > LARGE_PROJECT_FILE_THRESHOLD) {
+            process.stderr.write(
+                `[refac] Large project detected (${allFiles.length} files). Loading only moved files for performance. Cross-project reference updates will be skipped.\n`
+            );
+            project = new Project({ compilerOptions: { allowJs: true, skipLibCheck: true } });
+            const targets = filesToMove ?? [];
+            for (const f of targets) {
+                if (fs.existsSync(f)) {
+                    project.addSourceFileAtPath(f);
+                }
+            }
+        } else {
+            process.stderr.write(`[refac] Initializing TypeScript project (${allFiles.length} files)...\n`);
+            project = new Project({ tsConfigFilePath: tsConfigPath });
+        }
     } else {
         project = new Project({
             compilerOptions: {
@@ -79,7 +102,7 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
         fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const project = await getProject(projectRoot);
+    const project = await getProject(projectRoot, [absSource]);
 
     // Check if directory
     let isDir = false;
@@ -104,12 +127,17 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
         sourceFile.move(absTarget);
     }
 
+    process.stderr.write("[refac] Saving changes...\n");
     await project.save();
     console.log("Move successful");
 }
 
 async function performBatchMove(fileMap: any[], projectRoot: string) {
-    const project = await getProject(projectRoot);
+    const sourcePaths: string[] = fileMap.map((item: any) => {
+        const raw = Array.isArray(item) ? item[0] : item.source;
+        return path.resolve(projectRoot, raw);
+    });
+    const project = await getProject(projectRoot, sourcePaths);
     let successCount = 0;
 
     for (const item of fileMap) {
@@ -180,6 +208,7 @@ async function performBatchMove(fileMap: any[], projectRoot: string) {
         }
     }
 
+    process.stderr.write("[refac] Saving changes...\n");
     await project.save();
     console.log(`Batch move completed. Moved ${successCount} items.`);
 }

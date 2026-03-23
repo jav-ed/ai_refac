@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
@@ -65,6 +66,60 @@ fn move_help_exposes_core_flags() {
     assert!(
         stdout.contains("--target-path"),
         "missing target path flag: {stdout}"
+    );
+}
+
+/// Passing a directory as --source-path must fail with a clear, specific error.
+/// Previously it silently skipped with a misleading "unsupported extension" message.
+#[test]
+fn directory_source_fails_with_clear_error() {
+    let tmp = std::env::temp_dir();
+    let output = run_cli(&[
+        "move",
+        "--project-path",
+        tmp.to_str().unwrap(),
+        "--source-path",
+        tmp.to_str().unwrap(),
+        "--target-path",
+        "/tmp/refac_test_dir_target",
+    ]);
+
+    assert!(
+        !output.status.success(),
+        "directory source should exit non-zero"
+    );
+
+    let combined = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined.contains("Directory moves are not supported"),
+        "expected directory-specific error, got: {combined}"
+    );
+}
+
+/// Passing an unsupported file extension should report it in the output, not silently vanish.
+#[test]
+fn unsupported_extension_is_reported_not_silently_dropped() {
+    let tmp = std::env::temp_dir();
+    let src = tmp.join("refac_test_unsupported.xyz");
+    fs::write(&src, "").unwrap();
+
+    let output = run_cli(&[
+        "move",
+        "--project-path",
+        tmp.to_str().unwrap(),
+        "--source-path",
+        src.to_str().unwrap(),
+        "--target-path",
+        "/tmp/refac_test_unsupported_target.xyz",
+    ]);
+
+    let _ = fs::remove_file(&src);
+
+    // Unsupported extension: should complete (exit 0) but mention the skip in output
+    let combined = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined.contains("not refactored") || combined.contains("unsupported"),
+        "expected skip notice for unsupported extension, got: {combined}"
     );
 }
 

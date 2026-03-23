@@ -5,24 +5,52 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 
 # Use Refac CLI
 
-`refac` moves or renames files while updating affected references, and it currently supports TypeScript/JavaScript, Python, Rust, Go, and Dart.
+`refac` moves or renames source **files** and updates affected import/reference paths. Supported languages: TypeScript, JavaScript, Python, Rust, Go, Dart.
 
-Use it like this when you want to set the project root once via `REFAC_PROJECT_PATH`:
+## Hard constraints — read before running
+
+- **Only files are supported. Directories are not.** Passing a folder as `--source-path` will error immediately.
+- **One language per call is fine; mixed languages in one call is also fine** — the tool groups them internally.
+- `--project-path` must point to the **package root** (the folder that contains `tsconfig.json`, `Cargo.toml`, `pyproject.toml`, etc.), not the monorepo root.
+- Paths passed to `--source-path` and `--target-path` may be absolute or relative to `--project-path`.
+- Source and target counts must match 1:1. If you have 3 `--source-path` flags you need exactly 3 `--target-path` flags.
+
+## Large TypeScript/JS projects
+
+For projects with more than ~500 TS/JS files, `refac` automatically skips loading the full project and only moves the specific files. This means **cross-project import updates are skipped** for large projects — only the moved file itself is written to the new path. Plan accordingly: if reference updates matter, move files one at a time and verify manually, or work in smaller packages.
+
+## Usage
+
+Pass the project root once via env var:
 
 ```bash
-export REFAC_PROJECT_PATH=/absolute/path/to/project
+export REFAC_PROJECT_PATH=/absolute/path/to/package
 refac move \
-  --source-path src/old_file.ts \
-  --target-path src/new_file.ts
+  --source-path src/old_name.ts \
+  --target-path src/new_name.ts
 ```
 
-Use it like this when you want to pass the project root explicitly on the command:
+Or pass it inline:
 
 ```bash
 refac move \
-  --project-path /absolute/path/to/project \
-  --source-path src/old_file.ts \
-  --target-path src/new_file.ts
+  --project-path /absolute/path/to/package \
+  --source-path src/old_name.ts \
+  --target-path src/new_name.ts
 ```
 
-Repeat `--source-path` and `--target-path` in matching order for batch moves.
+Batch move (repeat flags in matching order):
+
+```bash
+refac move \
+  --project-path /absolute/path/to/package \
+  --source-path src/a.ts --source-path src/b.ts \
+  --target-path src/x.ts --target-path src/y.ts
+```
+
+## Help
+
+```bash
+refac --help
+refac move --help
+```

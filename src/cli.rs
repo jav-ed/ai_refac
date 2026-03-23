@@ -11,7 +11,23 @@ use serde::Serialize;
 #[derive(Debug, Parser)]
 #[command(
     name = "refac",
-    about = "Direct CLI for file move/rename refactors with reference updates",
+    about = "Move or rename source files and update all references across the project.",
+    long_about = "\
+Move or rename source files and update all references across the project.
+
+Supported languages: TypeScript, JavaScript, Python, Rust, Go, Dart.
+Only individual FILES are supported — directory moves are not.
+Paths may be absolute or relative to --project-path.
+
+EXAMPLES:
+  # Move a single file
+  refac move --project-path /my/project \\
+    --source-path src/old/name.ts --target-path src/new/name.ts
+
+  # Move multiple files in one call (1:1 mapping)
+  refac move --project-path /my/project \\
+    --source-path src/a.ts --source-path src/b.ts \\
+    --target-path src/x.ts --target-path src/y.ts",
     version
 )]
 pub struct Cli {
@@ -21,7 +37,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Move or rename files and update references where supported.
+    /// Move or rename files and update imports/references. Only files are supported, not directories.
     Move(MoveArgs),
     /// Generate shell completions to stdout.
     Completions(CompletionsArgs),
@@ -31,15 +47,15 @@ enum Commands {
 
 #[derive(Debug, Args)]
 struct MoveArgs {
-    /// Absolute path to the concrete package root. Can also be set via REFAC_PROJECT_PATH.
+    /// Absolute path to the package root (the folder containing tsconfig.json / pyproject.toml / Cargo.toml etc.). Also settable via REFAC_PROJECT_PATH env var.
     #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     project_path: Option<std::path::PathBuf>,
 
-    /// Source path relative to project_path. Repeat once per file.
+    /// Source file path (relative to project_path or absolute). Repeat for multiple files.
     #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
     source_path: Vec<String>,
 
-    /// Target path relative to project_path. Repeat once per file.
+    /// Target file path (relative to project_path or absolute). Must match source count 1:1. Repeat for multiple files.
     #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
     target_path: Vec<String>,
 

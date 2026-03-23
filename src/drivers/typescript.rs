@@ -86,7 +86,17 @@ impl RefactorDriver for TypeScriptDriver {
             cmd.arg(r.to_string_lossy().to_string());
         }
 
-        let output = cmd.output().await?;
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(300),
+            cmd.output(),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!(
+            "TypeScript refactor timed out after 5 minutes. \
+             The project may be too large or bun/ts-morph hung. \
+             Try passing --project-path to the package root (the folder with tsconfig.json), \
+             not the monorepo root."
+        ))??;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -109,6 +119,53 @@ mod tests {
     async fn test_ts_availability() -> Result<()> {
         let driver = TypeScriptDriver;
         assert!(driver.check_availability().await?);
+        Ok(())
+    }
+
+    /// Verifies that moving a TS file also rewrites import paths in files that imported it.
+    /// This is the core value prop — previously there was no test for this.
+    #[tokio::test]
+    async fn test_ts_move_updates_imports() -> Result<()> {
+        let driver = TypeScriptDriver;
+        if !driver.check_availability().await? {
+            return Ok(());
+        }
+
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path();
+
+        // lib.ts — the file that will be moved
+        tokio::fs::write(root.join("lib.ts"), "export const greeting = \"hello\";").await?;
+
+        // consumer.ts — imports from lib.ts, its import path must be updated after the move
+        tokio::fs::write(
+            root.join("consumer.ts"),
+            "import { greeting } from \"./lib\";\nconsole.log(greeting);\n",
+        )
+        .await?;
+
+        // Move lib.ts → utils/lib.ts
+        tokio::fs::create_dir(root.join("utils")).await?;
+        let result = driver
+            .move_files(
+                vec![(
+                    root.join("lib.ts").to_string_lossy().into_owned(),
+                    root.join("utils/lib.ts").to_string_lossy().into_owned(),
+                )],
+                Some(root),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Move failed: {:?}", result.err());
+        assert!(!root.join("lib.ts").exists(), "source should be gone");
+        assert!(root.join("utils/lib.ts").exists(), "target should exist");
+
+        let consumer = tokio::fs::read_to_string(root.join("consumer.ts")).await?;
+        assert!(
+            consumer.contains("./utils/lib") || consumer.contains("utils/lib"),
+            "import path was not updated in consumer.ts — got:\n{consumer}"
+        );
+
         Ok(())
     }
 
