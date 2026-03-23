@@ -1,15 +1,15 @@
-# Goal: Rust Refactor MCP Server
+# Goal: CLI Refactor Tool
 
-The primary objective of this project is to build a Model Context Protocol (MCP) server using Rust that enables file refactoring capabilities.
+The primary objective of this project is to provide a Rust-based CLI that can move files and update affected references across multiple programming languages.
 
 ## Key Objectives
 
 1. **Rust Implementation**: Leverage Rust for high performance, safety, and reliability.
-2. **MCP Compliance**: Implement the Model Context Protocol to serve tools to MCP clients.
-3. **Refactoring Tools**: Provide specific tools to analyze and refactor code files.
+2. **CLI-First UX**: Expose the functionality through a direct command-line interface.
+3. **Refactoring Tools**: Provide language-aware move and rename operations that preserve project consistency.
 
 ## Initial Scope
 
 - Setup Rust project structure.
-- Implement basic MCP communication (Stdio).
-- Create a foundational `refactor` tool.
+- Build a direct `refac` CLI surface.
+- Implement per-language backends for semantic file moves.

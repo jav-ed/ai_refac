@@ -1,5 +1,5 @@
-use std::path::Path;
 use super::utils::create_file;
+use std::path::Path;
 
 pub fn generate(root: &Path) -> std::io::Result<()> {
     let base = root.join("python");
@@ -12,17 +12,24 @@ pub fn generate(root: &Path) -> std::io::Result<()> {
     create_file(&base, "lib/db/__init__.py", "")?;
 
     // 1. Config (File 1)
-    create_file(&base, "config.py", r#"
+    create_file(
+        &base,
+        "config.py",
+        r#"
 DB_HOST = "localhost"
 DB_PORT = 5432
 MAX_RETRIES = 3
 TIMEOUT_SECONDS = 30.0
 ENABLE_LOGGING = True
 API_KEY = "secret_key_123"
-"#)?;
+"#,
+    )?;
 
     // 2. Utils (File 2)
-    create_file(&base, "lib/utils.py", r#"
+    create_file(
+        &base,
+        "lib/utils.py",
+        r#"
 import time
 
 def generate_id(prefix: str) -> str:
@@ -31,10 +38,14 @@ def generate_id(prefix: str) -> str:
 
 def validate_price(price: float) -> bool:
     return price >= 0.0
-"#)?;
+"#,
+    )?;
 
     // 3. Models (File 3, 4)
-    create_file(&base, "lib/models/product.py", r#"
+    create_file(
+        &base,
+        "lib/models/product.py",
+        r#"
 from dataclasses import dataclass
 
 @dataclass
@@ -45,9 +56,13 @@ class Product:
     price: float
     stock_quantity: int
     is_active: bool
-"#)?;
+"#,
+    )?;
 
-    create_file(&base, "lib/models/order.py", r#"
+    create_file(
+        &base,
+        "lib/models/order.py",
+        r#"
 from dataclasses import dataclass
 from typing import List
 from .product import Product
@@ -64,10 +79,14 @@ class Order:
     total_amount: float
     customer_email: str
     status: str
-"#)?;
+"#,
+    )?;
 
     // 4. DB Layer (File 5)
-    create_file(&base, "lib/db/database.py", r#"
+    create_file(
+        &base,
+        "lib/db/database.py",
+        r#"
 from config import DB_HOST, DB_PORT
 
 class DatabaseConnection:
@@ -82,10 +101,14 @@ class DatabaseConnection:
     
     def disconnect(self):
         self.connected = False
-"#)?;
+"#,
+    )?;
 
     // 5. Services (File 6)
-    create_file(&base, "lib/services/order_service.py", r#"
+    create_file(
+        &base,
+        "lib/services/order_service.py",
+        r#"
 from lib.models.order import Order, OrderItem
 from lib.models.product import Product
 from lib.db.database import DatabaseConnection
@@ -112,10 +135,14 @@ class OrderService:
             status="CREATED"
         )
         return order
-"#)?;
+"#,
+    )?;
 
     // 6. Main (File 7)
-    create_file(&base, "main.py", r#"
+    create_file(
+        &base,
+        "main.py",
+        r#"
 from lib.models.product import Product
 from lib.services.order_service import OrderService
 from lib.db.database import DatabaseConnection
@@ -145,7 +172,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-"#)?;
+"#,
+    )?;
 
     Ok(())
 }

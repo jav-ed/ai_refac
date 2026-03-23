@@ -1,7 +1,8 @@
 use super::RefactorDriver;
-use anyhow::{Result, Ok};
-use async_trait::async_trait;
+use super::complete_filesystem_moves;
 use super::lsp_client::LspClient;
+use anyhow::{Ok, Result};
+use async_trait::async_trait;
 
 pub struct PyreflyDriver {
     client: LspClient,
@@ -11,9 +12,9 @@ pub struct PyreflyDriver {
 impl PyreflyDriver {
     pub fn new() -> Self {
         let bin_path = super::resolve_resource_path(".venv/bin/pyrefly")
-             .map(|p| p.to_string_lossy().to_string())
-             .unwrap_or_else(|_| ".venv/bin/pyrefly".to_string());
-        
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| ".venv/bin/pyrefly".to_string());
+
         Self {
             client: LspClient::new(&bin_path),
             bin_path,
@@ -31,10 +32,14 @@ impl RefactorDriver for PyreflyDriver {
         self.client.check_availability().await
     }
 
-    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
+    async fn move_files(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<()> {
         let bin = &self.bin_path;
-        
-        // Ensure init - check if pyrefly.toml exists in the PROJECT ROOT (Refac_Mcp root)
+
+        // Ensure init - check if pyrefly.toml exists in the project root.
         // We resolve it relative to binary location
         // NOTE: If root_path is provided (user project), pyrefly might expect initialization there?
         // But we are using the bundled pyrefly. For now keep as is.
@@ -43,30 +48,24 @@ impl RefactorDriver for PyreflyDriver {
             .unwrap_or_else(|_| "pyrefly.toml".to_string());
 
         if !std::path::Path::new(&config_path).exists() {
-             // We can't easily run "init" effectively if we aren't in the right dir, 
-             // but assuming we are using the bundled pyrefly, it might expect to be initialized.
-             // For now, let's try to run init if missing, using the resolved binary.
-             let _ = tokio::process::Command::new(bin).arg("init").output().await;
+            // We can't easily run "init" effectively if we aren't in the right dir,
+            // but assuming we are using the bundled pyrefly, it might expect to be initialized.
+            // For now, let's try to run init if missing, using the resolved binary.
+            let _ = tokio::process::Command::new(bin).arg("init").output().await;
         }
 
         // Use generic client with batch support
-        self.client.initialize_and_rename_files(&["lsp"], file_map.clone(), root_path).await?;
-        
-        // Perform file moves
-        for (source, target) in file_map {
-            let (source_abs, target_abs) = if let Some(root) = root_path {
-                (root.join(&source), root.join(&target))
-            } else {
-                (std::path::PathBuf::from(&source), std::path::PathBuf::from(&target))
-            };
+        self.client
+            .initialize_and_rename_files(
+                &["lsp"],
+                file_map.clone(),
+                root_path,
+                Some("python"),
+                &["py"],
+            )
+            .await?;
 
-            if let Some(parent) = target_abs.parent() {
-                if !parent.exists() {
-                     tokio::fs::create_dir_all(parent).await?;
-                }
-            }
-            tokio::fs::rename(source_abs, target_abs).await?;
-        }
+        complete_filesystem_moves(&file_map, root_path).await?;
 
         Ok(())
     }

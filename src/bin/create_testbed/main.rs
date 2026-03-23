@@ -1,9 +1,9 @@
-mod utils;
-mod typescript;
+mod dart;
+mod go;
 mod python;
 mod rust;
-mod go;
-mod dart;
+mod typescript;
+mod utils;
 
 use std::fs;
 

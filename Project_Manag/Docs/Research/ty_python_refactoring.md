@@ -22,8 +22,8 @@ Replace Pyrefly with [ty](https://github.com/astral-sh/ty) (Astral's Python type
 
 Our `PythonDriver` continues to use:
 
-1. **PyreflyDriver** (primary) - LSP-based via `workspace/willRenameFiles`
-2. **RopeDriver** (fallback) - Python `rope` library via script
+1. **RopeDriver** (primary) - Python `rope` library via script
+2. **PyreflyDriver** (fallback) - LSP-based via `workspace/willRenameFiles`
 
 ## Future Action
 

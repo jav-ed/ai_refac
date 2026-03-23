@@ -1,5 +1,5 @@
 use super::RefactorDriver;
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
 pub struct RopeDriver;
@@ -13,10 +13,16 @@ impl RefactorDriver for RopeDriver {
     async fn check_availability(&self) -> Result<bool> {
         // Try local venv first, then fallback to system
         let python_bin = ".venv/bin/python";
-        
+
         let path = std::path::Path::new(python_bin);
         if !path.exists() {
-             return Ok(tokio::process::Command::new("python3").arg("-c").arg("import rope").output().await?.status.success());
+            return Ok(tokio::process::Command::new("python3")
+                .arg("-c")
+                .arg("import rope")
+                .output()
+                .await?
+                .status
+                .success());
         }
 
         let output = tokio::process::Command::new(python_bin)
@@ -27,8 +33,11 @@ impl RefactorDriver for RopeDriver {
         Ok(output.status.success())
     }
 
-
-    async fn move_files(&self, file_map: Vec<(String, String)>, root_path: Option<&std::path::Path>) -> Result<()> {
+    async fn move_files(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<()> {
         let script_path = super::resolve_resource_path("scripts/python_refactor.py")?;
         let payload = serde_json::to_string(&file_map)?;
 
@@ -39,9 +48,7 @@ impl RefactorDriver for RopeDriver {
         }
 
         let mut cmd = tokio::process::Command::new(&python_bin);
-        cmd.arg(script_path)
-           .arg("batch")
-           .arg(&payload);
+        cmd.arg(script_path).arg("batch").arg(&payload);
 
         if let Some(r) = root_path {
             cmd.arg("--root").arg(r.to_string_lossy().to_string());
@@ -54,7 +61,7 @@ impl RefactorDriver for RopeDriver {
             tracing::error!("Rope batch stderr: {}", stderr);
             anyhow::bail!("Rope batch failed: {}", stderr);
         }
-        
+
         let stdout = String::from_utf8_lossy(&output.stdout);
         tracing::info!("Rope batch output: {}", stdout);
 

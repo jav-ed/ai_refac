@@ -2,7 +2,7 @@
 
 ## Objective
 
-Identify the best backend tools for a Rust-based MCP Refactoring Server capable of symbol renaming and file moves across multiple languages.
+Identify the best backend tools for a Rust-based refactoring engine capable of symbol renaming and file moves across multiple languages.
 
 ---
 
@@ -116,7 +116,7 @@ Identify the best backend tools for a Rust-based MCP Refactoring Server capable 
 
 ## 7. Rust-Based Refactoring Engines (Cross-Language)
 
-For a Rust-based MCP server, leveraging Rust-native engines provides the best performance and easiest integration (via FFI or direct crate usage).
+For a Rust-based refactoring tool, leveraging Rust-native engines provides the best performance and easiest integration (via FFI or direct crate usage).
 
 | Language | Top Rust Option | Status | Capability |
 | :--- | :--- | :--- | :--- |
@@ -127,7 +127,7 @@ For a Rust-based MCP server, leveraging Rust-native engines provides the best pe
 | **Dart** | **oak-dart** | Library | High-performance Dart parsing and AST generation in Rust. |
 | **Foundation** | **tree-sitter** | Universal | The "gold standard" for incremental parsing used by these engines. |
 
-### Architectural Recommendation for Rust MCP Server
+### Architectural Recommendation for the Rust Refactoring Tool
 
 - **Native Drivers**: Use `oxc` and `Pyrefly` directly for maximum throughput in JS/Python.
 - **LSP Drivers**: Use `rust-analyzer` (Rust), `gopls` (Go), and `Analysis Server` (Dart) as "Semantic Oracles" when deep symbol resolution across modules is required.
@@ -135,9 +135,9 @@ For a Rust-based MCP server, leveraging Rust-native engines provides the best pe
 
 ---
 
-## Final Synthesis for MCP Refactoring Server
+## Final Synthesis for the Refactoring Tool
 
-For a Rust-based MCP Refactoring Server, the ideal architecture would be:
+For a Rust-based refactoring tool, the ideal architecture would be:
 
 1. **TypeScript**: Wrap `ts-morph` in a lightweight Node script invoked by Rust.
 2. **Python**: Use `ropecli` for deep refactors or `pyrefly` for performance.

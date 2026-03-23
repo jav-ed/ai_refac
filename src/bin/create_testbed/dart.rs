@@ -1,6 +1,6 @@
+use crate::utils::create_file;
 use std::fs;
 use std::path::Path;
-use crate::utils::create_file;
 
 pub fn generate(root: &Path) -> std::io::Result<()> {
     let dart_dir = root.join("dart");
@@ -19,7 +19,10 @@ pub fn generate(root: &Path) -> std::io::Result<()> {
     fs::create_dir_all(&lib_utils)?;
 
     // 1. Models
-    create_file(&lib_models, "app_model.dart", r#"
+    create_file(
+        &lib_models,
+        "app_model.dart",
+        r#"
 class AppModel {
   final String id;
   final String name;
@@ -42,10 +45,14 @@ class AppModel {
     );
   }
 }
-"#)?;
+"#,
+    )?;
 
     // 2. Services
-    create_file(&lib_services, "api_service.dart", r#"
+    create_file(
+        &lib_services,
+        "api_service.dart",
+        r#"
 import '../models/app_model.dart';
 
 class ApiService {
@@ -59,10 +66,14 @@ class ApiService {
     ];
   }
 }
-"#)?;
+"#,
+    )?;
 
     // 3. UI
-    create_file(&lib_ui_screens, "home_screen.dart", r#"
+    create_file(
+        &lib_ui_screens,
+        "home_screen.dart",
+        r#"
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../models/app_model.dart';
@@ -76,10 +87,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-"#)?;
+"#,
+    )?;
 
     // 4. Utils
-    create_file(&lib_utils, "validators.dart", r#"
+    create_file(
+        &lib_utils,
+        "validators.dart",
+        r#"
 class Validators {
   static bool isValidEmail(String email) {
     return email.contains('@');
@@ -89,10 +104,14 @@ class Validators {
     return password.length >= 8;
   }
 }
-"#)?;
+"#,
+    )?;
 
     // 5. Main entry & config
-    create_file(&dart_dir.join("lib"), "main.dart", r#"
+    create_file(
+        &dart_dir.join("lib"),
+        "main.dart",
+        r#"
 import 'package:flutter/material.dart';
 import 'ui/screens/home_screen.dart';
 
@@ -101,9 +120,13 @@ void main() {
     home: HomeScreen(),
   ));
 }
-"#)?;
+"#,
+    )?;
 
-    create_file(&dart_dir, "pubspec.yaml", r#"
+    create_file(
+        &dart_dir,
+        "pubspec.yaml",
+        r#"
 name: app_store
 description: A complex dart project testbed.
 version: 1.0.0+1
@@ -117,7 +140,8 @@ dev_dependencies:
     sdk: flutter
 flutter:
   uses-material-design: true
-"#)?;
+"#,
+    )?;
 
     Ok(())
 }

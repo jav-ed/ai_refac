@@ -13,7 +13,7 @@
 
 potentially helpful tools (some):
 
-1. you can use the playwright mcp at localhost 1420 to get all the feedback playwright offers
-2. serena mcp, it offers some tools, the symbolic tools especially could be helpful
+1. you can use the Playwright endpoint at localhost 1420 to get all the feedback Playwright offers
+2. Serena offers some tools, the symbolic tools especially could be helpful
 3. if needed, you can run the available agents
 4. websearch
