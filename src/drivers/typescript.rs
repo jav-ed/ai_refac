@@ -75,8 +75,30 @@ impl RefactorDriver for TypeScriptDriver {
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
         let script_path = super::resolve_resource_path("scripts/ts_refactor.ts")?;
-        let payload = serde_json::to_string(&file_map)?;
         let bun_cmd = self.get_bun_command();
+
+        // Ensure ts-morph is installed — bun install is idempotent and fast when up to date.
+        let script_dir = script_path
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine scripts directory"))?;
+        let ts_morph_dir = script_dir.join("node_modules").join("ts-morph");
+        if !ts_morph_dir.exists() {
+            tracing::info!("ts-morph not found in {:?}, running bun install...", script_dir);
+            let install = tokio::process::Command::new(&bun_cmd)
+                .arg("install")
+                .current_dir(script_dir)
+                .output()
+                .await?;
+            if !install.status.success() {
+                anyhow::bail!(
+                    "bun install failed in {:?}: {}",
+                    script_dir,
+                    String::from_utf8_lossy(&install.stderr)
+                );
+            }
+        }
+
+        let payload = serde_json::to_string(&file_map)?;
 
         // Call the script using found bun
         let mut cmd = tokio::process::Command::new(&bun_cmd);

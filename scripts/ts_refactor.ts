@@ -65,12 +65,16 @@ async function getProject(projectRoot: string, filesToMove?: string[]) {
 
         // File moves: count first — loading a 10k+ file project via tsconfig causes
         // multi-minute freezes with no output.
-        const { globSync } = await import("glob");
-        const allFiles = globSync("**/*.{ts,tsx,js,jsx}", {
-            cwd: projectRoot,
-            ignore: ["**/node_modules/**", "**/dist/**", "**/build/**", "**/.next/**"],
-            absolute: true,
-        });
+        // Uses Bun's built-in Glob — no npm dependency required.
+        const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next", ".git"]);
+        const bunGlob = new Bun.Glob("**/*.{ts,tsx,js,jsx}");
+        const allFiles: string[] = [];
+        for await (const file of bunGlob.scan({ cwd: projectRoot, absolute: true })) {
+            const parts = file.split(path.sep);
+            if (!parts.some(p => SKIP_DIRS.has(p))) {
+                allFiles.push(file);
+            }
+        }
 
         if (allFiles.length > LARGE_PROJECT_FILE_THRESHOLD) {
             process.stderr.write(
