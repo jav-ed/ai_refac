@@ -8,9 +8,9 @@ Operational decision: after building `refac`, we want it available via `~/Progs/
 
 ## Additional Docs
 
-- [Developer & Build Guide](./dev_guide.md)
+- [Developer & Build Guide](./Guides/dev_guide.md)
   Build flow, local development workflow, install-to-PATH decision, and the generated testbed.
-- [Testing & Debugging Guide](./Testing_and_Debugging.md)
+- [Testing & Debugging Guide](./Guides/Testing_and_Debugging.md)
   Testing notes and debugging guidance for the CLI workflow.
 - [Capabilities & Supported Languages](./Descr/abilties.md)
   Overview of supported language backends and current tool behavior.
