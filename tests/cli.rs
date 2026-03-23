@@ -69,10 +69,15 @@ fn move_help_exposes_core_flags() {
     );
 }
 
-/// Passing a directory as --source-path must fail with a clear, specific error.
-/// Previously it silently skipped with a misleading "unsupported extension" message.
+/// Passing a directory as --source-path must no longer be rejected at the CLI level.
+/// Directory moves are routed to the TypeScript driver. A non-TS directory that doesn't
+/// exist in a TS project context will fail at the driver level, not with a blanket
+/// "Directory moves are not supported" validation error.
 #[test]
-fn directory_source_fails_with_clear_error() {
+fn directory_source_is_not_rejected_by_validation() {
+    // Use a real temp dir as source — validation should pass it through.
+    // We don't have a full TS project here so the driver will fail, but the error
+    // must NOT be the old "Directory moves are not supported" message.
     let tmp = std::env::temp_dir();
     let output = run_cli(&[
         "move",
@@ -81,18 +86,13 @@ fn directory_source_fails_with_clear_error() {
         "--source-path",
         tmp.to_str().unwrap(),
         "--target-path",
-        "/tmp/refac_test_dir_target",
+        "/tmp/refac_cli_test_dir_target_unreachable",
     ]);
-
-    assert!(
-        !output.status.success(),
-        "directory source should exit non-zero"
-    );
 
     let combined = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
     assert!(
-        combined.contains("Directory moves are not supported"),
-        "expected directory-specific error, got: {combined}"
+        !combined.contains("Directory moves are not supported"),
+        "validation should no longer reject directories with that message, got: {combined}"
     );
 }
 

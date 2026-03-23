@@ -50,6 +50,26 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
 
     for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
         let path = std::path::Path::new(src);
+
+        // Resolve the path so we can check whether it's a directory.
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else if let Some(root) = req.project_path.as_deref() {
+            std::path::Path::new(root).join(path)
+        } else {
+            path.to_path_buf()
+        };
+
+        if resolved.is_dir() {
+            // Directory moves are handled by the TypeScript driver (ts-morph directory.move()).
+            // Other language backends operate file-by-file and don't support directory moves.
+            batch_map
+                .entry("typescript".to_string())
+                .or_default()
+                .push((src.clone(), tgt.clone()));
+            continue;
+        }
+
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let lang = match ext {

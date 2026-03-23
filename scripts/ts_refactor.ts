@@ -46,13 +46,25 @@ async function main() {
 
 const LARGE_PROJECT_FILE_THRESHOLD = 500;
 
+function isDirectory(p: string): boolean {
+    try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
 async function getProject(projectRoot: string, filesToMove?: string[]) {
     const tsConfigPath = path.join(projectRoot, "tsconfig.json");
-    let project: Project;
+
+    // Directory moves always need the full project so ts-morph can find and update
+    // external importers. Skip the large-project fast path in that case.
+    const hasDirMove = (filesToMove ?? []).some(isDirectory);
 
     if (fs.existsSync(tsConfigPath)) {
-        // Count files first to decide strategy — loading a 10k+ file project
-        // via tsconfig causes multi-minute freezes with no output.
+        if (hasDirMove) {
+            process.stderr.write(`[refac] Initializing full TypeScript project for directory move (this may take a moment for large projects)...\n`);
+            return new Project({ tsConfigFilePath: tsConfigPath });
+        }
+
+        // File moves: count first — loading a 10k+ file project via tsconfig causes
+        // multi-minute freezes with no output.
         const { globSync } = await import("glob");
         const allFiles = globSync("**/*.{ts,tsx,js,jsx}", {
             cwd: projectRoot,
@@ -64,23 +76,25 @@ async function getProject(projectRoot: string, filesToMove?: string[]) {
             process.stderr.write(
                 `[refac] Large project detected (${allFiles.length} files). Loading only moved files for performance. Cross-project reference updates will be skipped.\n`
             );
-            project = new Project({ compilerOptions: { allowJs: true, skipLibCheck: true } });
-            const targets = filesToMove ?? [];
-            for (const f of targets) {
-                if (fs.existsSync(f)) {
+            const project = new Project({ compilerOptions: { allowJs: true, skipLibCheck: true } });
+            for (const f of filesToMove ?? []) {
+                if (fs.existsSync(f) && !isDirectory(f)) {
                     project.addSourceFileAtPath(f);
                 }
             }
-        } else {
-            process.stderr.write(`[refac] Initializing TypeScript project (${allFiles.length} files)...\n`);
-            project = new Project({ tsConfigFilePath: tsConfigPath });
+            return project;
         }
+
+        process.stderr.write(`[refac] Initializing TypeScript project (${allFiles.length} files)...\n`);
+        return new Project({ tsConfigFilePath: tsConfigPath });
+    }
+
+    // No tsconfig — glob everything
+    const project = new Project({ compilerOptions: { allowJs: true } });
+    if (hasDirMove) {
+        // For directory moves without tsconfig, load all TS files so references can be found
+        project.addSourceFilesAtPaths(path.join(projectRoot, "**/*{.ts,.tsx,.js,.jsx}"));
     } else {
-        project = new Project({
-            compilerOptions: {
-                allowJs: true,
-            }
-        });
         project.addSourceFilesAtPaths(path.join(projectRoot, "**/*{.ts,.tsx,.js,.jsx}"));
     }
     return project;

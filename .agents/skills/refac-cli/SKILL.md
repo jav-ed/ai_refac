@@ -9,15 +9,30 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 
 ## Hard constraints — read before running
 
-- **Only files are supported. Directories are not.** Passing a folder as `--source-path` will error immediately.
+- **Files and directories are both supported for TypeScript/JS.** For all other languages (Python, Rust, Go, Dart), only individual files are supported.
 - **One language per call is fine; mixed languages in one call is also fine** — the tool groups them internally.
 - `--project-path` must point to the **package root** (the folder that contains `tsconfig.json`, `Cargo.toml`, `pyproject.toml`, etc.), not the monorepo root.
 - Paths passed to `--source-path` and `--target-path` may be absolute or relative to `--project-path`.
 - Source and target counts must match 1:1. If you have 3 `--source-path` flags you need exactly 3 `--target-path` flags.
 
-## Large TypeScript/JS projects
+## Directory moves (TypeScript/JS only)
 
-For projects with more than ~500 TS/JS files, `refac` automatically skips loading the full project and only moves the specific files. This means **cross-project import updates are skipped** for large projects — only the moved file itself is written to the new path. Plan accordingly: if reference updates matter, move files one at a time and verify manually, or work in smaller packages.
+Pass the folder path the same way you would a file:
+
+```bash
+refac move \
+  --project-path /path/to/package \
+  --source-path src/old/feature \
+  --target-path src/new/feature
+```
+
+ts-morph moves all files inside the folder and updates all import paths that reference them, including imports from files **outside** the moved folder.
+
+## Large TypeScript/JS projects — file moves only
+
+For **individual file moves** in projects with more than ~500 TS/JS files, `refac` automatically skips loading the full project and only moves the specific files. This means **cross-project import updates are skipped** in that case.
+
+**Directory moves always load the full project**, regardless of size, because updating external references requires the full context. This may be slow for very large projects.
 
 ## Usage
 

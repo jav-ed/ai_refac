@@ -122,6 +122,62 @@ mod tests {
         Ok(())
     }
 
+    /// Verifies that moving a directory rewrites import paths in files outside the moved folder.
+    #[tokio::test]
+    async fn test_ts_directory_move_updates_external_imports() -> Result<()> {
+        let driver = TypeScriptDriver;
+        if !driver.check_availability().await? {
+            return Ok(());
+        }
+
+        let tmp = tempfile::tempdir()?;
+        let root = tmp.path();
+
+        // Minimal tsconfig so ts-morph loads the project properly
+        tokio::fs::write(
+            root.join("tsconfig.json"),
+            r#"{"compilerOptions":{"target":"es2020","module":"commonjs"},"include":["src/**/*"]}"#,
+        ).await?;
+
+        tokio::fs::create_dir_all(root.join("src/utils")).await?;
+
+        // src/utils/format.ts — inside the folder being moved
+        tokio::fs::write(
+            root.join("src/utils/format.ts"),
+            "export function fmt(s: string) { return s.trim(); }\n",
+        ).await?;
+
+        // src/app.ts — outside, imports from utils/
+        tokio::fs::write(
+            root.join("src/app.ts"),
+            "import { fmt } from \"./utils/format\";\nconsole.log(fmt(\"hi\"));\n",
+        ).await?;
+
+        // Move src/utils → src/helpers
+        let result = driver
+            .move_files(
+                vec![(
+                    root.join("src/utils").to_string_lossy().into_owned(),
+                    root.join("src/helpers").to_string_lossy().into_owned(),
+                )],
+                Some(root),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Directory move failed: {:?}", result.err());
+        assert!(!root.join("src/utils").exists(), "src/utils should be gone");
+        assert!(root.join("src/helpers").exists(), "src/helpers should exist");
+        assert!(root.join("src/helpers/format.ts").exists(), "file inside moved dir should exist");
+
+        let app = tokio::fs::read_to_string(root.join("src/app.ts")).await?;
+        assert!(
+            app.contains("./helpers/format") || app.contains("helpers/format"),
+            "external import was not updated after directory move — got:\n{app}"
+        );
+
+        Ok(())
+    }
+
     /// Verifies that moving a TS file also rewrites import paths in files that imported it.
     /// This is the core value prop — previously there was no test for this.
     #[tokio::test]

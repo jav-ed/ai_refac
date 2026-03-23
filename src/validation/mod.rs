@@ -5,7 +5,7 @@ use std::path::Path;
 ///
 /// # Checks
 /// 1. Operation must be supported (currently only "move").
-/// 2. Source paths must exist.
+/// 2. Source paths must exist (files or directories).
 /// 3. Source and target counts must match (if target is provided).
 ///
 /// # Internal Docs
@@ -59,12 +59,7 @@ pub fn initial_sanity_check(
             );
         }
 
-        if final_path.is_dir() {
-            bail!(
-                "Directory moves are not supported: '{}'. Only individual files can be moved. Move files inside the directory one at a time.",
-                path_str
-            );
-        }
+        // Directories are allowed — they are routed to the TypeScript driver.
     }
 
     Ok(())
@@ -129,19 +124,14 @@ mod tests {
     }
 
     #[test]
-    fn test_directory_source_is_rejected() {
-        // A directory path must produce a clear error, not be silently skipped.
+    fn test_directory_source_passes_validation() {
+        // Directories are now valid source paths — they route to the TypeScript driver.
         let dir = tempdir().unwrap();
         let source = vec![dir.path().to_str().unwrap().to_string()];
         let target = vec!["anywhere/foo".to_string()];
 
         let result = initial_sanity_check(&source, "move", Some(&target), None);
-        assert!(result.is_err(), "directory source should be rejected");
-        let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("Directory moves are not supported"),
-            "expected directory-specific error, got: {msg}"
-        );
+        assert!(result.is_ok(), "directory source should pass validation: {:?}", result.err());
     }
 
     #[test]
