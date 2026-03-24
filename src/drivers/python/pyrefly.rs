@@ -1,6 +1,6 @@
-use super::RefactorDriver;
-use super::complete_filesystem_moves;
-use super::lsp_client::LspClient;
+use super::super::RefactorDriver;
+use super::super::complete_filesystem_moves;
+use super::super::lsp_client::LspClient;
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
@@ -11,7 +11,7 @@ pub struct PyreflyDriver {
 
 impl PyreflyDriver {
     pub fn new() -> Self {
-        let bin_path = super::resolve_resource_path(".venv/bin/pyrefly")
+        let bin_path = super::super::resolve_resource_path(".venv/bin/pyrefly")
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| ".venv/bin/pyrefly".to_string());
 
@@ -43,7 +43,7 @@ impl RefactorDriver for PyreflyDriver {
         // We resolve it relative to binary location
         // NOTE: If root_path is provided (user project), pyrefly might expect initialization there?
         // But we are using the bundled pyrefly. For now keep as is.
-        let config_path = super::resolve_resource_path("pyrefly.toml")
+        let config_path = super::super::resolve_resource_path("pyrefly.toml")
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "pyrefly.toml".to_string());
 

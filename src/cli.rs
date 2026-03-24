@@ -11,11 +11,11 @@ use serde::Serialize;
 #[derive(Debug, Parser)]
 #[command(
     name = "refac",
-    about = "Move or rename source files and update all references across the project.",
+    about = "Move or rename source or Markdown files and update all references across the project.",
     long_about = "\
-Move or rename source files and update all references across the project.
+Move or rename source or Markdown files and update all references across the project.
 
-Supported languages: TypeScript, JavaScript, Python, Rust, Go, Dart.
+Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart.
 Only individual FILES are supported — directory moves are not.
 Paths may be absolute or relative to --project-path.
 

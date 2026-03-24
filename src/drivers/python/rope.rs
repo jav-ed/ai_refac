@@ -1,4 +1,4 @@
-use super::RefactorDriver;
+use super::super::RefactorDriver;
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
@@ -38,7 +38,7 @@ impl RefactorDriver for RopeDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        let script_path = super::resolve_resource_path("scripts/python_refactor.py")?;
+        let script_path = super::super::resolve_resource_path("scripts/python_refactor.py")?;
         let payload = serde_json::to_string(&file_map)?;
 
         // Determine python binary

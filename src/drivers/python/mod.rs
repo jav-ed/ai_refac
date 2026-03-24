@@ -1,9 +1,13 @@
 use super::RefactorDriver;
-use super::python_pyrefly::PyreflyDriver;
-use super::python_rope::RopeDriver;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::result::Result::Ok;
+
+mod pyrefly;
+mod rope;
+
+use pyrefly::PyreflyDriver;
+use rope::RopeDriver;
 
 pub struct PythonDriver {
     rope: RopeDriver,

@@ -73,6 +73,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let lang = match ext {
+            "md" => "markdown".to_string(),
             "py" => "python".to_string(),
             "ts" | "tsx" | "js" | "jsx" => "typescript".to_string(),
             "rs" => "rust".to_string(),
@@ -192,6 +193,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
 
 fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriver>> {
     let driver: Box<dyn RefactorDriver> = match lang {
+        "markdown" => Box::new(crate::drivers::markdown::MarkdownDriver::new()),
         "python" => Box::new(crate::drivers::python::PythonDriver::new()),
         "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
         "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
