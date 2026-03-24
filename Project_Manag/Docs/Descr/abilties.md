@@ -29,9 +29,10 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 
 | Language | Limit |
 | :--- | :--- |
-| **TypeScript / JS** | Projects >500 files skip full reference resolution — only the moved file's import paths are updated, not all inbound references. |
+| **TypeScript / JS** | Projects >500 files skip cross-project reference updates on file moves. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
+| **Python** | Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
-| **Python / Rust / Go / Dart** | No per-language feature docs yet. Behavior follows the upstream tool (see table above). |
+| **Rust / Go / Dart** | No known limits beyond requiring the upstream tool to be installed and in PATH. |
 
 ## 4. Why Use `refac`?
 

@@ -13,8 +13,8 @@ Operational decision: after building `refac`, we want it available via `~/Progs/
 | How do I run `refac`? What arguments does it take? | `refac --help` or `refac move --help` |
 | What languages / file types are supported? | [Capabilities & Supported Languages](./Descr/abilties.md) |
 | How does Markdown move support work? What are its limits? | [Markdown Feature Docs](./Features/Markdown/linker_Markdown.md) |
-| How does TypeScript / JS move work? What are its limits? | [Capabilities](./Descr/abilties.md) — no feature doc yet |
-| How does Python move work? What are its limits? | [Capabilities](./Descr/abilties.md) — no feature doc yet |
+| How does TypeScript / JS move work? What are its limits? | [TypeScript Feature Docs](./Features/TypeScript/linker_TypeScript.md) |
+| How does Python move work? What are its limits? | [Python Feature Docs](./Features/Python/linker_Python.md) |
 | How do Rust / Go / Dart moves work? | [Capabilities](./Descr/abilties.md) — no feature docs yet |
 | Can I move a folder/directory? | No — only individual files. Folder moves return a clear error. |
 | Why is refac slow or hanging on a large TS project? | Large projects (>500 files) skip full reference resolution; see [Capabilities](./Descr/abilties.md) |
