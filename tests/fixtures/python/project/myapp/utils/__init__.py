@@ -1,0 +1,3 @@
+# Relative re-export — Rope rewrites this to an absolute import after the move:
+# from .formatters import ... -> from myapp.core.formatters import ...
+from .formatters import format_date, format_currency

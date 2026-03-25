@@ -2,8 +2,9 @@
 
 1. Start with the gist of the repo.
    - One or two sentences max. What it is, what it does.
-2. Keep `doc_Start.md` and all linker files shallow.
+2. Keep `doc_Start.md` and all linker files shallow in structure, but not in label text.
    - They route the reader. They do not explain.
+   - Link labels must be rich enough that the reader can make a routing decision without clicking. A bare area name ("Architecture") is not enough. Say what kinds of questions or tasks belong there.
 3. Prefer progressive disclosure.
    - Short summary first, link second, deep detail in the target file.
 4. Do not make recommendations.

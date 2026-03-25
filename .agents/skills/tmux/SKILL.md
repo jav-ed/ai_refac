@@ -1,12 +1,12 @@
 ---
 name: tmux
-description: This skill should be used when the user needs to "run a command in tmux", "use a persistent terminal", "execute sudo commands", "interact with a TUI application", "capture terminal output", or "run privileged commands with password entry".
+description: Use only for interactive terminals (TUI applications) or when sudo password entry is required — not for general command execution.
 version: 0.1.0
 ---
 
 # tmux Terminal Interaction
 
-Use native tmux commands to interact with terminal sessions. Enables persistent terminal access, privileged command execution, and reliable output capture from a real TTY.
+Use native tmux commands when you need an interactive terminal (TUI applications) or when a command requires the user to enter a sudo password. For everything else, use the Bash tool directly.
 
 ## References
 
