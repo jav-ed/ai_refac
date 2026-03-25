@@ -62,11 +62,15 @@ mod tests {
     use super::*;
     use std::fs;
 
+    // Environment probe only — run with `cargo test -- --ignored` to verify a Python backend is installed.
     #[tokio::test]
+    #[ignore]
     async fn test_python_dispatcher_availability() -> Result<()> {
         let driver = PythonDriver::new();
-        // Should be true if either is available
-        assert!(driver.check_availability().await?);
+        assert!(
+            driver.check_availability().await?,
+            "neither rope nor pyrefly found"
+        );
         Ok(())
     }
 

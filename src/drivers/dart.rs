@@ -60,11 +60,13 @@ mod tests {
     use super::*;
     use std::fs;
 
+    // Environment probe only — run with `cargo test -- --ignored` to verify dart is installed.
     #[tokio::test]
+    #[ignore]
     async fn test_dart_availability() -> Result<()> {
         let driver = DartDriver::new();
         let avail = driver.check_availability().await?;
-        assert!(avail, "dart should be available");
+        assert!(avail, "dart not found in PATH");
         Ok(())
     }
 

@@ -117,6 +117,8 @@ fn rewrite_markdown_links(
         }
     }
 
+    // Apply highest-position replacements first so earlier byte offsets are not shifted.
+    replacements.sort_by_key(|(start, _, _)| *start);
     for (start, end, replacement) in replacements.into_iter().rev() {
         rewritten.replace_range(start..end, &replacement);
     }
@@ -192,6 +194,30 @@ mod tests {
         let (path, fragment) = split_href_fragment("./guide.md#anchor");
         let rebuilt = rebuild_href(path, fragment.as_deref());
         assert_eq!(rebuilt, "./guide.md#anchor");
+    }
+
+    #[test]
+    fn rewrites_both_inline_and_trailing_reference_definition_when_file_moves() {
+        // Regression: reference definitions are collected before inline links in the targets
+        // vector, but they appear after them in the file. The old code used .rev() without
+        // sorting, so applying the inline-link replacement first shifted the string and the
+        // reference-definition replacement hit the wrong byte range, corrupting the output
+        // (e.g. "[home]../../index.md" instead of "[home]: ../../index.md").
+        let content = "# Guide\n\nSee [Setup](./setup.md).\n\n[home]: ../index.md \"Home\"\n";
+        let original = PathBuf::from("/tmp/project/docs/guide.md");
+        let final_path = PathBuf::from("/tmp/project/docs/sub/guide.md");
+        let lookup = HashMap::new();
+
+        let rewritten = rewrite_markdown_links(content, &original, &final_path, &lookup).unwrap();
+
+        assert!(
+            rewritten.contains("[home]: ../../index.md \"Home\""),
+            "reference definition colon was corrupted: {rewritten:?}"
+        );
+        assert!(
+            rewritten.contains("(../setup.md)"),
+            "inline link was not recalculated: {rewritten:?}"
+        );
     }
 
     #[test]

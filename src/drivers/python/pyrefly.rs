@@ -75,11 +75,13 @@ impl RefactorDriver for PyreflyDriver {
 mod tests {
     use super::*;
 
+    // Environment probe only — run with `cargo test -- --ignored` to verify pyrefly is installed.
     #[tokio::test]
+    #[ignore]
     async fn test_pyrefly_availability() -> Result<()> {
         let driver = PyreflyDriver::new();
         let avail = driver.check_availability().await?;
-        assert!(avail, "Pyrefly should be available in .venv");
+        assert!(avail, "pyrefly not found in .venv or PATH");
         Ok(())
     }
 }

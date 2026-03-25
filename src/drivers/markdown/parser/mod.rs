@@ -6,6 +6,7 @@ mod shared;
 
 use definitions::parse_reference_definitions;
 use inline::parse_inline_links_and_reference_usages;
+use shared::compute_suppressed_ranges;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MarkdownLinkTargetKind {
@@ -41,7 +42,8 @@ pub(crate) struct ParsedMarkdownLinks {
 }
 
 pub(crate) fn parse_markdown_links(content: &str) -> ParsedMarkdownLinks {
-    let reference_definitions = parse_reference_definitions(content);
+    let suppressed = compute_suppressed_ranges(content);
+    let reference_definitions = parse_reference_definitions(content, &suppressed);
     let mut definition_counts = HashMap::new();
     let mut targets = Vec::with_capacity(reference_definitions.len());
 
@@ -58,8 +60,12 @@ pub(crate) fn parse_markdown_links(content: &str) -> ParsedMarkdownLinks {
         });
     }
 
-    let reference_usages =
-        parse_inline_links_and_reference_usages(content, &definition_counts, &mut targets);
+    let reference_usages = parse_inline_links_and_reference_usages(
+        content,
+        &definition_counts,
+        &mut targets,
+        &suppressed,
+    );
 
     ParsedMarkdownLinks {
         targets,

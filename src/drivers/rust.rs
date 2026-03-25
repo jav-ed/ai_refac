@@ -578,12 +578,13 @@ mod tests {
     use super::*;
     use std::fs;
 
+    // Environment probe only — run with `cargo test -- --ignored` to verify rust-analyzer is installed.
     #[tokio::test]
+    #[ignore]
     async fn test_rust_availability() -> Result<()> {
         let driver = RustDriver::new();
         let avail = driver.check_availability().await?;
-        // Should be true since we installed it
-        assert!(avail, "rust-analyzer should be available");
+        assert!(avail, "rust-analyzer not found in PATH");
         Ok(())
     }
 

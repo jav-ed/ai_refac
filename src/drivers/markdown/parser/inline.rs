@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::shared::{find_matching_bracket, normalize_reference_label, parse_inline_destination};
+use super::shared::{
+    find_matching_bracket, is_suppressed, normalize_reference_label, parse_inline_destination,
+};
 use super::{
     MarkdownLinkTarget, MarkdownLinkTargetKind, MarkdownReferenceUsage, MarkdownReferenceUsageKind,
 };
@@ -9,12 +11,18 @@ pub(super) fn parse_inline_links_and_reference_usages(
     content: &str,
     definition_counts: &HashMap<String, usize>,
     targets: &mut Vec<MarkdownLinkTarget>,
+    suppressed: &[std::ops::Range<usize>],
 ) -> Vec<MarkdownReferenceUsage> {
     let bytes = content.as_bytes();
     let mut reference_usages = Vec::new();
     let mut index = 0usize;
 
     while index < bytes.len() {
+        if is_suppressed(index, suppressed) {
+            index += 1;
+            continue;
+        }
+
         let (label_start, next_index, is_image) = match bytes[index] {
             b'[' => (index, index + 1, false),
             b'!' if bytes.get(index + 1) == Some(&b'[') => (index + 1, index + 2, true),

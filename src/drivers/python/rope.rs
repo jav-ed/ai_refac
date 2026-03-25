@@ -74,10 +74,56 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_rope_availability() -> Result<()> {
+    async fn test_rope_move_updates_imports() -> Result<()> {
         let driver = RopeDriver;
-        // Just smoke test availability check
-        let _ = driver.check_availability().await?;
+        if !driver.check_availability().await? {
+            eprintln!("rope not available, skipping test");
+            return Ok(());
+        }
+
+        let temp_dir = tempfile::Builder::new()
+            .prefix("refac-rope-test-")
+            .tempdir_in(std::env::temp_dir())?;
+
+        std::fs::create_dir_all(temp_dir.path().join("pkg/utils"))?;
+        std::fs::create_dir_all(temp_dir.path().join("pkg/core"))?;
+        std::fs::write(temp_dir.path().join("pkg/__init__.py"), "")?;
+        std::fs::write(temp_dir.path().join("pkg/utils/__init__.py"), "")?;
+        std::fs::write(temp_dir.path().join("pkg/core/__init__.py"), "")?;
+        std::fs::write(
+            temp_dir.path().join("pkg/utils/helpers.py"),
+            "def helper(): return 42\n",
+        )?;
+        std::fs::write(
+            temp_dir.path().join("pkg/core/app.py"),
+            "from pkg.utils.helpers import helper\n\nresult = helper()\n",
+        )?;
+
+        driver
+            .move_files(
+                vec![(
+                    "pkg/utils/helpers.py".to_string(),
+                    "pkg/core/helpers.py".to_string(),
+                )],
+                Some(temp_dir.path()),
+            )
+            .await?;
+
+        assert!(
+            temp_dir.path().join("pkg/core/helpers.py").exists(),
+            "file should exist at new location"
+        );
+        assert!(
+            !temp_dir.path().join("pkg/utils/helpers.py").exists(),
+            "file should be gone from old location"
+        );
+
+        let app = std::fs::read_to_string(temp_dir.path().join("pkg/core/app.py"))?;
+        assert!(
+            app.contains("from pkg.core.helpers import helper"),
+            "Rope did not update import in app.py — got:\n{app}"
+        );
+
         Ok(())
     }
 }

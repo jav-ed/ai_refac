@@ -1,5 +1,6 @@
 use super::shared::{
-    find_matching_bracket, normalize_reference_label, parse_reference_definition_destination,
+    find_matching_bracket, is_suppressed, normalize_reference_label,
+    parse_reference_definition_destination,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10,7 +11,10 @@ pub(super) struct MarkdownReferenceDefinition {
     pub href: String,
 }
 
-pub(super) fn parse_reference_definitions(content: &str) -> Vec<MarkdownReferenceDefinition> {
+pub(super) fn parse_reference_definitions(
+    content: &str,
+    suppressed: &[std::ops::Range<usize>],
+) -> Vec<MarkdownReferenceDefinition> {
     let bytes = content.as_bytes();
     let mut definitions = Vec::new();
     let mut line_start = 0usize;
@@ -19,6 +23,11 @@ pub(super) fn parse_reference_definitions(content: &str) -> Vec<MarkdownReferenc
         let mut line_end = line_start;
         while line_end < bytes.len() && bytes[line_end] != b'\n' {
             line_end += 1;
+        }
+
+        if is_suppressed(line_start, suppressed) {
+            line_start = line_end.saturating_add(1);
+            continue;
         }
 
         let mut cursor = line_start;

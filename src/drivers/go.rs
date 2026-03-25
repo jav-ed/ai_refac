@@ -257,16 +257,13 @@ mod tests {
     use super::*;
     use std::fs;
 
+    // Environment probe only — run with `cargo test -- --ignored` to verify gopls is installed.
     #[tokio::test]
+    #[ignore]
     async fn test_gopls_availability() -> Result<()> {
-        // This test might fail if gopls isn't installed in the environment where test runs?
-        // But we just installed it.
         let driver = GoDriver::new();
         let avail = driver.check_availability().await?;
-        if !avail {
-            eprintln!("gopls not found, skipping test");
-            return Ok(());
-        }
+        assert!(avail, "gopls not found in PATH");
         Ok(())
     }
 
