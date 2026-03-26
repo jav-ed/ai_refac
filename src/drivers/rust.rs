@@ -332,6 +332,9 @@ fn collect_workspace_rust_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<
 
 fn find_rust_module_name_position(content: &str, module_name: &str) -> Option<Position> {
     for (line_index, line) in content.lines().enumerate() {
+        if line.trim_start().starts_with("//") {
+            continue;
+        }
         let mut search_start = 0;
         while let Some(found) = line[search_start..].find("mod ") {
             let mod_offset = search_start + found;
@@ -359,6 +362,13 @@ fn find_rust_module_declaration_line(
     let mut offset = 0;
     for line in content.split_inclusive('\n') {
         let line_body = line.strip_suffix('\n').unwrap_or(line);
+
+        // Skip comment lines — they may mention module names but are not declarations.
+        if line_body.trim_start().starts_with("//") {
+            offset += line.len();
+            continue;
+        }
+
         let mut search_start = 0;
 
         while let Some(found) = line_body[search_start..].find("mod ") {

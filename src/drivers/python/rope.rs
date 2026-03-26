@@ -39,7 +39,29 @@ impl RefactorDriver for RopeDriver {
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
         let script_path = super::super::resolve_resource_path("scripts/python_refactor.py")?;
-        let payload = serde_json::to_string(&file_map)?;
+
+        // Rope requires paths relative to the project root.
+        // Strip the root prefix from absolute paths so the script gets relative paths.
+        let normalized: Vec<(String, String)> = if let Some(root) = root_path {
+            file_map
+                .into_iter()
+                .map(|(src, tgt)| {
+                    let src_rel = std::path::Path::new(&src)
+                        .strip_prefix(root)
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or(src);
+                    let tgt_rel = std::path::Path::new(&tgt)
+                        .strip_prefix(root)
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .unwrap_or(tgt);
+                    (src_rel, tgt_rel)
+                })
+                .collect()
+        } else {
+            file_map
+        };
+
+        let payload = serde_json::to_string(&normalized)?;
 
         // Determine python binary
         let mut python_bin = "python3".to_string();

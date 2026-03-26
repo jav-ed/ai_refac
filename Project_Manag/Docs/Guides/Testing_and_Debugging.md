@@ -21,24 +21,30 @@ The current test suite covers:
 - shared LSP edit application
 - CLI help and validation
 - TypeScript move flow
-- Python move flow
+- Python move flow (Rope backend)
 - Rust same-dir and cross-dir move flow
-- Go move flow, including cross-dir filename changes
+- Go move flow, including whole-package rename cascade
 - Dart move flow
+- Markdown move flow
 
 ## 2. Integration Test Architecture
 
 Each language has a fixture directory and a test file:
 
-| Language   | Fixture                          | Test file                    | Move under test                                       |
-|------------|----------------------------------|------------------------------|-------------------------------------------------------|
-| TypeScript | `tests/fixtures/typescript/project/` | `tests/typescript_move.rs` | `src/models/User.ts` → `src/core/User.ts`            |
-| Python     | `tests/fixtures/python/project/`     | `tests/python_move.rs`     | `src/models/user.py` → `src/core/user.py`            |
-| Rust       | `tests/fixtures/rust/project/`       | `tests/rust_move.rs`       | `src/types.rs` → `src/shared/types.rs`               |
-| Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`         | `pkg/utils/format.go` → `pkg/helpers/format.go`      |
-| Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`       | `lib/src/formatter.dart` → `lib/src/core/formatter.dart` |
+| Language   | Fixture                              | Test file                    | Move under test                                          |
+|------------|--------------------------------------|------------------------------|----------------------------------------------------------|
+| TypeScript | `tests/fixtures/typescript/project/` | `tests/typescript_move.rs`   | `src/models/User.ts` → `src/core/User.ts`               |
+| Python     | `tests/fixtures/python/project/`     | `tests/python_move.rs`       | `myapp/utils/formatters.py` → `myapp/core/formatters.py`|
+| Rust       | `tests/fixtures/rust/project/`       | `tests/rust_move.rs`         | `src/types.rs` → `src/shared/types.rs`                  |
+| Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`           | `pkg/utils/format.go` → `pkg/helpers/format.go`         |
+| Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`         | `lib/src/formatter.dart` → `lib/src/core/formatter.dart`|
+| Markdown   | `tests/fixtures/markdown/`           | `tests/markdown_move.rs`     | various `.md` link rewrites                             |
 
-**Fixtures are never modified by running tests.** `common::setup_fixture` copies the fixture into a `tempfile::TempDir` before each test. The tool operates on the temp copy; the originals stay pristine and the temp dir is cleaned up automatically when the test ends. No reset step is needed.
+**Fixtures are never modified by running tests.** `common::setup_fixture` copies the fixture into a temp dir before each test. The tool operates on the temp copy; the originals stay pristine and the temp dir is cleaned up automatically when the test ends. No reset step is needed.
+
+**Temp dir naming matters for Go.** `setup_fixture` uses the prefix `refac-test-` (visible, non-hidden directory). gopls skips workspace roots whose directory name starts with `.`, so hidden temp dirs (the `tempfile` crate's default `.tmp` prefix) prevent import cascade. Always use a visible prefix when testing Go moves.
+
+**Dart tests are serialised.** The Dart analysis server is sensitive to concurrent starts. `dart_move.rs` acquires a global `Mutex` before each test so at most one analysis server runs at a time within that binary.
 
 Run a single language's tests:
 
@@ -104,7 +110,7 @@ If TypeScript work becomes slow or memory-heavy, the usual problem is an overly 
 Each language backend depends on external tooling:
 
 - TypeScript: `bun`
-- Python: `python3` plus configured Python refactor backend
+- Python: `rope` importable from `.venv/bin/python` (or system `python3`). The driver uses Rope by default and falls back to Pyrefly if Rope is unavailable.
 - Rust: `rust-analyzer`
 - Go: `gopls`
 - Dart: `dart`

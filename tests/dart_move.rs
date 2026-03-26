@@ -1,5 +1,11 @@
 mod common;
 
+// The Dart analysis server is sensitive to concurrent starts: multiple instances
+// running simultaneously can interfere, causing flaky failures under full-suite load.
+// Serialise all tests in this binary with a global mutex.
+use std::sync::Mutex;
+static DART_LOCK: Mutex<()> = Mutex::new(());
+
 // Fixture: tests/fixtures/dart/project/  (20 files)
 //
 // Move under test: lib/src/formatter.dart  ->  lib/src/core/formatter.dart
@@ -36,6 +42,7 @@ fn run_move(project: &std::path::Path) -> std::process::Output {
 fn dart_move_places_file_at_target_and_removes_source() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     assert!(
@@ -54,6 +61,7 @@ fn dart_move_places_file_at_target_and_removes_source() {
 fn dart_move_updates_barrel_export() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let output = common::run_cli(&[
         "move",
@@ -82,6 +90,7 @@ fn dart_move_updates_barrel_export() {
 fn dart_move_updates_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let output = common::run_cli(&[
         "move",
@@ -111,6 +120,7 @@ fn dart_move_updates_package_import() {
 fn dart_move_preserves_show_combinator_on_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let output = common::run_cli(&[
         "move",
@@ -144,6 +154,7 @@ fn dart_move_preserves_show_combinator_on_package_import() {
 fn dart_move_updates_relative_import_and_preserves_alias() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let output = common::run_cli(&[
         "move",
@@ -178,6 +189,7 @@ fn dart_move_updates_relative_import_and_preserves_alias() {
 fn dart_move_does_not_rewrite_dart_sdk_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let output = common::run_cli(&[
         "move",
@@ -205,6 +217,7 @@ fn dart_move_does_not_rewrite_dart_sdk_imports() {
 fn dart_move_does_not_rewrite_dart_io_import_in_service() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     let service = common::read_file(project, "lib/src/service.dart");
@@ -220,6 +233,7 @@ fn dart_move_does_not_rewrite_dart_io_import_in_service() {
 fn dart_move_preserves_show_combinator_on_item_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     let item = common::read_file(project, "lib/src/models/item.dart");
@@ -239,6 +253,7 @@ fn dart_move_preserves_show_combinator_on_item_import() {
 fn dart_move_updates_relative_import_and_preserves_alias_in_api_client() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     let api = common::read_file(project, "lib/src/network/api_client.dart");
@@ -262,6 +277,7 @@ fn dart_move_updates_relative_import_and_preserves_alias_in_api_client() {
 fn dart_move_rewrites_all_package_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     let files = [
@@ -294,6 +310,7 @@ fn dart_move_rewrites_all_package_imports() {
 fn dart_move_rewrites_all_relative_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     // Files in lib/src/ (same level as formatter.dart): 'formatter.dart' → 'core/formatter.dart'
@@ -339,6 +356,7 @@ fn dart_move_rewrites_all_relative_imports() {
 fn dart_move_leaves_control_files_unchanged() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
 
     let control_files = [
         "lib/src/config.dart",
@@ -367,6 +385,7 @@ fn dart_move_leaves_control_files_unchanged() {
 fn dart_move_preserves_dart_io_in_http_client_while_updating_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
+    let _lock = DART_LOCK.lock().unwrap();
     common::assert_move_succeeded(&run_move(project));
 
     let http = common::read_file(project, "lib/src/network/http_client.dart");

@@ -9,8 +9,8 @@ mod common;
 //
 //   1. src/types.rs is physically moved to src/shared/types.rs
 //   2. src/shared/mod.rs is CREATED containing:
-//        mod types;
 //        pub use crate::types;    (alias that keeps `crate::types` working)
+//      Note: no `mod types;` here — lib.rs already owns that declaration via #[path].
 //   3. src/lib.rs `pub mod types;` is patched to:
 //        #[path = "shared/types.rs"]
 //        pub mod types;
@@ -58,13 +58,12 @@ fn rust_move_creates_intermediate_module_file() {
     );
 
     let shim = common::read_file(project, "src/shared/mod.rs");
-    assert!(
-        shim.contains("mod types"),
-        "shared/mod.rs must declare `mod types`:\n{shim}"
-    );
+    // The shim re-exports crate::types so callers that use `crate::types::X` still work.
+    // There is no separate `mod types;` here — the crate root lib.rs already owns that
+    // declaration (with a `#[path]` redirect), so shared/mod.rs only needs the re-export.
     assert!(
         shim.contains("crate::types"),
-        "shared/mod.rs must re-export via crate::types alias:\n{shim}"
+        "shared/mod.rs must re-export via `pub use crate::types`:\n{shim}"
     );
 }
 
