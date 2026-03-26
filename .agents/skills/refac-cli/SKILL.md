@@ -18,7 +18,7 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 | Dart | ✅ | ❌ |
 | Markdown | ✅ | ❌ |
 
-**If you pass a directory for a non-TS language, the call will fail.** There is no silent skip — you get an error from the TypeScript driver because it can't find TS source files in that directory.
+**If you pass a directory for a non-TS language, the call will fail.** There is no silent skip — the orchestrator rejects it with a clear error if the directory does not contain TypeScript/JavaScript files.
 
 ## Hard constraints — read before running
 
@@ -39,6 +39,16 @@ refac move \
 ```
 
 Directory moves **always load the full project** regardless of size, because finding external importers requires the full context. This may be slow for very large codebases.
+
+## Language-specific behaviour to know before running
+
+**Go — whole-package moves.** Moving any `.go` file cross-directory causes gopls to rename the *entire package* — every file in the source directory moves with it. If you ask for `pkg/a.go → newpkg/a.go` and `pkg/` also contains `b.go` and `c.go`, all three end up in `newpkg/`. This is not a bug; it is how Go's package-per-directory model works. The CLI output lists collateral files.
+
+**Go — `go.mod` required for cross-directory moves.** The driver reads `go.mod` at the project root to construct the target import path. If it is missing, the move will error.
+
+**Rust — cross-directory moves use a shim, not full import rewriting.** Moving a file to a different directory adds a `#[path = "..."]` attribute in the declaring file and a `pub use` alias, so the project stays buildable. Caller files that reference the old path are **not** rewritten — they continue to work via the alias. Same-directory renames (file rename within the same dir) do rewrite all `use` paths via rust-analyzer.
+
+**Dart — package URI rewriting requires `.dart_tool/package_config.json`.** Without it, only relative imports are updated. Run `dart pub get` in the project root to generate it.
 
 ## Large TypeScript/JS projects — file moves only
 
