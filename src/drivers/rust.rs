@@ -1,6 +1,7 @@
 use super::RefactorDriver;
 use super::complete_filesystem_moves;
 use super::lsp_client::LspClient;
+use super::lsp_client::SymbolRenameRequest;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::Position;
@@ -49,44 +50,76 @@ impl RefactorDriver for RustDriver {
         let client = LspClient::new(&ra_bin);
         let root_dir = resolve_root_dir(root_path)?;
 
-        for (source, target) in file_map {
-            let single_move = vec![(source.clone(), target.clone())];
-            let source_abs = resolve_abs_path(&root_dir, Path::new(&source));
-            let target_abs = resolve_abs_path(&root_dir, Path::new(&target));
+        // Pass 1: process cross-dir moves immediately (shims, no LSP).
+        // Collect same-dir symbol renames for a single batched LSP session.
+        // Same-dir non-symbol moves (mod.rs / no-op identifier) are processed
+        // individually because they go through willRenameFiles, not textDocument/rename.
+        let mut lsp_batch: Vec<(String, String, RustSymbolRenameRequest)> = Vec::new();
+
+        for (source, target) in &file_map {
+            let source_abs = resolve_abs_path(&root_dir, Path::new(source));
+            let target_abs = resolve_abs_path(&root_dir, Path::new(target));
 
             if source_abs.parent() != target_abs.parent()
-                && source_abs.file_name().and_then(|name| name.to_str()) != Some("mod.rs")
-                && target_abs.file_name().and_then(|name| name.to_str()) != Some("mod.rs")
+                && source_abs.file_name().and_then(|n| n.to_str()) != Some("mod.rs")
+                && target_abs.file_name().and_then(|n| n.to_str()) != Some("mod.rs")
             {
-                apply_cross_dir_rust_move_with_shims(&root_dir, &source_abs, &target_abs).await?;
+                apply_cross_dir_rust_move_with_shims(&root_dir, &source_abs, &target_abs)
+                    .await?;
                 continue;
             }
 
             if let Some(request) =
                 build_rust_symbol_rename_request(&root_dir, &source_abs, &target_abs)?
             {
-                client
-                    .initialize_and_rename_symbol(
-                        &[],
-                        Some(root_dir.as_path()),
-                        &request.document_path,
-                        request.position,
-                        &request.new_name,
-                    )
-                    .await?;
+                lsp_batch.push((source.clone(), target.clone(), request));
             } else {
                 client
                     .initialize_and_rename_files(
                         &[],
-                        single_move.clone(),
+                        vec![(source.clone(), target.clone())],
                         Some(root_dir.as_path()),
                         Some("rust"),
                         &["rs"],
                     )
                     .await?;
+                let single = vec![(source.clone(), target.clone())];
+                complete_filesystem_moves(&single, Some(root_dir.as_path())).await?;
             }
+        }
 
-            complete_filesystem_moves(&single_move, Some(root_dir.as_path())).await?;
+        // Pass 2: run all same-dir symbol renames in one LSP session.
+        if !lsp_batch.is_empty() {
+            let requests: Vec<SymbolRenameRequest> = lsp_batch
+                .iter()
+                .map(|(source, target, request)| {
+                    let source_abs = resolve_abs_path(&root_dir, Path::new(source));
+                    let target_abs = resolve_abs_path(&root_dir, Path::new(target));
+                    let mut pending_moves = std::collections::HashMap::new();
+                    pending_moves.insert(target_abs, source_abs);
+                    SymbolRenameRequest {
+                        document_path: request.document_path.clone(),
+                        position: request.position,
+                        new_name: request.new_name.clone(),
+                        pending_moves,
+                    }
+                })
+                .collect();
+
+            client
+                .initialize_and_rename_symbols_batch(
+                    &[],
+                    Some(root_dir.as_path()),
+                    requests,
+                    "rust",
+                )
+                .await?;
+
+            let filesystem_moves: Vec<(String, String)> = lsp_batch
+                .iter()
+                .map(|(src, tgt, _)| (src.clone(), tgt.clone()))
+                .collect();
+            complete_filesystem_moves(&filesystem_moves, Some(root_dir.as_path())).await?;
         }
 
         Ok(())

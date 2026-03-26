@@ -32,8 +32,8 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | **TypeScript / JS** | Projects >500 files skip cross-project reference updates on file moves. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
 | **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
-| **Rust** | Uses a shim strategy for cross-directory moves: a `#[path]` attribute is added in the declaring file and a `pub use` alias is created, so caller files are left unchanged. No direct import rewriting. |
-| **Go** | Moving any file in a package renames the **entire package** (all files in that directory move together). This is gopls behaviour — Go's package-per-directory model does not support partial-package moves. |
+| **Rust** | Same-dir renames use LSP symbol rename (all `use` paths updated). Cross-dir moves use a shim strategy (`#[path]` + `pub use` alias) — caller files are **not** rewritten. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |
+| **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Details in [Go Feature Docs](../Features/Go/linker_Go.md). |
 | **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, only relative imports are updated. |
 
 ## 4. Why Use `refac`?

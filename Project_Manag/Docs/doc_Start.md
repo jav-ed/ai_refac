@@ -15,11 +15,13 @@ Operational decision: after building `refac`, we want it available via `~/Progs/
 | How does Markdown move support work? What are its limits? | [Markdown Feature Docs](./Features/Markdown/linker_Markdown.md) |
 | How does TypeScript / JS move work? What are its limits? | [TypeScript Feature Docs](./Features/TypeScript/linker_TypeScript.md) |
 | How does Python move work? What are its limits? | [Python Feature Docs](./Features/Python/linker_Python.md) |
-| How do Rust / Go / Dart moves work? What are the limits? | [Capabilities & Limits](./Descr/abilties.md) §3 |
-| Can I move a folder/directory? | No — only individual files. Folder moves return a clear error. |
+| How does Go move work? Batch session architecture? Whole-package behaviour? | [Go Feature Docs](./Features/Go/linker_Go.md) |
+| How does Rust move work? Same-dir vs cross-dir? Shim strategy? | [Rust Feature Docs](./Features/Rust/linker_Rust.md) |
+| What are the limits per language? (summary table) | [Capabilities & Limits](./Descr/abilties.md) §3 |
+| Can I move a folder/directory? | TypeScript only — directory sources are routed to the TypeScript driver. All other languages require individual files. |
 | Why is refac slow or hanging on a large TS project? | Large projects (>500 files) skip full reference resolution; see [Capabilities](./Descr/abilties.md) |
 | How do I build and install the binary? | [Developer & Build Guide](./Guides/dev_guide.md) |
-| How do I run the tests / debug a failure? | [Testing & Debugging Guide](./Guides/Testing_and_Debugging.md) |
+| How do I run the tests / debug a failure? What tests exist for batch moves? | [Testing & Debugging Guide](./Guides/Testing_and_Debugging.md) |
 | Why is `ty` not used for Python? | [ty Python Refactoring Notes](./Research/ty_python_refactoring.md) |
 | Why was backend X chosen over Y? | [Tool Research Report](./Research/tool_Research_Report.md) |
 | What is the overall goal/scope? | [Project Goal](./Descr/goal.md) |

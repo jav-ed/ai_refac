@@ -26,8 +26,11 @@ The current test suite covers:
 - Go move flow, including whole-package rename cascade
 - Dart move flow
 - Markdown move flow
+- Batch moves across all languages, including partial failure and cross-package Go batches
 
 ## 2. Integration Test Architecture
+
+### Per-language tests
 
 Each language has a fixture directory and a test file:
 
@@ -39,6 +42,24 @@ Each language has a fixture directory and a test file:
 | Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`           | `pkg/utils/format.go` → `pkg/helpers/format.go`         |
 | Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`         | `lib/src/formatter.dart` → `lib/src/core/formatter.dart`|
 | Markdown   | `tests/fixtures/markdown/`           | `tests/markdown_move.rs`     | various `.md` link rewrites                             |
+
+### Batch tests
+
+`tests/batch_move.rs` exercises multi-file invocations using the real CLI binary. It reuses the same per-language fixture directories and covers:
+
+| Scenario | What is tested |
+|---|---|
+| TypeScript: unrelated pair | Two files with no import relationship — placement only |
+| TypeScript: cross-importing pair | Both files move to the same dir; import between them is rewritten |
+| Python: two files with cross-import | Sequential Rope moves; second move sees the already-updated import |
+| Rust: two same-dir files | Single rust-analyzer session; project still compiles after batch |
+| Go: same-package batch | Both files from one package — gopls moves the whole package once |
+| Go: cross-package batch | Files from two different packages — one gopls session for both packages |
+| Dart: two files | Cross-import between them is rewritten |
+| Markdown: two files | Links between them are rewritten |
+| Mixed language (TS + Markdown) | Two languages dispatched independently in one CLI call |
+| Partial failure | One language succeeds, one fails — response reports both |
+| All fail | Exit non-zero with structured error message |
 
 **Fixtures are never modified by running tests.** `common::setup_fixture` copies the fixture into a temp dir before each test. The tool operates on the temp copy; the originals stay pristine and the temp dir is cleaned up automatically when the test ends. No reset step is needed.
 

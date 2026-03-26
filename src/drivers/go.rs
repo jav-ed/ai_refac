@@ -1,6 +1,7 @@
 use super::RefactorDriver;
 use super::complete_filesystem_moves;
 use super::lsp_client::LspClient;
+use super::lsp_client::SymbolRenameRequest;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::Position;
@@ -59,28 +60,101 @@ impl RefactorDriver for GoDriver {
         let client = LspClient::new(&binary);
         let root_dir = resolve_root_dir(root_path)?;
 
-        for (source, target) in file_map {
-            let single_move = vec![(source.clone(), target.clone())];
-            let source_abs = resolve_abs_path(&root_dir, Path::new(&source));
-            let target_abs = resolve_abs_path(&root_dir, Path::new(&target));
+        // Pass 1: collect one LSP request per unique source package (directory).
+        // Go's package-per-directory model means gopls renames the entire package
+        // when any file moves cross-directory, so one representative rename per
+        // unique source dir is sufficient.  Same logic as before: a source dir is
+        // only marked "seen" when we actually obtain an LSP request for it, so
+        // same-dir moves (which return None from build_go_package_rename_request)
+        // do not suppress a later cross-dir move from the same directory.
+        let mut seen_source_dirs: std::collections::HashSet<PathBuf> =
+            std::collections::HashSet::new();
+        // (source_dir, target_abs, request)
+        let mut lsp_package_requests: Vec<(PathBuf, PathBuf, GoPackageRenameRequest)> = Vec::new();
+
+        for (source, target) in &file_map {
+            let source_abs = resolve_abs_path(&root_dir, Path::new(source));
+            let target_abs = resolve_abs_path(&root_dir, Path::new(target));
+            let source_dir = match source_abs.parent() {
+                Some(d) => d.to_path_buf(),
+                None => continue,
+            };
+
+            if seen_source_dirs.contains(&source_dir) {
+                continue;
+            }
 
             if let Some(request) =
                 build_go_package_rename_request(&root_dir, &source_abs, &target_abs)?
             {
-                client
-                    .initialize_and_rename_symbol(
-                        &[],
-                        Some(root_dir.as_path()),
-                        &request.document_path,
-                        request.position,
-                        &request.new_name,
-                    )
-                    .await?;
+                seen_source_dirs.insert(source_dir.clone());
+                lsp_package_requests.push((source_dir, target_abs, request));
             }
+        }
 
-            if let Some(lsp_source_abs) =
-                build_go_post_lsp_source_path(&source_abs, &target_abs, source_abs != target_abs)
-            {
+        // Pass 2: run all cross-dir package renames in one gopls session.
+        // Maps source_dir → Vec<(old_abs, new_abs)> of file renames gopls reported.
+        let mut package_file_renames: std::collections::HashMap<PathBuf, Vec<(PathBuf, PathBuf)>> =
+            std::collections::HashMap::new();
+
+        if !lsp_package_requests.is_empty() {
+            let symbol_requests: Vec<SymbolRenameRequest> = lsp_package_requests
+                .iter()
+                .map(|(_, target_abs, request)| {
+                    let source_abs = resolve_abs_path(&root_dir, &request.document_path);
+                    let mut pending_moves = std::collections::HashMap::new();
+                    pending_moves.insert(target_abs.clone(), source_abs);
+                    SymbolRenameRequest {
+                        document_path: request.document_path.clone(),
+                        position: request.position,
+                        new_name: request.new_name.clone(),
+                        pending_moves,
+                    }
+                })
+                .collect();
+
+            let all_file_renames = client
+                .initialize_and_rename_symbols_batch(
+                    &[],
+                    Some(root_dir.as_path()),
+                    symbol_requests,
+                    "go",
+                )
+                .await?;
+
+            for (i, (source_dir, _, _)) in lsp_package_requests.iter().enumerate() {
+                if let Some(renames) = all_file_renames.get(i) {
+                    package_file_renames.insert(source_dir.clone(), renames.clone());
+                }
+            }
+        }
+
+        // Pass 3: apply filesystem moves per file.
+        for (source, target) in &file_map {
+            let single_move = vec![(source.clone(), target.clone())];
+            let source_abs = resolve_abs_path(&root_dir, Path::new(source));
+            let target_abs = resolve_abs_path(&root_dir, Path::new(target));
+            let source_dir = source_abs.parent().map(|p| p.to_path_buf());
+
+            // Find where gopls actually placed our source file via a RenameFile
+            // resource op returned in the workspace edit.  Fall back to the
+            // heuristic (target_dir/source_filename) only when the LSP did not
+            // report an explicit rename for this file.
+            let lsp_moved_to = source_dir
+                .as_ref()
+                .and_then(|dir| package_file_renames.get(dir))
+                .and_then(|renames| renames.iter().find(|(from, _)| from == &source_abs))
+                .map(|(_, to)| to.clone());
+
+            let effective_source = lsp_moved_to.or_else(|| {
+                build_go_post_lsp_source_path(
+                    &source_abs,
+                    &target_abs,
+                    source_abs.parent() != target_abs.parent(),
+                )
+            });
+
+            if let Some(lsp_source_abs) = effective_source {
                 complete_go_filesystem_move(&lsp_source_abs, &target_abs).await?;
             } else {
                 complete_filesystem_moves(&single_move, Some(root_dir.as_path())).await?;

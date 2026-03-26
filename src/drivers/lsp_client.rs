@@ -21,6 +21,14 @@ pub struct LspClient {
     binary_path: String,
 }
 
+/// A single symbol rename to be processed in a batch LSP session.
+pub struct SymbolRenameRequest {
+    pub document_path: std::path::PathBuf,
+    pub position: lsp_types::Position,
+    pub new_name: String,
+    pub pending_moves: std::collections::HashMap<std::path::PathBuf, std::path::PathBuf>,
+}
+
 struct LspSession {
     child: Child,
     stdin: ChildStdin,
@@ -77,6 +85,27 @@ impl LspClient {
                 });
             }
 
+            // Build a reverse map: new_abs_path → old_abs_path.
+            // When the LSP returns a workspace edit targeting a file at its
+            // *new* (not-yet-existing) path, we redirect the edit to the
+            // source path so it is applied before the filesystem move.
+            let mut pending_moves: HashMap<PathBuf, PathBuf> = HashMap::new();
+            for rename in &file_renames {
+                let old_url = Url::parse(&rename.old_uri).with_context(|| {
+                    format!("Invalid old URI in rename: {}", rename.old_uri)
+                })?;
+                let new_url = Url::parse(&rename.new_uri).with_context(|| {
+                    format!("Invalid new URI in rename: {}", rename.new_uri)
+                })?;
+                let old_path = old_url.to_file_path().map_err(|_| {
+                    anyhow::anyhow!("Cannot convert old URI to file path: {}", rename.old_uri)
+                })?;
+                let new_path = new_url.to_file_path().map_err(|_| {
+                    anyhow::anyhow!("Cannot convert new URI to file path: {}", rename.new_uri)
+                })?;
+                pending_moves.insert(new_path, old_path);
+            }
+
             let rename_params = RenameFilesParams {
                 files: file_renames,
             };
@@ -92,7 +121,7 @@ impl LspClient {
             tracing::debug!("LSP willRenameFiles response: {:?}", resp);
 
             if let Some(edit) = workspace_edit_from_response(&resp, "workspace/willRenameFiles")? {
-                apply_workspace_edit(edit).await?;
+                let _ = apply_workspace_edit(edit, &pending_moves).await?;
             }
 
             Ok(())
@@ -110,7 +139,8 @@ impl LspClient {
         document_path: &Path,
         position: Position,
         new_name: &str,
-    ) -> Result<()> {
+        pending_moves: &HashMap<PathBuf, PathBuf>,
+    ) -> Result<Vec<(PathBuf, PathBuf)>> {
         let mut session = self.start_session(args, root_path, false).await?;
         let result = async {
             tokio::time::sleep(Duration::from_millis(750)).await;
@@ -142,8 +172,8 @@ impl LspClient {
                 }
 
                 if let Some(edit) = workspace_edit_from_response(&resp, "textDocument/rename")? {
-                    apply_workspace_edit(edit).await?;
-                    return Ok(());
+                    let (file_renames, _) = apply_workspace_edit(edit, pending_moves).await?;
+                    return Ok(file_renames);
                 }
 
                 anyhow::bail!("textDocument/rename returned no workspace edit");
@@ -157,6 +187,144 @@ impl LspClient {
 
         Self::shutdown_session(&mut session).await;
         result
+    }
+
+    pub async fn initialize_and_rename_symbols_batch(
+        &self,
+        args: &[&str],
+        root_path: Option<&Path>,
+        renames: Vec<SymbolRenameRequest>,
+        language_id: &str,
+    ) -> Result<Vec<Vec<(PathBuf, PathBuf)>>> {
+        if renames.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut session = self.start_session(args, root_path, false).await?;
+        let language_id = language_id.to_string();
+        let result = async {
+            tokio::time::sleep(Duration::from_millis(750)).await;
+
+            // Open all unique document paths so the LSP has them in its view
+            // before we start sending rename requests.
+            let unique_docs: std::collections::HashSet<PathBuf> = renames
+                .iter()
+                .map(|r| resolve_abs_path(&session.root_dir, &r.document_path))
+                .collect();
+            let mut opened_versions: HashMap<PathBuf, u32> = HashMap::new();
+
+            for doc_path in &unique_docs {
+                let Ok(url) = Url::from_file_path(doc_path) else {
+                    continue;
+                };
+                let Ok(uri) = Uri::from_str(url.as_str()) else {
+                    continue;
+                };
+                if let Ok(text) = tokio::fs::read_to_string(doc_path).await {
+                    let params = DidOpenTextDocumentParams {
+                        text_document: TextDocumentItem::new(
+                            uri,
+                            language_id.clone(),
+                            1,
+                            text,
+                        ),
+                    };
+                    Self::send_notification(&mut session.stdin, "textDocument/didOpen", params)
+                        .await?;
+                    opened_versions.insert(doc_path.clone(), 1);
+                }
+            }
+
+            let mut all_file_renames: Vec<Vec<(PathBuf, PathBuf)>> = Vec::new();
+
+            for (idx, rename) in renames.into_iter().enumerate() {
+                let document_abs =
+                    resolve_abs_path(&session.root_dir, &rename.document_path);
+                let document_uri = Url::from_file_path(&document_abs)
+                    .map_err(|_| anyhow::anyhow!("Invalid document path"))?;
+
+                let mut file_renames = Vec::new();
+
+                for attempt in 0..5u64 {
+                    let request_id = 10 + (idx as u64) * 10 + attempt;
+                    let rename_params = serde_json::json!({
+                        "textDocument": { "uri": document_uri.as_str() },
+                        "position": rename.position,
+                        "newName": rename.new_name,
+                    });
+
+                    Self::send_request(
+                        &mut session.stdin,
+                        "textDocument/rename",
+                        request_id,
+                        rename_params,
+                    )
+                    .await?;
+                    let resp =
+                        Self::read_response(&mut session.reader, request_id).await?;
+
+                    if is_content_modified_response(&resp) && attempt < 4 {
+                        tokio::time::sleep(Duration::from_millis(1_000)).await;
+                        continue;
+                    }
+
+                    if let Some(edit) =
+                        workspace_edit_from_response(&resp, "textDocument/rename")?
+                    {
+                        let (renames, modified_paths) =
+                            apply_workspace_edit(edit, &rename.pending_moves).await?;
+                        file_renames = renames;
+
+                        // Notify the LSP of every file we just changed on disk so
+                        // subsequent renames in this session see the updated state.
+                        for path in modified_paths {
+                            if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                                let version =
+                                    opened_versions.get(&path).copied().unwrap_or(1) + 1;
+                                opened_versions.insert(path.clone(), version);
+                                let _ = Self::send_did_change(
+                                    &mut session.stdin,
+                                    &path,
+                                    &content,
+                                    version,
+                                )
+                                .await;
+                            }
+                        }
+
+                        break;
+                    }
+
+                    anyhow::bail!("textDocument/rename returned no workspace edit");
+                }
+
+                all_file_renames.push(file_renames);
+            }
+
+            Ok(all_file_renames)
+        }
+        .await;
+
+        Self::shutdown_session(&mut session).await;
+        result
+    }
+
+    async fn send_did_change(
+        stdin: &mut tokio::process::ChildStdin,
+        path: &Path,
+        content: &str,
+        version: u32,
+    ) -> Result<()> {
+        let url = Url::from_file_path(path)
+            .map_err(|_| anyhow::anyhow!("Invalid path for didChange: {:?}", path))?;
+        let params = serde_json::json!({
+            "textDocument": {
+                "uri": url.as_str(),
+                "version": version
+            },
+            "contentChanges": [{"text": content}]
+        });
+        Self::send_notification(stdin, "textDocument/didChange", params).await
     }
 
     async fn send_request<T: serde::Serialize>(
@@ -227,6 +395,18 @@ impl LspClient {
     }
 
     async fn read_response(
+        reader: &mut BufReader<tokio::process::ChildStdout>,
+        expected_id: u64,
+    ) -> Result<Value> {
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            Self::read_response_inner(reader, expected_id),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("LSP timed out waiting for response (id={})", expected_id))?
+    }
+
+    async fn read_response_inner(
         reader: &mut BufReader<tokio::process::ChildStdout>,
         expected_id: u64,
     ) -> Result<Value> {
@@ -410,62 +590,128 @@ fn resolve_abs_path(root_dir: &Path, path: &Path) -> PathBuf {
     }
 }
 
-async fn apply_workspace_edit(edit: WorkspaceEdit) -> Result<()> {
-    if let Some(document_changes) = edit.document_changes {
-        apply_document_changes(document_changes).await?;
-    } else if let Some(changes) = edit.changes {
-        apply_changes(changes).await?;
-    }
+async fn apply_workspace_edit(
+    edit: WorkspaceEdit,
+    pending_moves: &HashMap<PathBuf, PathBuf>,
+) -> Result<(Vec<(PathBuf, PathBuf)>, Vec<PathBuf>)> {
+    // Phase 1: Collect all changes without touching the filesystem.
+    let changes = collect_pending_changes(edit, pending_moves)?;
 
-    Ok(())
-}
-
-async fn apply_document_changes(document_changes: DocumentChanges) -> Result<()> {
-    match document_changes {
-        DocumentChanges::Edits(edits) => {
-            for edit in edits {
-                apply_text_document_edit(edit).await?;
+    // Phase 2: Validate — every text-edit target must exist before we write
+    // anything. Fail fast so no partial edits are applied.
+    for change in &changes {
+        if let PendingChange::TextEdit { path, .. } = change {
+            if !path.exists() {
+                anyhow::bail!(
+                    "LSP returned a text edit for a file that does not exist: {:?}",
+                    path
+                );
             }
         }
-        DocumentChanges::Operations(changes) => {
-            for change in changes {
-                match change {
-                    DocumentChangeOperation::Edit(edit) => apply_text_document_edit(edit).await?,
-                    DocumentChangeOperation::Op(operation) => apply_resource_op(operation).await?,
+    }
+
+    // Phase 3: Execute all changes in their original order.
+    let mut file_renames: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let mut text_edited_paths: Vec<PathBuf> = Vec::new();
+
+    for change in changes {
+        match change {
+            PendingChange::TextEdit { path, edits } => {
+                text_edited_paths.push(path.clone());
+                apply_text_edits_to_path(&path, edits).await?;
+            }
+            PendingChange::ResourceOp(op) => {
+                if let Some(rename) = apply_resource_op(op).await? {
+                    file_renames.push(rename);
                 }
             }
         }
     }
 
-    Ok(())
+    Ok((file_renames, text_edited_paths))
 }
 
-async fn apply_changes(changes: HashMap<Uri, Vec<TextEdit>>) -> Result<()> {
-    for (uri, edits) in changes {
-        apply_text_edits_to_uri(&uri, edits).await?;
+enum PendingChange {
+    TextEdit { path: PathBuf, edits: Vec<TextEdit> },
+    ResourceOp(ResourceOp),
+}
+
+fn collect_pending_changes(
+    edit: WorkspaceEdit,
+    pending_moves: &HashMap<PathBuf, PathBuf>,
+) -> Result<Vec<PendingChange>> {
+    let mut changes = Vec::new();
+
+    if let Some(document_changes) = edit.document_changes {
+        match document_changes {
+            DocumentChanges::Edits(edits) => {
+                for edit in edits {
+                    collect_text_document_edit(edit, pending_moves, &mut changes)?;
+                }
+            }
+            DocumentChanges::Operations(ops) => {
+                for op in ops {
+                    match op {
+                        DocumentChangeOperation::Edit(edit) => {
+                            collect_text_document_edit(edit, pending_moves, &mut changes)?;
+                        }
+                        DocumentChangeOperation::Op(resource_op) => {
+                            changes.push(PendingChange::ResourceOp(resource_op));
+                        }
+                    }
+                }
+            }
+        }
+    } else if let Some(text_changes) = edit.changes {
+        for (uri, edits) in text_changes {
+            let path = uri_to_path(&uri)?;
+            let effective = redirect_if_pending(&path, pending_moves);
+            changes.push(PendingChange::TextEdit { path: effective, edits });
+        }
     }
 
-    Ok(())
+    Ok(changes)
 }
 
-async fn apply_text_document_edit(edit: TextDocumentEdit) -> Result<()> {
+fn collect_text_document_edit(
+    edit: TextDocumentEdit,
+    pending_moves: &HashMap<PathBuf, PathBuf>,
+    out: &mut Vec<PendingChange>,
+) -> Result<()> {
+    let path = uri_to_path(&edit.text_document.uri)?;
+    let effective = redirect_if_pending(&path, pending_moves);
     let edits = edit
         .edits
         .into_iter()
-        .map(|edit| match edit {
+        .map(|e| match e {
             OneOf::Left(edit) => edit,
             OneOf::Right(AnnotatedTextEdit { text_edit, .. }) => text_edit,
         })
         .collect();
-
-    apply_text_edits_to_uri(&edit.text_document.uri, edits).await
+    out.push(PendingChange::TextEdit { path: effective, edits });
+    Ok(())
 }
 
-async fn apply_resource_op(operation: ResourceOp) -> Result<()> {
+fn redirect_if_pending(path: &Path, pending_moves: &HashMap<PathBuf, PathBuf>) -> PathBuf {
+    if !path.exists() {
+        if let Some(source) = pending_moves.get(path) {
+            return source.clone();
+        }
+    }
+    path.to_path_buf()
+}
+
+async fn apply_resource_op(operation: ResourceOp) -> Result<Option<(PathBuf, PathBuf)>> {
     match operation {
-        ResourceOp::Create(op) => apply_create_file(op).await,
+        ResourceOp::Create(op) => {
+            apply_create_file(op).await?;
+            Ok(None)
+        }
         ResourceOp::Rename(op) => apply_rename_file(op).await,
-        ResourceOp::Delete(op) => apply_delete_file(op).await,
+        ResourceOp::Delete(op) => {
+            apply_delete_file(op).await?;
+            Ok(None)
+        }
     }
 }
 
@@ -501,7 +747,7 @@ async fn apply_create_file(operation: CreateFile) -> Result<()> {
     Ok(())
 }
 
-async fn apply_rename_file(operation: RenameFile) -> Result<()> {
+async fn apply_rename_file(operation: RenameFile) -> Result<Option<(PathBuf, PathBuf)>> {
     let old_path = uri_to_path(&operation.old_uri)?;
     let new_path = uri_to_path(&operation.new_uri)?;
     let options = operation.options.as_ref();
@@ -514,14 +760,14 @@ async fn apply_rename_file(operation: RenameFile) -> Result<()> {
         Ok(_) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {
             if new_path.exists() {
-                return Ok(());
+                return Ok(Some((old_path, new_path)));
             }
 
             if options
                 .and_then(|options| options.ignore_if_exists)
                 .unwrap_or(false)
             {
-                return Ok(());
+                return Ok(None);
             }
 
             return Err(error.into());
@@ -540,7 +786,7 @@ async fn apply_rename_file(operation: RenameFile) -> Result<()> {
                 .and_then(|options| options.ignore_if_exists)
                 .unwrap_or(false)
             {
-                return Ok(());
+                return Ok(None);
             } else {
                 anyhow::bail!("RenameFile target already exists: {:?}", new_path);
             }
@@ -549,8 +795,8 @@ async fn apply_rename_file(operation: RenameFile) -> Result<()> {
         Err(error) => return Err(error.into()),
     }
 
-    tokio::fs::rename(old_path, new_path).await?;
-    Ok(())
+    tokio::fs::rename(&old_path, &new_path).await?;
+    Ok(Some((old_path, new_path)))
 }
 
 async fn apply_delete_file(operation: DeleteFile) -> Result<()> {
@@ -598,17 +844,7 @@ async fn remove_existing_path(path: &Path, is_dir: bool) -> Result<()> {
     Ok(())
 }
 
-async fn apply_text_edits_to_uri(uri: &Uri, edits: Vec<TextEdit>) -> Result<()> {
-    let path = uri_to_path(uri)?;
-    apply_text_edits_to_path(&path, edits).await
-}
-
 async fn apply_text_edits_to_path(path: &Path, edits: Vec<TextEdit>) -> Result<()> {
-    if !path.exists() {
-        tracing::warn!("LSP returned edit for non-existent file: {:?}", path);
-        return Ok(());
-    }
-
     let original = tokio::fs::read_to_string(path).await?;
     let updated = apply_text_edits(&original, edits)?;
 
@@ -841,11 +1077,14 @@ mod tests {
             }],
         );
 
-        apply_workspace_edit(WorkspaceEdit {
-            changes: Some(changes),
-            document_changes: None,
-            change_annotations: None,
-        })
+        let _ = apply_workspace_edit(
+            WorkspaceEdit {
+                changes: Some(changes),
+                document_changes: None,
+                change_annotations: None,
+            },
+            &HashMap::new(),
+        )
         .await?;
 
         assert_eq!(tokio::fs::read_to_string(file_path).await?, "mod b;\n");
@@ -871,11 +1110,14 @@ mod tests {
             })],
         };
 
-        apply_workspace_edit(WorkspaceEdit {
-            changes: None,
-            document_changes: Some(DocumentChanges::Edits(vec![edit])),
-            change_annotations: None,
-        })
+        let _ = apply_workspace_edit(
+            WorkspaceEdit {
+                changes: None,
+                document_changes: Some(DocumentChanges::Edits(vec![edit])),
+                change_annotations: None,
+            },
+            &HashMap::new(),
+        )
         .await?;
 
         assert_eq!(tokio::fs::read_to_string(file_path).await?, "mod b;\n");

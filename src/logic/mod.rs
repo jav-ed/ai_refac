@@ -61,8 +61,13 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         };
 
         if resolved.is_dir() {
-            // Directory moves are handled by the TypeScript driver (ts-morph directory.move()).
-            // Other language backends operate file-by-file and don't support directory moves.
+            if !dir_looks_like_typescript(&resolved) {
+                bail!(
+                    "Directory moves are only supported for TypeScript/JavaScript projects. \
+                     '{}' does not appear to contain TypeScript or JavaScript files.",
+                    src
+                );
+            }
             batch_map
                 .entry("typescript".to_string())
                 .or_default()
@@ -92,103 +97,171 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             .push((src.clone(), tgt.clone()));
     }
 
-    // 3. Dispatch Batches
-    let mut total_files = 0;
+    // 3. Dispatch Batches — sorted for deterministic output order
+    let root = req.project_path.as_ref().map(std::path::Path::new);
     let mut successful_files: std::collections::HashMap<String, Vec<(String, String)>> =
         std::collections::HashMap::new();
-    let mut errors = Vec::new();
+    // (lang, attempted files, error message)
+    let mut failed_batches: Vec<(String, Vec<(String, String)>, String)> = Vec::new();
 
-    for (lang, files) in batch_map {
+    let mut dispatch_order: Vec<(String, Vec<(String, String)>)> = batch_map.into_iter().collect();
+    dispatch_order.sort_by(|a, b| a.0.cmp(&b.0));
+
+    for (lang, files) in dispatch_order {
         let driver = get_driver_by_lang(&lang)?;
 
         if !driver.check_availability().await? {
             bail!("Driver for '{}' is not available.", lang);
         }
 
-        let root = req.project_path.as_ref().map(std::path::Path::new);
         match driver.move_files(files.clone(), root).await {
             Ok(_) => {
-                total_files += files.len();
                 successful_files.insert(lang, files);
             }
-            Err(e) => errors.push(format!("Failed to move {} files: {}", lang, e)),
+            Err(e) => failed_batches.push((lang, files, e.to_string())),
         }
     }
 
-    if !errors.is_empty() && successful_files.is_empty() {
-        bail!("{}", errors.join("\n"));
+    // If everything failed, bail with a structured error rather than a blank response.
+    if !failed_batches.is_empty() && successful_files.is_empty() && skipped_files.is_empty() {
+        let lines: Vec<String> = failed_batches
+            .iter()
+            .map(|(lang, files, err)| {
+                let file_list = files
+                    .iter()
+                    .map(|(s, t)| format!("  {} -> {}", rel_display(s, root), rel_display(t, root)))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                format!("{}: {}\n{}", capitalize(lang), err, file_list)
+            })
+            .collect();
+        bail!("{}", lines.join("\n\n"));
     }
 
+    // 4. Build response
+    let total_files: usize = successful_files.values().map(|v| v.len()).sum();
     let mut response = format!(
-        "// Alhamdulillah {} files were successfully refactored like shown below:\n",
-        total_files
+        "// Alhamdulillah {} file{} successfully refactored:\n",
+        total_files,
+        if total_files == 1 { " was" } else { " were" }
     );
 
-    // Sort languages for consistent output
-    let mut langs: Vec<_> = successful_files.keys().cloned().collect();
-    langs.sort();
+    let mut success_langs: Vec<_> = successful_files.keys().cloned().collect();
+    success_langs.sort();
 
-    for lang in langs {
+    for lang in success_langs {
         let files = &successful_files[&lang];
-        let root = req.project_path.as_ref().map(std::path::Path::new);
-
-        let lang_display = if lang.len() > 0 {
-            let mut c = lang.chars();
-            c.next().unwrap().to_uppercase().collect::<String>() + c.as_str()
-        } else {
-            lang.clone()
-        };
-
-        response.push_str(&format!("\n// {} results:\n\n", lang_display));
+        response.push_str(&format!("\n// {} results:\n\n", capitalize(&lang)));
         for (src, tgt) in files {
-            let src_disp = if let Some(r) = root {
-                std::path::Path::new(src)
-                    .strip_prefix(r)
-                    .unwrap_or(std::path::Path::new(src))
-                    .display()
-                    .to_string()
-            } else {
-                src.clone()
-            };
+            response.push_str(&format!(
+                "{} -> {}  \n",
+                rel_display(src, root),
+                rel_display(tgt, root)
+            ));
+        }
 
-            let tgt_disp = if let Some(r) = root {
-                std::path::Path::new(tgt)
-                    .strip_prefix(r)
-                    .unwrap_or(std::path::Path::new(tgt))
-                    .display()
-                    .to_string()
-            } else {
-                tgt.clone()
-            };
+        // For Go: report any files gopls moved collaterally beyond what was requested.
+        if lang == "go" {
+            let collaterals = detect_go_collaterals(files, root);
+            if !collaterals.is_empty() {
+                response.push_str(
+                    "\n// Note — Go moves entire packages. \
+                     The following files were also relocated as part of the package rename:  \n\n",
+                );
+                for path in collaterals {
+                    response.push_str(&format!("{}  \n", rel_display(&path.display().to_string(), root)));
+                }
+            }
+        }
+    }
 
-            response.push_str(&format!("{} -> {}  \n", src_disp, tgt_disp));
+    if !failed_batches.is_empty() {
+        response.push_str("\n// Failed:\n");
+        for (lang, files, err) in &failed_batches {
+            response.push_str(&format!("\n// {} — {}\n\n", capitalize(lang), err));
+            for (src, tgt) in files {
+                response.push_str(&format!(
+                    "{} -> {}  \n",
+                    rel_display(src, root),
+                    rel_display(tgt, root)
+                ));
+            }
         }
     }
 
     if !skipped_files.is_empty() {
-        response
-            .push_str("\n// Following files were not refactored (unsupported extension):  \n\n");
-        for file in skipped_files {
-            // Try to display relative path for skipped files too
-            let file_disp = if let Some(r) = req.project_path.as_ref().map(std::path::Path::new) {
-                std::path::Path::new(&file)
-                    .strip_prefix(r)
-                    .unwrap_or(std::path::Path::new(&file))
-                    .display()
-                    .to_string()
-            } else {
-                file.clone()
-            };
-            response.push_str(&format!("{}  \n", file_disp));
+        response.push_str("\n// Skipped (unsupported extension):  \n\n");
+        for file in &skipped_files {
+            response.push_str(&format!("{}  \n", rel_display(file, root)));
         }
     }
 
-    if !errors.is_empty() {
-        response.push_str("\n// --- Errors ---  \n");
-        response.push_str(&errors.join("  \n"));
-    }
-
     Ok(response)
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+fn rel_display(path: &str, root: Option<&std::path::Path>) -> String {
+    if let Some(r) = root {
+        std::path::Path::new(path)
+            .strip_prefix(r)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| path.to_string())
+    } else {
+        path.to_string()
+    }
+}
+
+/// After a successful Go batch move, scan the target directories for .go files
+/// that were not in the requested file map — these are collateral moves performed
+/// by gopls as part of its package-level rename.
+fn detect_go_collaterals(
+    file_map: &[(String, String)],
+    root: Option<&std::path::Path>,
+) -> Vec<std::path::PathBuf> {
+    // Build the set of requested target absolute paths.
+    let requested: std::collections::HashSet<std::path::PathBuf> = file_map
+        .iter()
+        .map(|(_, tgt)| {
+            let p = std::path::Path::new(tgt);
+            if p.is_absolute() {
+                p.to_path_buf()
+            } else if let Some(r) = root {
+                r.join(p)
+            } else {
+                p.to_path_buf()
+            }
+        })
+        .collect();
+
+    // Collect the unique target directories.
+    let target_dirs: std::collections::HashSet<std::path::PathBuf> = requested
+        .iter()
+        .filter_map(|p| p.parent().map(|d| d.to_path_buf()))
+        .collect();
+
+    // Any .go file in those directories that was not explicitly requested is collateral.
+    let mut collaterals = Vec::new();
+    for dir in &target_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("go")
+                    && !requested.contains(&path)
+                {
+                    collaterals.push(path);
+                }
+            }
+        }
+    }
+    collaterals.sort();
+    collaterals
 }
 
 fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriver>> {
@@ -202,4 +275,20 @@ fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriv
         _ => bail!("Unsupported language: {}", lang),
     };
     Ok(driver)
+}
+
+fn dir_looks_like_typescript(dir: &std::path::Path) -> bool {
+    std::fs::read_dir(dir)
+        .ok()
+        .map(|entries| {
+            entries.flatten().any(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| matches!(e, "ts" | "tsx" | "js" | "jsx"))
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
 }
