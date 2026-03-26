@@ -16,10 +16,10 @@ mod common;
 //
 // Blank imports of unrelated packages (_ "pkg/setup") are untouched.
 //
-// Partial-package-move edge case: pkg/utils/validate.go stays in pkg/utils/.
-// The driver renames based on the moved file's new directory, not the whole
-// source package. validate.go keeps `package utils` and callers that only
-// use utils.Validate() keep their pkg/utils import.
+// Whole-package rename: gopls treats all files in a directory as one package.
+// Moving format.go to pkg/helpers/ triggers a full package rename — validate.go
+// also moves to pkg/helpers/ and ALL callers (including validate-only ones) get
+// their import paths rewritten to pkg/helpers.
 
 fn run_move(project: &std::path::Path) -> std::process::Output {
     common::run_cli(&[
@@ -51,23 +51,27 @@ fn go_move_places_file_at_target_and_removes_source() {
     );
 }
 
-// ── partial-package-move: validate.go stays ────────────────────────────────
+// ── whole-package rename: validate.go also moves ───────────────────────────
 
 #[test]
-fn go_move_leaves_validate_go_in_place() {
+fn go_move_moves_validate_go_to_helpers() {
     let temp = common::setup_fixture("go/project");
     let project = temp.path();
-    let before = common::read_file(project, "pkg/utils/validate.go");
     common::assert_move_succeeded(&run_move(project));
 
+    // gopls renames the whole package — validate.go moves alongside format.go
     assert!(
-        project.join("pkg/utils/validate.go").exists(),
-        "validate.go must stay in pkg/utils/ — only format.go moves"
+        project.join("pkg/helpers/validate.go").exists(),
+        "validate.go must move to pkg/helpers/ (gopls renames the whole package)"
     );
-    let after = common::read_file(project, "pkg/utils/validate.go");
-    assert_eq!(
-        after, before,
-        "validate.go must be byte-identical after move (it does not move)"
+    assert!(
+        !project.join("pkg/utils/validate.go").exists(),
+        "validate.go must no longer be in pkg/utils/ after the package rename"
+    );
+    let validate = common::read_file(project, "pkg/helpers/validate.go");
+    assert!(
+        validate.contains("package helpers"),
+        "validate.go package declaration must be helpers:\n{validate}"
     );
 }
 
@@ -316,21 +320,28 @@ fn go_move_rewrites_all_call_sites_to_helpers_qualifier() {
     }
 }
 
-// ── validate.go-only caller: import stays pkg/utils ────────────────────────
+// ── validate.go-only caller: import also updated to pkg/helpers ────────────
 
 #[test]
-fn go_move_leaves_validate_only_import_as_pkg_utils() {
+fn go_move_updates_validate_only_import_to_pkg_helpers() {
     let temp = common::setup_fixture("go/project");
     let project = temp.path();
-    let before = common::read_file(project, "internal/validator/validator.go");
     common::assert_move_succeeded(&run_move(project));
 
-    // validator.go only calls utils.Validate() which lives in validate.go — not the moved file.
-    // gopls knows which symbols come from which file; callers of validate.go keep pkg/utils.
-    let after = common::read_file(project, "internal/validator/validator.go");
-    assert_eq!(
-        after, before,
-        "validator.go must be byte-identical: it only uses Validate from validate.go (stays in pkg/utils)"
+    // gopls renames the whole package — validate.go moves to pkg/helpers/ too.
+    // Callers that only use Validate() also get their import rewritten.
+    let validator = common::read_file(project, "internal/validator/validator.go");
+    assert!(
+        validator.contains("\"github.com/example/myproject/pkg/helpers\""),
+        "internal/validator: import must be pkg/helpers (whole package renamed):\n{validator}"
+    );
+    assert!(
+        !validator.contains("pkg/utils\""),
+        "internal/validator: old pkg/utils import must be gone:\n{validator}"
+    );
+    assert!(
+        validator.contains("helpers.Validate"),
+        "internal/validator: call site must be helpers.Validate:\n{validator}"
     );
 }
 

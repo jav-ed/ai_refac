@@ -3,7 +3,7 @@
 import 'dart:io';
 import 'package:acme_utils/src/formatter.dart';
 
-class HttpClient {
+class AcmeHttpClient {
   final Formatter _formatter = Formatter();
 
   Future<String> get(Uri uri) async {

@@ -16,6 +16,7 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 | Rust | ✅ | ❌ |
 | Go | ✅ | ❌ |
 | Dart | ✅ | ❌ |
+| Markdown | ✅ | ❌ |
 
 **If you pass a directory for a non-TS language, the call will fail.** There is no silent skip — you get an error from the TypeScript driver because it can't find TS source files in that directory.
 

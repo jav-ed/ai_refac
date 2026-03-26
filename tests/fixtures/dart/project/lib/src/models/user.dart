@@ -1,5 +1,4 @@
 // Exercises: relative import of formatter from models/ subdirectory.
-// Before: '../formatter.dart'  After: '../core/formatter.dart'
 import '../formatter.dart';
 
 class User {

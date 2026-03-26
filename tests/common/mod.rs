@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use tempfile::{TempDir, tempdir};
+use tempfile::TempDir;
 
 pub fn cli_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_refac"))
@@ -39,8 +39,14 @@ pub fn fixture_dir(name: &str) -> PathBuf {
 
 /// Copy a fixture into a fresh tempdir and return the handle.
 /// The fixture contents land directly at temp.path() (not in a subdirectory).
+///
+/// Uses a non-hidden prefix ("refac-test-") because gopls skips hidden directories
+/// (names starting with ".") when cascading workspace edits to importer files.
 pub fn setup_fixture(name: &str) -> TempDir {
-    let temp = tempdir().expect("failed to create temp dir");
+    let temp = tempfile::Builder::new()
+        .prefix("refac-test-")
+        .tempdir()
+        .expect("failed to create temp dir");
     copy_dir_all(&fixture_dir(name), temp.path()).expect("failed to copy fixture");
     temp
 }

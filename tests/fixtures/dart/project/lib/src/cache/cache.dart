@@ -1,5 +1,4 @@
 // Exercises: relative import of formatter from a subdirectory of lib/src/.
-// Before: '../formatter.dart'  After: '../core/formatter.dart'
 import '../formatter.dart';
 
 class Cache {
