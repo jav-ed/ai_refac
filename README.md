@@ -26,7 +26,7 @@ Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.r
 **Requires Rust 1.85+ (edition 2024).** Install via [rustup](https://rustup.rs) if needed.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/jav-ed/ai_refac.git
 cd refac
 cargo build --release
 ```
