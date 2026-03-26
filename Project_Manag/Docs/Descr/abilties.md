@@ -16,12 +16,12 @@ The tool integrates with the following language toolchains:
 
 | Language | Driver Engine | Required Tooling |
 | :--- | :--- | :--- |
-| **Python** | `Rope` / `Pyrefly` | `python3`, `rope`, `pyrefly` |
+| **Python** | `Rope` (primary) / `Pyrefly` (fallback) | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback |
 | **TypeScript / JS** | `Bun` | `bun` |
-| **Markdown** | `Native Rust backend` | none |
+| **Markdown** | Native Rust backend | none |
 | **Rust** | `rust-analyzer` | `rust-analyzer` binary |
-| **Go** | `gopls` | `gopls` (Go Language Server) |
-| **Dart** | `Dart SDK` | `dart language-server` |
+| **Go** | `gopls` | `gopls` in PATH or `~/go/bin` |
+| **Dart** | Dart SDK analysis server | `dart` (Dart SDK) |
 
 Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md).
 
@@ -30,9 +30,11 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | Language | Limit |
 | :--- | :--- |
 | **TypeScript / JS** | Projects >500 files skip cross-project reference updates on file moves. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
-| **Python** | Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
+| **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
-| **Rust / Go / Dart** | No known limits beyond requiring the upstream tool to be installed and in PATH. |
+| **Rust** | Uses a shim strategy for cross-directory moves: a `#[path]` attribute is added in the declaring file and a `pub use` alias is created, so caller files are left unchanged. No direct import rewriting. |
+| **Go** | Moving any file in a package renames the **entire package** (all files in that directory move together). This is gopls behaviour — Go's package-per-directory model does not support partial-package moves. |
+| **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, only relative imports are updated. |
 
 ## 4. Why Use `refac`?
 
