@@ -1,0 +1,46 @@
+---
+title: refac
+description: Move source files and keep your project consistent. Language-aware CLI for TypeScript, Python, Go, Rust, Dart, and Markdown.
+template: splash
+hero:
+  tagline: Move files. Update references. Stay consistent.
+  actions:
+    - text: Get started
+      link: /getting-started/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/jav-ed/ai_refac
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is refac?
+
+`refac` is a CLI tool that moves source files and updates the references that point to them — import paths, module declarations, package names, and Markdown links — so your project stays consistent after structural changes.
+
+It is designed for scripted and agent-driven workflows where an IDE is not in the loop.
+
+## Supported languages
+
+<CardGrid>
+  <Card title="TypeScript / JavaScript" icon="seti:typescript">
+    File and directory moves via ts-morph. Full cross-project reference updates for projects under 500 files.
+  </Card>
+  <Card title="Python" icon="seti:python">
+    Rope (primary) with Pyrefly as automatic fallback. Updates import statements across the project.
+  </Card>
+  <Card title="Go" icon="seti:go">
+    gopls via LSP. Whole-package moves with full importer updates and a single server session for batches.
+  </Card>
+  <Card title="Rust" icon="seti:rust">
+    rust-analyzer via LSP. Full reference rewrites for same-directory renames; shim strategy for cross-directory moves.
+  </Card>
+  <Card title="Dart" icon="seti:dart">
+    Dart analysis server via LSP. Updates both relative and `package:` URI imports.
+  </Card>
+  <Card title="Markdown" icon="seti:markdown">
+    Native Rust backend — no external tooling required. Updates inline links, reference definitions, and anchors.
+  </Card>
+</CardGrid>

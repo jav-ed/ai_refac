@@ -1,0 +1,6 @@
+1. we dont have a logo yet. this could be important for github itself, but also for the doc webpage
+2. we are fine with out internal docs being pushed into github, meaining things are visible
+3. we need to create a skill file that explains how this tool is used. so the idea is this: we make it in the readme.md very clear: hey you dont know how to use it. no worries, we ship skill files with it.
+    you simply use your existing ai tool, ask it to read that skill file and inshallah done. the skill file explains hwo this can be used. on top of that the skill files are written in a format that has the goal not to pollute cotnext. so if you are new and need that installation there is a one-liner that explains: if you want to install things: please read that file. now with that yout agent context wont be spammed. your agent will inshallah only read that context that it needs.
+    
+4. in the doc start md: we should also hihglight why we are creating that project: we open-source some of our tools to provide real value for people out there. the provision of value an inshallah be used as a kind of proof for people, who might want to become customers.

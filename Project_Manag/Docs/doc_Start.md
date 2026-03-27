@@ -25,3 +25,8 @@ Operational decision: after building `refac`, we want it available via `~/Progs/
 | Why is `ty` not used for Python? | [ty Python Refactoring Notes](./Research/ty_python_refactoring.md) |
 | Why was backend X chosen over Y? | [Tool Research Report](./Research/tool_Research_Report.md) |
 | What is the overall goal/scope? | [Project Goal](./Descr/goal.md) |
+| Where does the public docs site live? What is the content structure? | [Docs Site](./Guides/linker_DocSite.md) |
+| Where is the Starlight source / local reference docs? | `Repos/starlight/` — cloned at `--depth=1` from github.com/withastro/starlight |
+| How do I add a new page or language to the docs site? | [Docs Site — Adding pages](./Guides/linker_DocSite.md#adding-a-new-page) |
+| How do I build and deploy the docs site to refac.javedab.com? | [Deploy Guide](./Guides/deploy_docs.md) |
+| What is the difference between internal docs and the public docs site? | [Docs Site — Relationship to internal docs](./Guides/linker_DocSite.md#relationship-to-internal-docs) |

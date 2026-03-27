@@ -19,3 +19,14 @@ Trials/
 
 scripts/node_modules/
 scripts/package-lock.json
+
+# Docs site
+docs-site/node_modules/
+docs-site/dist/
+docs-site/.astro/
+
+# Playwright CLI session snapshots
+.playwright-cli/
+
+# Claude tooling
+skills-lock.json

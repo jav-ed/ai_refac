@@ -1,0 +1,69 @@
+/* ------------------------------------------------------------------ */
+/* Maple Mono — variable font, self-hosted from Repos/maple-font       */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+	font-family: 'Maple Mono';
+	src: url('/fonts/MapleMono[wght]-VF.woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Maple Mono';
+	src: url('/fonts/MapleMono-Italic[wght]-VF.woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: italic;
+	font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Geist Sans — variable font, self-hosted from Repos/geist-font       */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+	font-family: 'Geist';
+	src: url('/fonts/Geist[wght].woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Geist';
+	src: url('/fonts/Geist-Italic[wght].woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: italic;
+	font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Apply fonts via Starlight CSS variables                             */
+/* ------------------------------------------------------------------ */
+
+:root {
+	--sl-font: 'Geist', sans-serif;
+	--sl-font-mono: 'Maple Mono', monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/* Green accent — dark mode (default)                                  */
+/* ------------------------------------------------------------------ */
+
+:root {
+	--sl-color-accent-low:  oklch(20% 0.05 150);  /* subtle dark tint */
+	--sl-color-accent:      oklch(62% 0.15 150);  /* main green       */
+	--sl-color-accent-high: oklch(82% 0.10 150);  /* text on dark bg  */
+}
+
+/* ------------------------------------------------------------------ */
+/* Green accent — light mode                                           */
+/* ------------------------------------------------------------------ */
+
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+	--sl-color-accent-high: oklch(28% 0.10 150);  /* text on light bg */
+	--sl-color-accent:      oklch(45% 0.15 150);  /* main green       */
+	--sl-color-accent-low:  oklch(92% 0.04 150);  /* subtle light tint*/
+}
