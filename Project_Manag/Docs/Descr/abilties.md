@@ -36,6 +36,24 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Details in [Go Feature Docs](../Features/Go/linker_Go.md). |
 | **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, only relative imports are updated. |
 
-## 4. Why Use `refac`?
+## 4. JSON Output
+
+Pass `--json` to get machine-readable output instead of human-readable terminal text. Returns a single JSON object:
+
+```json
+{ "status": "ok", "message": "..." }
+```
+
+On partial or full failure:
+
+```json
+{ "status": "error", "message": "..." }
+```
+
+`"message"` on failure describes exactly which moves succeeded and which failed. Exit codes: `0` = all succeeded, `1` = one or more failed.
+
+The `--json` flag is the intended interface for agent use — parse `status` to branch on success/failure, read `message` for detail.
+
+## 5. Why Use `refac`?
 
 Plain filesystem moves often break imports and module references. `refac` automates the follow-up updates so the project is more likely to remain buildable after structural changes.

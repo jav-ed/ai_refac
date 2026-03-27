@@ -22,20 +22,19 @@ Outputs:
 The recommended setup during development is a symlink from a stable PATH location to the release binary. Rebuilding updates the binary without any reinstall step:
 
 ```bash
-mkdir -p ~/Progs/bin
-ln -sf "$(pwd)/target/release/refac" ~/Progs/bin/refac
+ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac
 ```
 
-Make sure `~/Progs/bin` is in your `PATH`. Add to your shell config if needed:
+Make sure `~/.local/bin` is in your `PATH`. Most Linux distros include it automatically. If not, add to your shell config:
 
 ```bash
-export PATH="$HOME/Progs/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 If you need a fixed snapshot instead:
 
 ```bash
-cp target/release/refac ~/Progs/bin/refac
+cp target/release/refac ~/.local/bin/refac
 ```
 
 ## CLI during development
@@ -76,7 +75,7 @@ This recreates `Trials/0_Refac_Tree/` with sample projects for TypeScript, Pytho
 ## Basic development workflow
 
 1. `cargo build --release`
-2. Confirm `~/Progs/bin/refac` symlink points to the new binary
+2. Confirm `~/.local/bin/refac` symlink points to the new binary
 3. `cargo test` after any behavior change
 4. `cargo run --bin create_testbed` to regenerate samples if needed
 5. Run `refac move ...` against a concrete project

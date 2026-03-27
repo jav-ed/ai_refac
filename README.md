@@ -6,6 +6,70 @@ A CLI tool that moves source files and updates affected import paths, module ref
 
 ---
 
+## The story
+
+I was building out an AI agent workflow and kept running into the same problem: when an agent needs to move a file, it does it the hard way — reads every file that imports it, rewrites the paths manually, hopes it got them all. That is slow, token-heavy, and fragile. A missed import means a broken build, a retry, more context burned.
+
+Moving files and updating references is exactly what refactoring tools are built for. The agent should call the right tool, get a clean result, and move on.
+
+`refac` is that tool. Three things make it agent-friendly by design:
+
+**1. Ships with a skill file — no MCP needed.**
+The repo includes a `.agents/skills/refac-cli/` folder. Drop it into your agent setup and it loads only when relevant. The agent reads what it needs, skips the rest. No persistent context overhead, no server to run.
+
+**2. Structured output an agent can actually use.**
+The `--json` flag returns a predictable JSON object — `status` and `message` — so the agent can parse the result cleanly without scraping terminal output. On partial failure the message describes exactly what succeeded and what did not.
+
+**3. Built-in `--help` that works for agents and humans alike.**
+Every subcommand is documented at the CLI level. No hunting through READMEs.
+
+```bash
+refac --help
+refac move --help
+```
+
+---
+
+## Ask your agent
+
+The docs in this repo are structured for agent navigation, not for sequential reading. Instead of skimming through files yourself, point your agent at the entry point and ask your question directly:
+
+```
+Read @Project_Manag/Docs/doc_Start.md and tell me: [your question here]
+```
+
+Examples:
+
+```
+Read @Project_Manag/Docs/doc_Start.md and tell me how to install this tool.
+Read @Project_Manag/Docs/doc_Start.md and explain how Go package moves work.
+Read @Project_Manag/Docs/doc_Start.md and tell me what languages are supported and what their limits are.
+Read @Project_Manag/Docs/doc_Start.md and explain the Rust cross-directory move behaviour.
+```
+
+The agent will navigate to the relevant doc, read only what it needs, and answer directly.
+
+---
+
+## Agent integration
+
+The skill file lives in `.agents/skills/refac-cli/` — this is the single source of truth. To wire it into your agent tool, symlink from wherever that tool expects skills rather than copying.
+
+### Claude Code
+
+```bash
+mkdir -p .claude
+ln -s ../.agents/skills .claude/skills
+```
+
+Claude Code picks up skills from `.claude/skills/`. The symlink points back to `.agents/skills/`, so there is no duplication — one folder, two entry points.
+
+The `.claude/` directory is tracked in git. `.claude/skills` is listed in `.gitignore` so the symlink itself is not committed (the skills are already tracked under `.agents/`).
+
+Other agent tools that support a skills or prompts directory can be wired up the same way — just symlink from their expected path into `.agents/skills/`.
+
+---
+
 ## Supported languages
 
 | Language | Files | Directories | Engine |

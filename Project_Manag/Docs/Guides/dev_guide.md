@@ -19,13 +19,13 @@ Main outputs:
 
 ## 2. Local Availability
 
-The expected local setup is that `refac` is reachable via `~/Progs/bin/refac`.
+The expected local setup is that `refac` is reachable via `~/.local/bin/refac`.
 
 Preferred during development: create a symlink to the release binary.
 
 ```bash
-mkdir -p ~/Progs/bin
-ln -sf "$(pwd)/target/release/refac" ~/Progs/bin/refac
+mkdir -p ~/.local/bin
+ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac
 ```
 
 Why this is the preferred setup:
@@ -34,13 +34,13 @@ Why this is the preferred setup:
 - rebuilding `target/release/refac` updates what the symlink points to
 - no extra copy step is needed after each rebuild
 
-If `~/Progs/bin` is not already in `PATH`, add it in your shell setup.
+If `~/.local/bin` is not already in `PATH`, add it in your shell setup.
 
 If you need a fixed snapshot instead of a live development link, you can copy the binary instead:
 
 ```bash
-mkdir -p ~/Progs/bin
-cp target/release/refac ~/Progs/bin/refac
+mkdir -p ~/.local/bin
+cp target/release/refac ~/.local/bin/refac
 ```
 
 ## 3. Main CLI
@@ -89,7 +89,7 @@ Each sample project has internal references so file moves can be verified agains
 ## 5. Basic Local Workflow
 
 1. Build the release binary: `cargo build --release`
-2. Ensure `~/Progs/bin/refac` points to it, preferably via symlink
+2. Ensure `~/.local/bin/refac` points to it, preferably via symlink
 3. Run tests when changing behavior: `cargo test`
 4. Generate fresh samples if needed: `cargo run --bin create_testbed`
 5. Run `refac move ...` against a concrete language project
