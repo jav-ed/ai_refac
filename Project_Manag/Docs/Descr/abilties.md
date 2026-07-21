@@ -29,7 +29,7 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 
 | Language | Limit |
 | :--- | :--- |
-| **TypeScript / JS** | Projects >2,000 files skip cross-project reference updates on file moves. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
+| **TypeScript / JS** | Complete caller updates require an authoritative `tsconfig.json` that includes all local TS/JS sources. Batches are limited to 30 contained source files. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
 | **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
 | **Rust** | Same-dir renames use LSP symbol rename (all `use` paths updated). Cross-dir moves use a shim strategy (`#[path]` + `pub use` alias) — caller files are **not** rewritten. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |

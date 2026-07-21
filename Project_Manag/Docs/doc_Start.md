@@ -11,7 +11,7 @@ Operational decision: after building `refac`, the binary is made available via `
 ## Navigation
 
 - **[Capabilities & Language Support](./Descr/abilties.md)** — supported languages and engines, limits per backend, directory moves (TypeScript only), Dart package URI behaviour, JSON output schema
-- **[TypeScript / JS](./Features/TypeScript/linker_TypeScript.md)** — move behaviour, large project threshold (>2,000 files), directory moves
+- **[TypeScript / JS](./Features/TypeScript/linker_TypeScript.md)** — tsconfig coverage, low-RAM project loading, aliases, directory moves
 - **[Python](./Features/Python/linker_Python.md)** — Rope/Pyrefly backends, re-export limits, namespace packages
 - **[Go](./Features/Go/linker_Go.md)** — whole-package moves, batch session architecture, go.mod requirement
 - **[Rust](./Features/Rust/linker_Rust.md)** — same-dir vs cross-dir, shim strategy (`#[path]` + `pub use` alias), caller migration

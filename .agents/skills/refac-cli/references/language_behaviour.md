@@ -28,15 +28,11 @@ Single crate only — cross-crate reference updates are not supported.
 
 Run `dart pub get` in the project root to generate it before calling `refac`.
 
-## TypeScript / JavaScript — large project threshold
+## TypeScript / JavaScript — tsconfig coverage
 
-For individual file moves in projects with more than 2,000 TS/JS source files, `refac` skips loading the full project. Only the moved file's own imports are rewritten — files that import it are not updated.
+Point `--project-path` at the package containing the authoritative `tsconfig.json`. Its `include` or `files` configuration must cover all local TS/JS sources that participate in imports. External packages in `node_modules` do not need to be included.
 
-The 2,000-file threshold counts the source files selected by the package's `tsconfig.json`; ignored nested repositories and tooling outside that config do not count.
-
-To stay under the threshold, point `--project-path` at the sub-package root rather than the monorepo root.
-
-Directory moves always load the full project regardless of size and may be slow on large codebases.
+Refac loads the complete tsconfig source set for file and directory moves while skipping recursive dependency discovery. There is no project-size path that silently omits external callers. Without tsconfig, Refac globs local source files but alias and module resolution is weaker.
 
 ### Batch safety
 
@@ -44,7 +40,7 @@ Each invocation has a hard limit of 30 TypeScript/JavaScript source files. Direc
 
 ### Reference-update gaps
 
-Aliases declared through `compilerOptions.paths`, including `~/*`, are rewritten and checked for stale module specifiers after the move. Aliases missing from tsconfig and arbitrary path strings, such as catalog ownership labels, cannot be mapped safely; search for old path strings and run the project build.
+Aliases declared through `compilerOptions.paths`, including `~/*`, are rewritten for file and directory moves and checked for stale module specifiers. Aliases missing from tsconfig and arbitrary path strings, such as catalog ownership labels, cannot be mapped safely; search for old path strings and run the project build.
 
 ## Python — re-export limits
 

@@ -49,8 +49,6 @@ async function main() {
     }
 }
 
-const LARGE_PROJECT_FILE_THRESHOLD = 2_000;
-
 function getTsConfigSourceFileCount(tsConfigPath: string): number {
     let configError: string | undefined;
     const parsedConfig = ts.getParsedCommandLineOfConfigFile(tsConfigPath, {}, {
@@ -67,53 +65,25 @@ function getTsConfigSourceFileCount(tsConfigPath: string): number {
     return parsedConfig.fileNames.length;
 }
 
-function isDirectory(p: string): boolean {
-    try { return fs.statSync(p).isDirectory(); } catch { return false; }
-}
-
-async function getProject(projectRoot: string, filesToMove?: string[]) {
+async function getProject(projectRoot: string) {
     const tsConfigPath = path.join(projectRoot, "tsconfig.json");
 
-    // Directory moves always need the full project so ts-morph can find and update
-    // external importers. Skip the large-project fast path in that case.
-    const hasDirMove = (filesToMove ?? []).some(isDirectory);
-
     if (fs.existsSync(tsConfigPath)) {
-        if (hasDirMove) {
-            process.stderr.write(`[refac] Initializing full TypeScript project for directory move (this may take a moment for large projects)...\n`);
-            return new Project({ tsConfigFilePath: tsConfigPath });
-        }
-
-        // Count the same source set that ts-morph will load. A repository-wide
-        // glob also counts ignored nested repos and tooling outside tsconfig,
-        // causing safe projects to take the incomplete large-project path.
         const sourceFileCount = getTsConfigSourceFileCount(tsConfigPath);
+        process.stderr.write(`[refac] Initializing TypeScript project (${sourceFileCount} configured files)...\n`);
 
-        if (sourceFileCount > LARGE_PROJECT_FILE_THRESHOLD) {
-            process.stderr.write(
-                `[refac] Large project detected (${sourceFileCount} files). Loading only moved files for performance. Cross-project reference updates will be skipped.\n`
-            );
-            const project = new Project({ compilerOptions: { allowJs: true, skipLibCheck: true } });
-            for (const f of filesToMove ?? []) {
-                if (fs.existsSync(f) && !isDirectory(f)) {
-                    project.addSourceFileAtPath(f);
-                }
-            }
-            return project;
-        }
-
-        process.stderr.write(`[refac] Initializing TypeScript project (${sourceFileCount} files)...\n`);
-        return new Project({ tsConfigFilePath: tsConfigPath });
+        // Load every file selected by tsconfig so incoming callers remain
+        // visible. Skip recursive dependency discovery because moving local
+        // modules does not require loading external package source graphs.
+        return new Project({
+            tsConfigFilePath: tsConfigPath,
+            skipFileDependencyResolution: true,
+        });
     }
 
     // No tsconfig — glob everything
     const project = new Project({ compilerOptions: { allowJs: true } });
-    if (hasDirMove) {
-        // For directory moves without tsconfig, load all TS files so references can be found
-        project.addSourceFilesAtPaths(path.join(projectRoot, "**/*{.ts,.tsx,.js,.jsx}"));
-    } else {
-        project.addSourceFilesAtPaths(path.join(projectRoot, "**/*{.ts,.tsx,.js,.jsx}"));
-    }
+    project.addSourceFilesAtPaths(path.join(projectRoot, "**/*{.ts,.tsx,.js,.jsx}"));
     return project;
 }
 
@@ -133,7 +103,7 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
         fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const project = await getProject(projectRoot, [absSource]);
+    const project = await getProject(projectRoot);
     const aliasRewrites = createAliasRewrites(project, projectRoot, [
         { source: absSource, target: absTarget },
     ]);
@@ -169,11 +139,7 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
 }
 
 async function performBatchMove(fileMap: any[], projectRoot: string) {
-    const sourcePaths: string[] = fileMap.map((item: any) => {
-        const raw = Array.isArray(item) ? item[0] : item.source;
-        return path.resolve(projectRoot, raw);
-    });
-    const project = await getProject(projectRoot, sourcePaths);
+    const project = await getProject(projectRoot);
     const aliasRewrites = createAliasRewrites(
         project,
         projectRoot,

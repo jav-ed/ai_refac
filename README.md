@@ -183,9 +183,9 @@ On partial or full failure, `"status"` is `"error"` and `"message"` contains a s
 These are not edge cases. Read them before deciding whether this tool is right for your situation.
 
 **TypeScript / JavaScript**
-- File moves in projects with more than 2,000 source files skip cross-project import updates. Only the moved file's own imports are rewritten; nothing that imports it is updated. Point `--project-path` at a sub-package root (not the monorepo root) to stay under the threshold.
-- Directory moves always load the full project and may be slow on large codebases.
-- The 2,000-file threshold counts the source files selected by the package's `tsconfig.json`; ignored nested repositories and tooling outside that config do not count.
+- Point `--project-path` at the package with the authoritative `tsconfig.json`; its `include` or `files` configuration must cover all local TS/JS sources. External packages in `node_modules` do not need to be included.
+- Without tsconfig, Refac globs local source files but alias and module resolution is weaker.
+- Each invocation is limited to 30 contained TS/JS source files, including files inside requested directories.
 
 **Python**
 - Rope cannot trace imports that go through `__init__.py` re-exports. If a package re-exports a symbol and callers import via the re-export, those callers are not updated.

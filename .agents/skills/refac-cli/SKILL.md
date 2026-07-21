@@ -1,6 +1,6 @@
 ---
 name: refac-cli
-description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates. This skill is for using the tool, not for changing the tool's implementation.
+description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates. For TypeScript/JavaScript, use the package root with its authoritative tsconfig so local callers and aliases can be updated completely. This skill is for using the tool, not changing its implementation.
 ---
 
 # Use Refac CLI
@@ -23,6 +23,7 @@ Passing a directory for any non-TS/JS language will fail with a clear error.
 ## Hard constraints
 
 - `--project-path` must be the **package root** (the folder containing `tsconfig.json`, `Cargo.toml`, `go.mod`, etc.) — not the monorepo root.
+- For TypeScript/JavaScript, ensure `tsconfig.json` includes all local source files. External packages in `node_modules` do not need to be included.
 - `--source-path` and `--target-path` must match 1:1. Three sources require three targets.
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.

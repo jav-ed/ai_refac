@@ -6,18 +6,16 @@ The TypeScript backend delegates to `ts-morph` via a Bun script (`scripts/ts_ref
 
 - `bun` — checked at `bun` in PATH, then `~/.bun/bin/bun`
 - `ts-morph` 28 — auto-installed via `bun install` on first run if not found in `scripts/node_modules`
-- `tsconfig.json` — optional but strongly recommended (see below)
+- `tsconfig.json` — required for complete local caller and alias coverage
 
 ## How project loading works
 
 | Condition | What happens |
 | :--- | :--- |
-| `tsconfig.json` present, ≤2,000 source files | Full project loaded via tsconfig — all inbound references updated |
-| `tsconfig.json` present, >2,000 source files, **file move** | Only the moved file is loaded — cross-project reference updates are **skipped** |
-| `tsconfig.json` present, **directory move** | Full project always loaded regardless of size |
+| `tsconfig.json` present | Every configured source file is loaded; recursive dependency discovery is skipped to reduce RAM |
 | No `tsconfig.json` | Falls back to globbing all `*.ts/.tsx/.js/.jsx` under `--project-path` |
 
-The 2,000-file threshold exists because loading a very large tsconfig project causes multi-minute freezes with no output. It counts the source files selected by the package's `tsconfig.json`, so ignored nested repositories and tooling outside that config do not inflate the project size.
+Point `--project-path` at the package that owns the authoritative tsconfig. Its `include` or `files` configuration must cover all local TS/JS files that participate in imports. External packages such as React or SolidJS remain package imports and do not need to be included.
 
 ## Performance status
 
@@ -27,8 +25,8 @@ A local comparison on the Shadi Intake project found no consistent advantage fro
 
 ## Key limits
 
-- **Large file-move projects**: cross-project reference updates are skipped when >2,000 files. Only the moved file's own import paths are rewritten. Pass `--project-path` to a sub-package root (the folder with `tsconfig.json`) rather than the monorepo root to stay under the threshold.
-- **Timeout**: 5-minute hard limit. If it fires, the same advice applies — narrow `--project-path`.
+- **Project size**: there is no partial-load success path. File and directory moves retain the complete tsconfig source set so external callers remain visible.
+- **Timeout**: 5-minute hard limit. If it fires, narrow `--project-path` to the package that owns the relevant tsconfig.
 - **No tsconfig**: without a tsconfig, compiler options default to `allowJs: true`. Type-aware reference resolution is weaker.
 - **Batch size**: at most 30 contained TypeScript/JavaScript source files. Directory contents are counted recursively before mutation, and the measured count is included in successful output.
-- **Aliases**: imports using aliases declared in `compilerOptions.paths` are rewritten explicitly. A stale moved alias import makes the operation fail instead of reporting success.
+- **Aliases**: file and directory imports using aliases declared in `compilerOptions.paths` are rewritten explicitly. A stale moved alias import makes the operation fail instead of reporting success.

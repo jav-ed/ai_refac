@@ -37,8 +37,14 @@ function applyCapture(pattern: string, capture: string): string | undefined {
     return `${pattern.slice(0, wildcard)}${capture}${pattern.slice(wildcard + 1)}`;
 }
 
-function captureForTarget(pattern: string, value: string): string | undefined {
-    return wildcardCapture(pattern, value) ?? wildcardCapture(pattern, withoutSourceExtension(value));
+function capturesForTarget(pattern: string, value: string): string[] {
+    // Support both conventional extensionless imports and explicit imports
+    // such as "~/Feature/Module.ts" when allowImportingTsExtensions is enabled.
+    const values = [withoutSourceExtension(value), value];
+    const captures = values
+        .map(candidate => wildcardCapture(pattern, candidate))
+        .filter((capture): capture is string => capture !== undefined);
+    return [...new Set(captures)];
 }
 
 export function createAliasRewrites(
@@ -61,14 +67,18 @@ export function createAliasRewrites(
             for (const move of moves) {
                 const source = normalizeModulePath(path.relative(baseDirectory, move.source));
                 const target = normalizeModulePath(path.relative(baseDirectory, move.target));
-                const sourceCapture = captureForTarget(targetPattern, source);
-                const targetCapture = captureForTarget(targetPattern, target);
-                if (sourceCapture === undefined || targetCapture === undefined) continue;
+                const sourceCaptures = capturesForTarget(targetPattern, source);
+                const targetCaptures = capturesForTarget(targetPattern, target);
 
-                const oldPrefix = applyCapture(aliasPattern, sourceCapture);
-                const newPrefix = applyCapture(aliasPattern, targetCapture);
-                if (!oldPrefix || !newPrefix || oldPrefix === newPrefix) continue;
-                rewrites.set(`${oldPrefix}\0${newPrefix}`, { oldPrefix, newPrefix });
+                for (const [index, sourceCapture] of sourceCaptures.entries()) {
+                    const targetCapture = targetCaptures[index];
+                    if (targetCapture === undefined) continue;
+
+                    const oldPrefix = applyCapture(aliasPattern, sourceCapture);
+                    const newPrefix = applyCapture(aliasPattern, targetCapture);
+                    if (!oldPrefix || !newPrefix || oldPrefix === newPrefix) continue;
+                    rewrites.set(`${oldPrefix}\0${newPrefix}`, { oldPrefix, newPrefix });
+                }
             }
         }
     }
