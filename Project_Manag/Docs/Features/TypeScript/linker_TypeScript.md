@@ -23,6 +23,8 @@ The 2,000-file threshold exists because loading a very large tsconfig project ca
 
 Version 28 does not claim a move-performance improvement; it primarily upgrades the embedded compiler to TypeScript 6. Upstream still tracks slow `sourceFile.move` and directory-move behavior in [issue 1613](https://github.com/dsherret/ts-morph/issues/1613) and [issue 953](https://github.com/dsherret/ts-morph/issues/953), so Refac keeps the 30-file hard limit.
 
+A local comparison on the Shadi Intake project found no consistent advantage from the Node `tsx` runner. `tsx` was about 10% faster for one 27-file directory move, but Bun was slightly faster when the same 27 files were moved individually in one batch. Both produced identical trees, so Refac continues to use Bun rather than adding a second runtime dependency.
+
 ## Key limits
 
 - **Large file-move projects**: cross-project reference updates are skipped when >2,000 files. Only the moved file's own import paths are rewritten. Pass `--project-path` to a sub-package root (the folder with `tsconfig.json`) rather than the monorepo root to stay under the threshold.
