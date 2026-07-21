@@ -1,4 +1,4 @@
 interface:
   display_name: "Repo Docs"
   short_description: "Write minimal repo docs with gist plus links."
-  default_prompt: "Use $repo-docs to create or restructure Project_Manag/Docs so doc_Start.md says what the repo is about and links to relevant docs."
+  default_prompt: "Use $doc-start to organize Project_Manag/Docs with navigation-first summaries and labeled links."

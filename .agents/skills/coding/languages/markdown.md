@@ -1,8 +1,7 @@
-# Naming Conventions — Markdown & Non-Code Files/Folders
+# Naming Conventions — Markdown & Non-Code Files
 
-We use `camel_Case_With_Underline` — a mix of camelCase and snake_case. camelCase gives readability within a word, snake_case separates distinct concepts. Combined, structure is visible at a glance.
+Non-code files follow the improved convention. Full rules and examples: [improved_Version.md](improved_Version.md)
 
-| Element | Convention | Example |
-|---|---|---|
-| Files | first letter lowercase, subsequent words `_Capital` | `doc_Start.md`, `writing_Rules.md` |
-| Folders | first letter capital, subsequent words `_Capital` | `Project_Manag/`, `Data_Loader/` |
+The one context-specific rule:
+- **Files**: first letter always lowercase — `doc_Start.md`, `writing_Rules.md`
+- **Folders**: first letter always uppercase — `Project_Manag/`, `Architecture/`

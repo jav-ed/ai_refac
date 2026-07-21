@@ -4,6 +4,8 @@ A CLI tool that moves source files and updates affected import paths, module ref
 
 > Built for personal use. If it's useful to you, go ahead — no guarantees.
 
+Public user documentation is maintained independently in [`jav-ed/refac-docs`](https://github.com/jav-ed/refac-docs). This repository remains the source of truth for CLI behavior and limitations.
+
 ---
 
 ## The story
@@ -91,7 +93,7 @@ Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.r
 
 ```bash
 git clone https://github.com/jav-ed/ai_refac.git
-cd refac
+cd ai_refac
 cargo build --release
 ```
 

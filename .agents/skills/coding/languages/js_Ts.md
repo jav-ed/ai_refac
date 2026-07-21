@@ -1,6 +1,6 @@
-# Naming Conventions — JS / TS
+# Naming Conventions — JS / TS (Standard)
 
-Follow standard JS/TS conventions. Where the community is split, use the rules below.
+These are the standard community defaults. Use them when the codebase already follows this style or when the operator chooses the standard option. For the improved alternative see [Improved_Camel_Snake](improved_Version.md).
 
 | Element | Convention | Example |
 |---|---|---|
@@ -10,4 +10,4 @@ Follow standard JS/TS conventions. Where the community is split, use the rules b
 | Interfaces / Types | `PascalCase`, no `I` prefix | `UserProfile` |
 | Constants | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT` |
 | Files | `kebab-case` | `data-loader.ts` |
-| React components (files) | `PascalCase` | `UserCard.tsx` |
+| React / Astro components (files) | `PascalCase` | `UserCard.tsx` |

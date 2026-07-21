@@ -20,10 +20,8 @@ Trials/
 scripts/node_modules/
 scripts/package-lock.json
 
-# Docs site
-docs-site/node_modules/
-docs-site/dist/
-docs-site/.astro/
+# Local reports and experiments
+Scratch/
 
 # Playwright CLI session snapshots
 .playwright-cli/

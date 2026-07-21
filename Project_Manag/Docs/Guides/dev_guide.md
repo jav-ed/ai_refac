@@ -94,3 +94,24 @@ Each sample project has internal references so file moves can be verified agains
 4. Generate fresh samples if needed: `cargo run --bin create_testbed`
 5. Run `refac move ...` against a concrete language project
 6. Verify the affected project still builds or that its imports/modules were rewritten correctly
+
+## 6. Keep the Global Install Current
+
+**Every source change must be followed by a rebuild so the globally installed binary stays in sync.**
+
+The symlink at `~/.local/bin/refac` points directly to `target/release/refac`, so the only required step after any code change is:
+
+```bash
+cargo build --release
+```
+
+No reinstall or re-link needed — the symlink picks up the new binary automatically.
+
+If you are unsure whether the installed binary is current, check:
+
+```bash
+ls -la ~/.local/bin/refac        # confirm symlink exists and points here
+ls -lt target/release/refac      # check build timestamp
+```
+
+An outdated or missing `~/.local/bin/refac` means the global command does not reflect recent changes. Always rebuild before testing `refac` from outside the repo.
