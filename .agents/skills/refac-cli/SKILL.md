@@ -26,7 +26,7 @@ Passing a directory for any non-TS/JS language will fail with a clear error.
 - `--source-path` and `--target-path` must match 1:1. Three sources require three targets.
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.
-- Keep TypeScript/JavaScript file batches to 20–30 moves per invocation. Stop duplicate Vite, dev-server, and build watchers first; verify the diff and build before continuing with the next batch.
+- Limit each TypeScript/JavaScript invocation to 30 file moves. Stop duplicate dev/build watchers first, then inspect the diff and build before the next batch.
 
 ## Usage
 
