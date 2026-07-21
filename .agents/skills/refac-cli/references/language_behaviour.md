@@ -30,9 +30,9 @@ Run `dart pub get` in the project root to generate it before calling `refac`.
 
 ## TypeScript / JavaScript — large project threshold
 
-For individual file moves in projects with more than ~500 TS/JS source files, `refac` skips loading the full project. Only the moved file's own imports are rewritten — files that import it are not updated.
+For individual file moves in projects with more than 2,000 TS/JS source files, `refac` skips loading the full project. Only the moved file's own imports are rewritten — files that import it are not updated.
 
-The 500-file threshold excludes `node_modules`, `dist`, `build`, `.next`, and `.git`.
+The 2,000-file threshold counts the source files selected by the package's `tsconfig.json`; ignored nested repositories and tooling outside that config do not count.
 
 To stay under the threshold, point `--project-path` at the sub-package root rather than the monorepo root.
 

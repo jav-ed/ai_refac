@@ -1,4 +1,4 @@
-import { Project, SourceFile, Directory } from "ts-morph";
+import { Project, SourceFile, Directory, ts } from "ts-morph";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -44,7 +44,23 @@ async function main() {
     }
 }
 
-const LARGE_PROJECT_FILE_THRESHOLD = 500;
+const LARGE_PROJECT_FILE_THRESHOLD = 2_000;
+
+function getTsConfigSourceFileCount(tsConfigPath: string): number {
+    let configError: string | undefined;
+    const parsedConfig = ts.getParsedCommandLineOfConfigFile(tsConfigPath, {}, {
+        ...ts.sys,
+        onUnRecoverableConfigFileDiagnostic: diagnostic => {
+            configError = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+        },
+    });
+
+    if (!parsedConfig) {
+        throw new Error(`Could not parse ${tsConfigPath}: ${configError ?? "unknown error"}`);
+    }
+
+    return parsedConfig.fileNames.length;
+}
 
 function isDirectory(p: string): boolean {
     try { return fs.statSync(p).isDirectory(); } catch { return false; }
@@ -63,22 +79,14 @@ async function getProject(projectRoot: string, filesToMove?: string[]) {
             return new Project({ tsConfigFilePath: tsConfigPath });
         }
 
-        // File moves: count first — loading a 10k+ file project via tsconfig causes
-        // multi-minute freezes with no output.
-        // Uses Bun's built-in Glob — no npm dependency required.
-        const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next", ".git"]);
-        const bunGlob = new Bun.Glob("**/*.{ts,tsx,js,jsx}");
-        const allFiles: string[] = [];
-        for await (const file of bunGlob.scan({ cwd: projectRoot, absolute: true })) {
-            const parts = file.split(path.sep);
-            if (!parts.some(p => SKIP_DIRS.has(p))) {
-                allFiles.push(file);
-            }
-        }
+        // Count the same source set that ts-morph will load. A repository-wide
+        // glob also counts ignored nested repos and tooling outside tsconfig,
+        // causing safe projects to take the incomplete large-project path.
+        const sourceFileCount = getTsConfigSourceFileCount(tsConfigPath);
 
-        if (allFiles.length > LARGE_PROJECT_FILE_THRESHOLD) {
+        if (sourceFileCount > LARGE_PROJECT_FILE_THRESHOLD) {
             process.stderr.write(
-                `[refac] Large project detected (${allFiles.length} files). Loading only moved files for performance. Cross-project reference updates will be skipped.\n`
+                `[refac] Large project detected (${sourceFileCount} files). Loading only moved files for performance. Cross-project reference updates will be skipped.\n`
             );
             const project = new Project({ compilerOptions: { allowJs: true, skipLibCheck: true } });
             for (const f of filesToMove ?? []) {
@@ -89,7 +97,7 @@ async function getProject(projectRoot: string, filesToMove?: string[]) {
             return project;
         }
 
-        process.stderr.write(`[refac] Initializing TypeScript project (${allFiles.length} files)...\n`);
+        process.stderr.write(`[refac] Initializing TypeScript project (${sourceFileCount} files)...\n`);
         return new Project({ tsConfigFilePath: tsConfigPath });
     }
 

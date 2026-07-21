@@ -28,7 +28,7 @@ description: Full summary of what refac supports across all languages.
 
 | Language | Key limit |
 |---|---|
-| TypeScript / JS | Projects > 500 source files skip cross-project reference updates on file moves. Point `--project-path` at a sub-package root to stay under the threshold. |
+| TypeScript / JS | Projects > 2,000 source files skip cross-project reference updates on file moves. Point `--project-path` at a sub-package root to stay under the threshold. |
 | Python | Rope cannot trace imports through `__init__.py` re-exports. Indirect callers are not updated. Namespace packages (no `__init__.py`) may see incomplete updates. |
 | Rust | Cross-directory moves use a shim strategy (`#[path]` + `pub use` alias). Caller files are **not** rewritten. Same-directory renames fully update all `use` paths. |
 | Go | Moving any `.go` file in a package moves the **entire package**. Partial-package moves are not supported. Requires `go.mod` for cross-directory moves. |
