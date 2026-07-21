@@ -17,16 +17,16 @@ The TypeScript backend delegates to [ts-morph](https://ts-morph.com/) via a Bun 
 
 | Condition | What happens |
 |---|---|
-| `tsconfig.json` present, ≤ 500 source files | Full project loaded — all inbound references updated |
-| `tsconfig.json` present, > 500 source files, **file move** | Only the moved file is loaded — cross-project reference updates are **skipped** |
+| `tsconfig.json` present, ≤ 2,000 source files | Full project loaded — all inbound references updated |
+| `tsconfig.json` present, > 2,000 source files, **file move** | Only the moved file is loaded — cross-project reference updates are **skipped** |
 | `tsconfig.json` present, **directory move** | Full project always loaded regardless of size |
 | No `tsconfig.json` | Falls back to globbing all `*.ts/.tsx/.js/.jsx` under `--project-path` |
 
-The 500-file threshold exists because loading a large tsconfig project causes multi-minute freezes with no output. The count excludes `node_modules`, `dist`, `build`, `.next`, and `.git`.
+The 2,000-file threshold exists because loading a very large tsconfig project causes multi-minute freezes with no output. It counts the source files selected by the package's `tsconfig.json`, so ignored nested repositories and tooling outside that config do not inflate the project size.
 
 ## Limitations
 
-**Large projects:** When a file move involves more than 500 source files, cross-project reference updates are skipped. Only the moved file's own import paths are rewritten. Files that import the moved file are not updated.
+**Large projects:** When a file move involves more than 2,000 source files, cross-project reference updates are skipped. Only the moved file's own import paths are rewritten. Files that import the moved file are not updated.
 
 **Workaround:** Point `--project-path` at the sub-package that owns `tsconfig.json` rather than the monorepo root. This keeps the file count under the threshold and enables full reference resolution.
 

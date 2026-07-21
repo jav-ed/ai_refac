@@ -30,13 +30,21 @@ Run `dart pub get` in the project root to generate it before calling `refac`.
 
 ## TypeScript / JavaScript — large project threshold
 
-For individual file moves in projects with more than ~500 TS/JS source files, `refac` skips loading the full project. Only the moved file's own imports are rewritten — files that import it are not updated.
+For individual file moves in projects with more than 2,000 TS/JS source files, `refac` skips loading the full project. Only the moved file's own imports are rewritten — files that import it are not updated.
 
-The 500-file threshold excludes `node_modules`, `dist`, `build`, `.next`, and `.git`.
+The 2,000-file threshold counts the source files selected by the package's `tsconfig.json`; ignored nested repositories and tooling outside that config do not count.
 
 To stay under the threshold, point `--project-path` at the sub-package root rather than the monorepo root.
 
 Directory moves always load the full project regardless of size and may be slow on large codebases.
+
+### Batch safety
+
+Limit each invocation to 30 file moves. ts-morph loads the tsconfig project once, but larger batches create more reference rewrites and watcher work. Stop duplicate dev/build watchers first; after each batch, search for old paths and run the build. Count files inside directory moves toward the same limit.
+
+### Reference-update gaps
+
+ts-morph updates resolved imports. Unresolved aliases and arbitrary path strings, such as catalog ownership labels, may not update; search for old paths manually.
 
 ## Python — re-export limits
 
