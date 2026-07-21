@@ -1,6 +1,11 @@
 import { Project, SourceFile, Directory, ts } from "ts-morph";
 import * as path from "path";
 import * as fs from "fs";
+import {
+    assertNoStaleAliasSpecifiers,
+    createAliasRewrites,
+    rewriteAliasModuleSpecifiers,
+} from "./ts_aliases";
 
 // Bun uses ES modules by default
 
@@ -129,6 +134,9 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
     }
 
     const project = await getProject(projectRoot, [absSource]);
+    const aliasRewrites = createAliasRewrites(project, projectRoot, [
+        { source: absSource, target: absTarget },
+    ]);
 
     // Check if directory
     let isDir = false;
@@ -153,6 +161,8 @@ async function performMove(sourcePath: string, targetPath: string, projectRoot: 
         sourceFile.move(absTarget);
     }
 
+    rewriteAliasModuleSpecifiers(project, aliasRewrites);
+    assertNoStaleAliasSpecifiers(project, aliasRewrites);
     process.stderr.write("[refac] Saving changes...\n");
     await project.save();
     console.log("Move successful");
@@ -164,6 +174,14 @@ async function performBatchMove(fileMap: any[], projectRoot: string) {
         return path.resolve(projectRoot, raw);
     });
     const project = await getProject(projectRoot, sourcePaths);
+    const aliasRewrites = createAliasRewrites(
+        project,
+        projectRoot,
+        fileMap.map((item: any) => ({
+            source: path.resolve(projectRoot, Array.isArray(item) ? item[0] : item.source),
+            target: path.resolve(projectRoot, Array.isArray(item) ? item[1] : item.target),
+        })),
+    );
     let successCount = 0;
 
     for (const item of fileMap) {
@@ -234,9 +252,11 @@ async function performBatchMove(fileMap: any[], projectRoot: string) {
         }
     }
 
+    rewriteAliasModuleSpecifiers(project, aliasRewrites);
+    assertNoStaleAliasSpecifiers(project, aliasRewrites);
     process.stderr.write("[refac] Saving changes...\n");
     await project.save();
-    console.log(`Batch move completed. Moved ${successCount} items.`);
+    console.log(`Batch move completed successfully for ${successCount} requested paths.`);
 }
 
 main().catch(e => {

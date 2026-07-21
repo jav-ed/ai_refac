@@ -40,11 +40,11 @@ Directory moves always load the full project regardless of size and may be slow 
 
 ### Batch safety
 
-Limit each invocation to 30 file moves. ts-morph loads the tsconfig project once, but larger batches create more reference rewrites and watcher work. Stop duplicate dev/build watchers first; after each batch, search for old paths and run the build. Count files inside directory moves toward the same limit.
+Each invocation has a hard limit of 30 TypeScript/JavaScript source files. Directory contents count toward the limit, and successful output reports the measured source-file count. Stop duplicate dev/build watchers first; after each batch, inspect the diff and run the build.
 
 ### Reference-update gaps
 
-ts-morph updates resolved imports. Unresolved aliases and arbitrary path strings, such as catalog ownership labels, may not update; search for old paths manually.
+Aliases declared through `compilerOptions.paths`, including `~/*`, are rewritten and checked for stale module specifiers after the move. Aliases missing from tsconfig and arbitrary path strings, such as catalog ownership labels, cannot be mapped safely; search for old path strings and run the project build.
 
 ## Python — re-export limits
 

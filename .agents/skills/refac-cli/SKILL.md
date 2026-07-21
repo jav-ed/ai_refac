@@ -26,7 +26,7 @@ Passing a directory for any non-TS/JS language will fail with a clear error.
 - `--source-path` and `--target-path` must match 1:1. Three sources require three targets.
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.
-- Limit each TypeScript/JavaScript invocation to 30 file moves. Stop duplicate dev/build watchers first, then inspect the diff and build before the next batch.
+- TypeScript/JavaScript invocations are limited to 30 contained source files. Directory contents count toward the limit, and the CLI reports the measured count.
 
 ## Usage
 

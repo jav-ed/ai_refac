@@ -2,6 +2,8 @@ use crate::drivers::RefactorDriver;
 use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
 
+mod typescript;
+
 /// Parameters for a refactoring request.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct RefactorRequest {
@@ -107,6 +109,21 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     let mut dispatch_order: Vec<(String, Vec<(String, String)>)> = batch_map.into_iter().collect();
     dispatch_order.sort_by(|a, b| a.0.cmp(&b.0));
 
+    // Enforce the documented limit before any language batch mutates the project.
+    let typescript_source_count = dispatch_order
+        .iter()
+        .find(|(lang, _)| lang == "typescript")
+        .map(|(_, files)| typescript::count_source_files(files, root))
+        .transpose()?
+        .unwrap_or(0);
+    if typescript_source_count > typescript::MAX_FILES_PER_MOVE {
+        bail!(
+            "TypeScript/JavaScript move contains {} source files; the maximum is {}. Split the move into smaller batches.",
+            typescript_source_count,
+            typescript::MAX_FILES_PER_MOVE
+        );
+    }
+
     for (lang, files) in dispatch_order {
         let driver = get_driver_by_lang(&lang)?;
 
@@ -141,9 +158,9 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // 4. Build response
     let total_files: usize = successful_files.values().map(|v| v.len()).sum();
     let mut response = format!(
-        "// Alhamdulillah {} file{} successfully refactored:\n",
+        "// Alhamdulillah {} requested path{} successfully refactored:\n",
         total_files,
-        if total_files == 1 { " was" } else { " were" }
+        if total_files == 1 { " was" } else { "s were" }
     );
 
     let mut success_langs: Vec<_> = successful_files.keys().cloned().collect();
@@ -152,6 +169,18 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     for lang in success_langs {
         let files = &successful_files[&lang];
         response.push_str(&format!("\n// {} results:\n\n", capitalize(&lang)));
+        if lang == "typescript" {
+            response.push_str(&format!(
+                "// {} TypeScript/JavaScript source file{} moved (limit: {}).\n\n",
+                typescript_source_count,
+                if typescript_source_count == 1 {
+                    ""
+                } else {
+                    "s"
+                },
+                typescript::MAX_FILES_PER_MOVE
+            ));
+        }
         for (src, tgt) in files {
             response.push_str(&format!(
                 "{} -> {}  \n",
