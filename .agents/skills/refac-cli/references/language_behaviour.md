@@ -38,6 +38,21 @@ To stay under the threshold, point `--project-path` at the sub-package root rath
 
 Directory moves always load the full project regardless of size and may be slow on large codebases.
 
+### Batch memory and watcher behaviour
+
+`refac` loads the tsconfig project once per invocation, not once per moved file. Moving more files still increases reference rewrites, dirty files, filesystem notifications, and the final save workload. Active Vite, dev-server, typecheck, or build watchers can all react to the same burst and multiply peak RAM use.
+
+- Use 20–30 TypeScript/JavaScript file moves per invocation. This is an operational safety limit, not a ts-morph correctness limit.
+- Stop duplicate watchers before moving files. Restart one watcher only after inspecting the batch diff.
+- After every batch, search for the old paths and run the package's production build or typecheck before continuing.
+- Treat directory moves by the number of files they contain; do not use a directory move to bypass the batch limit.
+
+### Reference-update gaps
+
+ts-morph updates relative imports and other module specifiers it can resolve inside the loaded project. It does not guarantee updates for unresolved path-alias imports, such as an old `~/Core/Localization/...` path after the owning module moves. Search for the old alias prefix after every batch.
+
+Arbitrary path strings are not module references. Catalog ownership labels, metadata, configuration values, and other string literals that encode source paths must be searched for and updated separately.
+
 ## Python — re-export limits
 
 Rope cannot trace imports that go through `__init__.py` re-exports. If a package re-exports a symbol and callers import via that re-export, those callers are not updated.

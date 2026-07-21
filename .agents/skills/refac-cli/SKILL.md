@@ -26,6 +26,7 @@ Passing a directory for any non-TS/JS language will fail with a clear error.
 - `--source-path` and `--target-path` must match 1:1. Three sources require three targets.
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.
+- Keep TypeScript/JavaScript file batches to 20–30 moves per invocation. Stop duplicate Vite, dev-server, and build watchers first; verify the diff and build before continuing with the next batch.
 
 ## Usage
 
@@ -55,6 +56,6 @@ Exit codes: `0` = all succeeded, `1` = one or more failed.
 
 ## References
 
-- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, Rust shim strategy, Dart package config, TS large-project threshold, Python re-export limits
+- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, Rust shim strategy, Dart package config, TS batch memory/watcher behaviour and reference gaps, Python re-export limits
 - [Install & prerequisites](references/install.md) — build from source, PATH setup, required tooling per language
 - [Agent integration](references/agent_integration.md) — how to wire this skill into Claude Code or other agent harnesses via symlink
