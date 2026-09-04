@@ -16,18 +16,14 @@ Encrypted file stays in git. Plaintext only ever exists during an edit session o
 
 ## Install
 
-Sops is managed via mise globally:
-
 ```bash
-# Add to ~/.config/mise/config.toml under [tools]:
-#   sops = "latest"
-mise install sops
+just system-tools-install
 ```
 
 Verify:
 
 ```bash
-sops --version   # expects 3.12.2 or later
+sops --version
 ```
 
 ## Setup (per machine)

@@ -1,24 +1,30 @@
 ---
 name: default-tools
-description: Hub for tools used across most tasks in this repo, currently covering tool/version management (mise), git hooks (hk), secrets (sops as default, plus fnox and raw age for specific cases), and web automation (playwright-cli). Use when starting any task that touches `mise.toml`, `hk.pkl`, credentials, browsers, screenshots, or when you want a quick map of the recurring tooling before deciding which skill to load.
+description: "Hub for recurring repository tooling: shared system-tool installation through mise and Just, git hooks with hk, secrets with Sops, fnox, or age, and web automation with Playwright CLI. Use when installing or updating the shared tool baseline, editing system_Tools.toml or hk.pkl, handling credentials, or working with browsers and screenshots."
 ---
 
 # default-tools
 
 Some tools come up in nearly every task in this repo. This skill is the map: read it once at the start of a task, see which tool the work calls for, then either follow the inline guidance or jump to the deeper reference linked at the end of each section.
 
-## Mise — runtime and tool version management
+## Mise: system tool installation
 
 Read this section when:
 
-- A project has a `mise.toml` and you need to install or run its tools.
-- You need to install, upgrade, or pin a tool version (Node, Bun, Go, Python, etc.).
-- You hit `command not found` or `untrusted config` errors related to mise.
-- You're setting up a new machine or server where mise is not yet present.
+- You need to install or update a shared CLI or development tool.
+- You encounter a mise shim or project-level `mise.toml` reference.
+- You are migrating a command to a stable system path.
 
-Mise replaces language-specific version managers (nvm, pyenv, rustup) with one tool. In this repo it runs in two modes: standard install on local dev machines (shell hooks active), and shared system-wide install at `/opt/mise` on the server (no shell hooks; static PATH in `/etc/environment`).
+Mise is an acquisition and update manager only. System tools live under `/usr/local/share/mise/installs` and are exposed through explicit `/usr/local/bin` links. Do not use activation, shims, project version lookup, environment injection, or mise tasks. Bun and Oh My Zsh use their official installers; Just owns repository tasks.
 
-→ [Mise](Mise/linker_Mise.md): core commands, local vs server differences, gotchas (especially env-var visibility under shims), troubleshooting, and the server installation playbook.
+The tracked source of truth is `Project_Manag/Tools/Mise/system_Tools.toml`. Use the repository recipes rather than editing `/etc/mise/config.toml` directly:
+
+```bash
+just system-tools-install
+just system-tools-update
+```
+
+→ [Mise](Mise/linker_Mise.md): system-install rules and the canonical operational reference.
 
 ## Hk — git hooks (lint, format, validate on commit/push)
 
@@ -29,9 +35,9 @@ Read this section when:
 - You hit hooks firing twice, hooks not running at all, or linters not finding their tools.
 - You need to bypass a hook for a single commit (`HK=0 git commit`).
 
-hk is a parallel git hook runner by jdx, configured in Pkl. It uses file-level read/write locks so multiple linters can run safely in parallel — unlike pre-commit (sequential) or lefthook (unsafe parallel). Installed via mise; the global install (`hk install --global`) requires Git 2.54+ and is the recommended setup since `hk.pkl`-less repos are silent no-ops.
+hk is a parallel git hook runner by jdx, configured in Pkl. Install its binary through the system tool policy and expose it at `/usr/local/bin/hk`. The global install (`hk install --global`) requires Git 2.54+.
 
-→ [Hk](Hk/linker_Hk.md): core commands, `hk.pkl` essentials, install modes (global vs per-repo), bypass mechanisms, mise integration (`HK_MISE=1`), and troubleshooting.
+→ [Hk](Hk/linker_Hk.md): core commands, `hk.pkl` essentials, install modes, bypass mechanisms, and troubleshooting.
 
 ## Secrets — credentials, API tokens, encrypted config
 
@@ -71,7 +77,15 @@ The structural choice: *secrets-via-file* (sops, raw age) puts the value inside 
 → [Age workflow](Secrets/Age/workflow.md): manage_secrets.sh commands, recipients, identity, adding a new device.
 
 **`03_Post_Sched` and other env-var-driven services:** fnox.
-→ [Fnox](Secrets/Fnox/linker_Fnox.md): setup, core commands, g12 mise bridge, troubleshooting.
+
+Fnox normally discovers `fnox.toml` by walking up the directory tree. When a repository keeps multiple secret sets or uses a descriptive filename, pass the file explicitly with `-c` or `--config` on every command. The filename does not need to be `fnox.toml`:
+
+```bash
+fnox get -c rishta_Worker_Mails.toml MARIA_BUTT_EMAIL_PASSWORD
+fnox exec -c rishta_Worker_Mails.toml -- command
+```
+
+→ [Fnox](Secrets/Fnox/linker_Fnox.md): setup, core commands, explicit execution, and troubleshooting.
 
 ## Web automation — browser, screenshots, form filling, scraping
 
@@ -85,13 +99,13 @@ Read this section when:
 
 Unlike Secrets above, the `playwright-cli` skill is **not** copied into this hub. It is a standalone external skill, kept that way so it stays in sync with upstream changes to the tool.
 
-**Skill check + self-install.** Do not assume `playwright-cli` is installed just because a previous session used it. Check first; if the binary is missing or the skill is not loaded, run from the project root:
+The Playwright CLI binary is part of `system_Tools.toml` and is installed with `just system-tools-install`. After upgrading the binary, refresh the repository's standalone agent skill when its version warning asks you to:
 
 ```bash
-playwright-cli install --skills
+playwright-cli install --skills=agents
 ```
 
-That is the canonical install step. Once it succeeds, load the `playwright-cli` skill for the full command reference (open, snapshot, click, fill, screenshot, network mocking, tabs, tracing, etc.).
+Then load the `playwright-cli` skill for its full command reference (open, snapshot, click, fill, screenshot, network mocking, tabs, tracing, etc.).
 
 ### Scratch/ — where visual outputs go
 

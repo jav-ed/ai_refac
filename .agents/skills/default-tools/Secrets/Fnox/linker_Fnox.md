@@ -26,20 +26,31 @@ fnox reencrypt -p age               # re-encrypt all (required after adding/remo
 ```
 
 > Fnox walks up the directory tree — run from anywhere inside the repo.
+>
+> The shared g12 installation is verified with Fnox 1.33.1.
+
+## Selecting a config file
+
+Fnox defaults to discovering a file named `fnox.toml` by walking up the directory tree. Use `-c <path>` or `--config <path>` when the file has another name or when a repository contains multiple independent secret sets. The selected file can have any filename; pass the option on every command that should use it.
+
+```bash
+fnox list -c rishta_Worker_Mails.toml
+fnox get -c rishta_Worker_Mails.toml MARIA_BUTT_EMAIL_PASSWORD
+fnox set -c rishta_Worker_Mails.toml MARIA_BUTT_EMAIL_PASSWORD
+fnox exec -c rishta_Worker_Mails.toml -- <command>
+fnox reencrypt -c rishta_Worker_Mails.toml -p age
+```
+
+Prefer an explicit config path in services and scripts. This prevents Fnox from silently selecting a different parent-directory `fnox.toml` when a command runs from another working directory.
 
 **Known gotcha:** passing `--description` alongside stdin silently drops the value — fnox writes the entry without encrypting anything. Verified 2026-05-08. Do not combine `--description` with stdin. Add context as a comment in the file instead (comments survive fnox writes — see below).
 
-## This server (g12): no shell hooks
+## This server (g12)
 
-Shell auto-loading on `cd` is not active. Use explicit exec or the mise bridge:
+Use explicit execution:
 
 ```bash
-# Option A — explicit prefix
 fnox exec -- my-command
-
-# Option B — mise bridge (add to mise.toml)
-# [env]
-# _script = "fnox export"
 ```
 
 ## Comments — mandatory, not optional
@@ -88,7 +99,7 @@ See [installation.md](installation.md) for the known `age1...` public keys for b
 |---|---|---|
 | `no identity matched any of the recipients` | Key mismatch | Confirm your `age1...` public key is in `recipients` |
 | `failed to decrypt` | Key file missing | Check `~/.config/fnox/age.txt` exists with `chmod 600` |
-| Secret not found | Wrong directory | Must run from a directory with `fnox.toml` in the tree |
+| Secret not found | Wrong directory or config | Run inside the intended `fnox.toml` tree, or select the file explicitly with `-c <path>` |
 | `fnox doctor` fails | Identity not found | Re-run `age-keygen -o ~/.config/fnox/age.txt`, add public key to recipients |
 
 ## References

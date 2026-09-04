@@ -1,8 +1,8 @@
 # Hk
 
-hk is a git hook runner by jdx — same author as mise and fnox. Defines hooks per-repo in `hk.pkl` (Apple's Pkl config language). Primary use in this repo: run a script automatically when specific files change at a git event — `post-merge` to redeploy or reinstall after a pull, `pre-commit` to validate before committing. Works with any git client-side hook (`post-merge`, `post-checkout`, `pre-commit`, `pre-push`, `commit-msg`, and more). Can also run linters in parallel with file-level locking, but that's optional.
+hk is a git hook runner by jdx. It defines hooks per repository in `hk.pkl`. Use it to run checks, formatting, or scripts at Git events such as `pre-commit`, `pre-push`, and `post-merge`.
 
-For first-time setup, see [installation.md](installation.md).
+Install hk and Pkl through [Platform Essentials](../../../../Project_Manag/Docs/Architecture/Platform_Essentials/git_Workflow.md), then run `hk install --global`.
 
 ## Two install modes
 
@@ -18,7 +18,6 @@ For first-time setup, see [installation.md](installation.md).
 | Command | What it does |
 |---|---|
 | `hk init` | Generate `hk.pkl` in the current repo |
-| `hk init --mise` | Same, plus a `mise.toml` with hk pinned and a `pre-commit` task |
 | `hk validate` | Validate `hk.pkl` syntax. Useful in CI and after edits. |
 | `hk run <hook>` | Run a hook explicitly without going through git (e.g. `hk run pre-commit`) |
 | `hk check` | Run all "check" steps against modified files (read-only) |
@@ -30,7 +29,7 @@ For first-time setup, see [installation.md](installation.md).
 
 ## hk.pkl essentials
 
-The first line is always the `amends` URL — it pins the Pkl schema version hk uses to evaluate this file. The schema version and the binary version (installed via mise) are independent: bumping the URL gets new config features and Builtins, but doesn't change which binary runs.
+The first line is always the `amends` URL. It pins the Pkl schema version independently from the installed hk binary.
 
 ### Task trigger (primary use case)
 
@@ -90,38 +89,13 @@ hooks {
 | Skip an entire hook | `git config --local hk.skipHook "pre-push"` or `HK_SKIP_HOOK=pre-push` |
 | Replace project hooks locally without committing | Create `hk.local.pkl` that `amends "./hk.pkl"` and overrides hooks (gitignore it) |
 
-## mise integration
-
-Set `HK_MISE=1` so hk wraps hooks with `mise x`. This guarantees the tools defined in `mise.toml` are on PATH when hooks run, even if a teammate hasn't activated mise in their shell.
-
-Recommended `mise.toml` pattern for an hk project:
-
-```toml
-[tools]
-hk = "latest"
-pkl = "latest"
-# plus the actual linters: prettier, eslint, etc.
-
-[env]
-HK_MISE = 1
-
-[hooks]
-postinstall = "hk install --mise"   # auto-install hooks on `mise install`
-```
-
-With this, a teammate running `mise install` after cloning gets hooks wired automatically — no per-repo `hk install` step, even without the global setup.
-
 ## Troubleshooting
 
 | Issue | Fix |
 |---|---|
 | Hooks fire twice per commit | You ran both `hk install --global` and `hk install` per-repo. Pick one. To keep global only: `git config --local hook.hk-<event>.enabled false` for each event in the repo's local config. |
 | `hk install --global` says config-based hooks not supported | Git is older than 2.54. Upgrade, or fall back to per-repo `hk install` (shim mode). |
-| Tools not found inside hooks (script or linter not on PATH) | Set `HK_MISE=1` so hk wraps hooks with `mise x`, or ensure the tool is on the system PATH. |
+| Tools not found inside hooks | Install the tool in a system path or use an explicit executable path. |
 | Need to commit through a broken hook once | `HK=0 git commit ...` |
 | Don't want pkl CLI on the machine | Set `HK_PKL_BACKEND=pklr` to use hk's built-in Rust evaluator. |
 | Unsure why a step was skipped or ran | `hk config dump` for the merged config; `hk config sources` to see where each setting came from. |
-
-## References
-
-- [Installation](installation.md): one-time setup playbook — install via mise, Git 2.54+ check, global vs per-repo install, project `hk init`, optional `mise.toml` integration with `HK_MISE=1`. Also contains the clone command for the upstream hk docs (`Repos/Tool_Manag/hk/`) when deeper reference is needed.

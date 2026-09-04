@@ -2,12 +2,12 @@
 
 ## Install fnox
 
-Preferred method is via mise:
-
 ```bash
-mise use -g fnox
+just system-tools-install
 fnox --version
 ```
+
+Expose the binary through `/usr/local/bin/fnox` according to [Platform tool management](../../../../../Project_Manag/Docs/Architecture/Platform_Essentials/tool_Management.md).
 
 ## Configure decryption (per machine)
 
