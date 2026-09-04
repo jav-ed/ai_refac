@@ -1,132 +1,120 @@
 mod common;
 
-// Fixture: tests/fixtures/rust/project/  (21 files)
-//
-// Move under test:
-//   src/types.rs  ->  src/shared/types.rs
-//
-// IMPORTANT — Rust cross-directory move uses a SHIM strategy, not caller rewrites:
-//
-//   1. src/types.rs is physically moved to src/shared/types.rs
-//   2. src/shared/mod.rs is CREATED containing:
-//        pub use crate::types;    (alias that keeps `crate::types` working)
-//      Note: no `mod types;` here — lib.rs already owns that declaration via #[path].
-//   3. src/lib.rs `pub mod types;` is patched to:
-//        #[path = "shared/types.rs"]
-//        pub mod types;
-//      and `pub mod shared;` is appended
-//   4. ALL caller files (utils.rs, models/order.rs, services/order.rs, etc.)
-//      are left BYTE-IDENTICAL — `crate::types` still resolves via the alias
-//
-// Tests therefore assert structure and shim content, NOT import rewrites.
+#[test]
+fn cross_directory_rust_file_move_requires_semantic_module_command() {
+    let temp = common::setup_fixture("rust/project");
+    let project = temp.path();
+    let source = project.join("src/types.rs");
+    let target = project.join("src/shared/types.rs");
+    let before = common::read_file(project, "src/types.rs");
 
-fn run_move(project: &std::path::Path) -> std::process::Output {
-    common::run_cli(&[
+    let output = common::run_cli(&[
         "move",
         "--project-path",
         project.to_str().unwrap(),
         "--source-path",
-        project.join("src/types.rs").to_str().unwrap(),
+        source.to_str().unwrap(),
         "--target-path",
-        project.join("src/shared/types.rs").to_str().unwrap(),
-    ])
+        target.to_str().unwrap(),
+    ]);
+
+    assert!(!output.status.success());
+    let error = common::stderr_text(&output);
+    assert!(error.contains("move-module"), "{error}");
+    assert!(
+        error.contains("without introducing #[path] shims"),
+        "{error}"
+    );
+    assert_eq!(common::read_file(project, "src/types.rs"), before);
+    assert!(!target.exists());
 }
 
-// ── file placement ────────────────────────────────────────────────────────────
-
 #[test]
-fn rust_move_places_file_at_target_and_removes_source() {
-    let temp = common::setup_fixture("rust/project");
+fn path_attribute_module_is_rejected_without_mutation() {
+    let temp = tempfile::tempdir().unwrap();
     let project = temp.path();
-    common::assert_move_succeeded(&run_move(project));
+    std::fs::create_dir_all(project.join("src/legacy")).unwrap();
+    std::fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"legacy\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/lib.rs"),
+        "#[path = \"legacy/value.rs\"]\npub mod value;\n",
+    )
+    .unwrap();
+    std::fs::write(project.join("src/legacy/value.rs"), "pub fn value() {}\n").unwrap();
 
-    assert!(project.join("src/shared/types.rs").exists(), "file must exist at target");
-    assert!(!project.join("src/types.rs").exists(), "file must be gone from source");
+    let output = common::run_cli(&[
+        "move-module",
+        "--project-path",
+        project.to_str().unwrap(),
+        "crate::value",
+        "crate::domain::value",
+    ]);
+
+    assert!(!output.status.success());
+    let error = common::stderr_text(&output);
+    assert!(error.contains("uses #[path]"), "{error}");
+    assert!(project.join("src/legacy/value.rs").exists());
+    assert!(!project.join("src/domain").exists());
 }
 
-// ── shim: intermediate module ─────────────────────────────────────────────────
-
 #[test]
-fn rust_move_creates_intermediate_module_file() {
-    let temp = common::setup_fixture("rust/project");
+fn failed_post_move_check_rolls_back_every_source_change() {
+    let temp = tempfile::tempdir().unwrap();
     let project = temp.path();
-    common::assert_move_succeeded(&run_move(project));
+    std::fs::create_dir_all(project.join("src/parent")).unwrap();
+    std::fs::create_dir_all(project.join("src/domain")).unwrap();
+    std::fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"rollback\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/lib.rs"),
+        "pub mod domain;\npub mod parent;\n",
+    )
+    .unwrap();
+    std::fs::write(project.join("src/domain/mod.rs"), "").unwrap();
+    std::fs::write(
+        project.join("src/parent/mod.rs"),
+        "pub mod moving;\nmod private;\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/parent/moving.rs"),
+        "use super::private;\npub fn run() { private::hidden(); }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/parent/private.rs"),
+        "pub fn hidden() {}\n",
+    )
+    .unwrap();
+    let parent_before = common::read_file(project, "src/parent/mod.rs");
+    let moving_before = common::read_file(project, "src/parent/moving.rs");
 
-    assert!(
-        project.join("src/shared/mod.rs").exists(),
-        "src/shared/mod.rs must be created by the move"
+    let output = common::run_cli(&[
+        "move-module",
+        "--project-path",
+        project.to_str().unwrap(),
+        "crate::parent::moving",
+        "crate::domain::moving",
+    ]);
+
+    assert!(!output.status.success());
+    let error = common::stderr_text(&output);
+    assert!(error.contains("every changed path was restored"), "{error}");
+    assert_eq!(
+        common::read_file(project, "src/parent/mod.rs"),
+        parent_before
     );
-
-    let shim = common::read_file(project, "src/shared/mod.rs");
-    // The shim re-exports crate::types so callers that use `crate::types::X` still work.
-    // There is no separate `mod types;` here — the crate root lib.rs already owns that
-    // declaration (with a `#[path]` redirect), so shared/mod.rs only needs the re-export.
-    assert!(
-        shim.contains("crate::types"),
-        "shared/mod.rs must re-export via `pub use crate::types`:\n{shim}"
+    assert_eq!(
+        common::read_file(project, "src/parent/moving.rs"),
+        moving_before
     );
-}
-
-// ── shim: lib.rs patch ────────────────────────────────────────────────────────
-
-#[test]
-fn rust_move_patches_lib_rs_with_path_attribute() {
-    let temp = common::setup_fixture("rust/project");
-    let project = temp.path();
-    common::assert_move_succeeded(&run_move(project));
-
-    let lib = common::read_file(project, "src/lib.rs");
-    assert!(
-        lib.contains("#[path"),
-        "lib.rs must contain a #[path] attribute after move:\n{lib}"
-    );
-    assert!(
-        lib.contains("shared/types.rs"),
-        "lib.rs #[path] must point to shared/types.rs:\n{lib}"
-    );
-    assert!(
-        lib.contains("pub mod shared"),
-        "lib.rs must declare `pub mod shared` after move:\n{lib}"
-    );
-}
-
-// ── shim: callers unchanged ───────────────────────────────────────────────────
-
-#[test]
-fn rust_move_leaves_all_caller_files_unchanged() {
-    // The shim strategy means callers are never touched.
-    // crate::types still resolves through the alias in shared/mod.rs.
-    let temp = common::setup_fixture("rust/project");
-    let project = temp.path();
-
-    let snapshots: Vec<(&str, String)> = vec![
-        "src/error.rs",
-        "src/config.rs",
-        "src/prelude.rs",
-        "src/utils.rs",
-        "src/utils/formatter.rs",
-        "src/utils/parser.rs",
-        "src/utils/validator.rs",
-        "src/models/user.rs",
-        "src/models/order.rs",
-        "src/services/user.rs",
-        "src/services/order.rs",
-        "src/core.rs",
-        "src/api.rs",
-        "src/api/handler.rs",
-        "src/api/router.rs",
-    ]
-    .into_iter()
-    .map(|p| (p, common::read_file(project, p)))
-    .collect();
-
-    common::assert_move_succeeded(&run_move(project));
-
-    for (rel, before) in &snapshots {
-        let after = common::read_file(project, rel);
-        assert_eq!(
-            after, *before,
-            "{rel} must be byte-identical after move (shim strategy leaves callers untouched)"
-        );
-    }
+    assert!(!project.join("src/domain/moving.rs").exists());
+    assert_eq!(common::read_file(project, "src/domain/mod.rs"), "");
 }

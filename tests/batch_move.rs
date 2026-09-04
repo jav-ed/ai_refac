@@ -128,14 +128,9 @@ fn python_batch_moves_two_files_and_updates_all_imports() {
 // ── Rust ───────────────────────────────────────────────────────────────────────
 
 #[test]
-fn rust_batch_moves_two_files_and_project_still_compiles() {
-    // Cross-dir move two files in one batch call.
-    // The shim strategy must produce a valid, compilable project for BOTH moves:
-    //   src/types.rs  -> src/shared/types.rs
-    //   src/error.rs  -> src/shared/error.rs
-    //
-    // After the move lib.rs must have #[path] for each, shared/mod.rs must
-    // re-export both via `pub use crate::...`, and `cargo check` must pass.
+fn rust_batch_rejects_cross_module_file_moves_before_mutation() {
+    // Rust module boundaries are semantic. A batch of independent file moves
+    // must not recreate the former #[path] shim behavior.
     let temp = common::setup_fixture("rust/project");
     let project = temp.path();
 
@@ -148,33 +143,11 @@ fn rust_batch_moves_two_files_and_project_still_compiles() {
         "--target-path", project.join("src/shared/error.rs").to_str().unwrap(),
     ]);
 
-    common::assert_move_succeeded(&output);
-
-    assert!(project.join("src/shared/types.rs").exists(), "types.rs must be at target");
-    assert!(project.join("src/shared/error.rs").exists(), "error.rs must be at target");
-    assert!(!project.join("src/types.rs").exists(), "types.rs must be gone from source");
-    assert!(!project.join("src/error.rs").exists(), "error.rs must be gone from source");
-
-    let lib = common::read_file(project, "src/lib.rs");
-    assert!(lib.contains("shared/types.rs"), "lib.rs must have #[path] for types.rs:\n{lib}");
-    assert!(lib.contains("shared/error.rs"), "lib.rs must have #[path] for error.rs:\n{lib}");
-    assert!(lib.contains("pub mod shared"), "lib.rs must declare pub mod shared:\n{lib}");
-
-    let shared_mod = common::read_file(project, "src/shared/mod.rs");
-    assert!(shared_mod.contains("crate::types"), "shared/mod.rs must re-export types:\n{shared_mod}");
-    assert!(shared_mod.contains("crate::error"), "shared/mod.rs must re-export error:\n{shared_mod}");
-
-    // The whole project must still compile — two shims must not conflict.
-    let check = std::process::Command::new("cargo")
-        .args(["check", "--quiet"])
-        .current_dir(project)
-        .output()
-        .expect("failed to run cargo check");
-    assert!(
-        check.status.success(),
-        "cargo check must pass after batch move:\n{}",
-        String::from_utf8_lossy(&check.stderr)
-    );
+    assert!(!output.status.success());
+    assert!(common::stderr_text(&output).contains("move-module"));
+    assert!(project.join("src/types.rs").exists());
+    assert!(project.join("src/error.rs").exists());
+    assert!(!project.join("src/shared").exists());
 }
 
 // ── Go same-package batch ───────────────────────────────────────────────────────

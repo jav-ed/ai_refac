@@ -9,20 +9,21 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 
 ## Supported languages
 
-| Language | Files | Directories |
-|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ |
-| Python | ✅ | ❌ |
-| Rust | ✅ | ❌ |
-| Go | ✅ | ❌ |
-| Dart | ✅ | ❌ |
-| Markdown | ✅ | ❌ |
+| Language | Files | Directories | Logical modules |
+|---|---|---|---|
+| TypeScript / JavaScript | ✅ | ✅ | — |
+| Python | ✅ | ❌ | — |
+| Rust | ✅ | ❌ | ✅ |
+| Go | ✅ | ❌ | — |
+| Dart | ✅ | ❌ | — |
+| Markdown | ✅ | ❌ | — |
 
 Passing a directory for any non-TS/JS language will fail with a clear error.
 
 ## Hard constraints
 
-- `--project-path` must be the **package root** (the folder containing `tsconfig.json`, `Cargo.toml`, `go.mod`, etc.) — not the monorepo root.
+- For `move`, `--project-path` must be the **package root** (the folder containing `tsconfig.json`, `Cargo.toml`, `go.mod`, etc.) — not the monorepo root.
+- For Rust `move-module`, `--project-path` may be a Cargo package or workspace root. Source and target are logical `crate::...` paths in the same crate.
 - For TypeScript/JavaScript, ensure `tsconfig.json` includes all local source files. External packages in `node_modules` do not need to be included.
 - `--source-path` and `--target-path` must match 1:1. Three sources require three targets.
 - Paths may be absolute or relative to `--project-path`.
@@ -51,12 +52,16 @@ refac move \
 # structured output for agent parsing
 refac move --json --project-path /path/to/package \
   --source-path src/old.go --target-path pkg/new/old.go
+
+# semantic Rust module move, including its complete physical subtree
+refac move-module --project-path /path/to/cargo-workspace \
+  crate::engine::matching crate::domain::matching
 ```
 
 Exit codes: `0` = all succeeded, `1` = one or more failed.
 
 ## References
 
-- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, Rust shim strategy, Dart package config, TS batch memory/watcher behaviour and reference gaps, Python re-export limits
+- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, semantic Rust module moves, Dart package config, TS batch memory/watcher behaviour and reference gaps, Python re-export limits
 - [Install & prerequisites](references/install.md) — build from source, PATH setup, required tooling per language
 - [Agent integration](references/agent_integration.md) — how to wire this skill into Claude Code or other agent harnesses via symlink

@@ -1,6 +1,5 @@
-// lib.rs is patched by refac during a cross-directory move:
-// - `pub mod types;` gets a `#[path = "shared/types.rs"]` shim
-// - `pub mod shared;` is appended
+// This fixture exercises ordinary Rust file renames and rejection of structural
+// file moves through `refac move`.
 pub mod types;
 pub mod error;
 pub mod config;

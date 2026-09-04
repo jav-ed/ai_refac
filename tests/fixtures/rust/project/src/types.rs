@@ -1,10 +1,4 @@
-// MOVE TARGET: src/types.rs -> src/shared/types.rs
-//
-// The Rust driver uses a SHIM strategy for cross-directory moves:
-// - This file is physically moved to src/shared/types.rs
-// - src/shared/mod.rs is created with `mod types;` + `pub use crate::types;`
-// - src/lib.rs `pub mod types;` is patched with `#[path = "shared/types.rs"]`
-// - All caller files are left UNCHANGED (they compile via the alias)
+// Structural moves use logical module paths through `refac move-module`.
 
 #[derive(Debug, Clone)]
 pub struct Config {

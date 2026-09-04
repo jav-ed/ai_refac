@@ -20,7 +20,7 @@ Moving files and updating references is exactly what refactoring tools are built
 The repo includes a `.agents/skills/refac-cli/` folder. Drop it into your agent setup and it loads only when relevant. The agent reads what it needs, skips the rest. No persistent context overhead, no server to run.
 
 **2. Structured output an agent can actually use.**
-The `--json` flag returns a predictable JSON object — `status` and `message` — so the agent can parse the result cleanly without scraping terminal output. On partial failure the message describes exactly what succeeded and what did not.
+The `--json` flag returns a predictable JSON object with `status`, `operation`, and operation-specific fields, so the agent can parse the result cleanly without scraping terminal output. Errors return `status` and a descriptive `error`.
 
 **3. Built-in `--help` that works for agents and humans alike.**
 Every subcommand is documented at the CLI level. No hunting through READMEs.
@@ -28,6 +28,7 @@ Every subcommand is documented at the CLI level. No hunting through READMEs.
 ```bash
 refac --help
 refac move --help
+refac move-module --help
 ```
 
 ---
@@ -46,7 +47,7 @@ Examples:
 Read @Project_Manag/Docs/doc_Start.md and tell me how to install this tool.
 Read @Project_Manag/Docs/doc_Start.md and explain how Go package moves work.
 Read @Project_Manag/Docs/doc_Start.md and tell me what languages are supported and what their limits are.
-Read @Project_Manag/Docs/doc_Start.md and explain the Rust cross-directory move behaviour.
+Read @Project_Manag/Docs/doc_Start.md and explain semantic Rust module moves.
 ```
 
 The agent will navigate to the relevant doc, read only what it needs, and answer directly.
@@ -74,14 +75,14 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 ## Supported languages
 
-| Language | Files | Directories | Engine |
-|---|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ | ts-morph via Bun |
-| Python | ✅ | ❌ | Rope (automatic fallback: Pyrefly) |
-| Rust | ✅ | ❌ | rust-analyzer (LSP) |
-| Go | ✅ | ❌ | gopls (LSP) |
-| Dart | ✅ | ❌ | Dart analysis server (LSP) |
-| Markdown | ✅ | ❌ | Native (no external tooling) |
+| Language | Files | Directories | Logical modules | Engine |
+|---|---|---|---|---|
+| TypeScript / JavaScript | ✅ | ✅ | — | ts-morph via Bun |
+| Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly) |
+| Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR |
+| Go | ✅ | ❌ | — | gopls (LSP) |
+| Dart | ✅ | ❌ | — | Dart analysis server (LSP) |
+| Markdown | ✅ | ❌ | — | Native (no external tooling) |
 
 Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.rs`, `.go`, `.dart`, `.md`). Directory sources are routed to the TypeScript driver; all other languages require individual files.
 
@@ -89,7 +90,7 @@ Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.r
 
 ## Install
 
-**Requires Rust 1.85+ (edition 2024).** Install via [rustup](https://rustup.rs) if needed.
+**Requires Rust 1.98+ (edition 2024).** The repository pins Rust 1.98.1, rustfmt, and rust-analyzer in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.
 
 ```bash
 git clone https://github.com/jav-ed/ai_refac.git
@@ -127,7 +128,7 @@ refac move \
   --target-path src/new/module.ts
 ```
 
-`--project-path` must be the **package root** — the directory that contains `tsconfig.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, etc. For monorepos or workspaces, point it at the sub-package being operated on, not the workspace root.
+For `move`, `--project-path` must be the **package root** — the directory that contains `tsconfig.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, etc. For monorepos or workspaces, point it at the sub-package being operated on, not the workspace root.
 
 Paths given to `--source-path` and `--target-path` can be absolute or relative to `--project-path`.
 
@@ -151,6 +152,19 @@ refac move \
 
 Mixed languages in one call work — the tool groups files by language and dispatches each batch to its correct backend. If one language's batch fails, the others still run. The response reports which succeeded and which failed.
 
+### Move a Rust module subtree
+
+Use logical module paths, not filesystem paths, for a structural Rust move:
+
+```bash
+refac move-module \
+  --project-path /path/to/cargo-workspace \
+  crate::engine::matching \
+  crate::domain::matching
+```
+
+`--project-path` may be a Cargo package or workspace root. Refac resolves the source module semantically, moves its complete conventional file/`mod.rs` subtree, rewrites resolved references in the workspace, adjusts affected `super::` paths, creates missing parent modules, and validates the result with `cargo check --workspace --all-targets`.
+
 ### JSON output
 
 ```bash
@@ -160,16 +174,20 @@ refac move --json \
   --target-path pkg/new/old.go
 ```
 
-With `--json`, the response is a single JSON object:
+With `--json`, a file move returns a single JSON object with operation-specific fields:
 
 ```json
 {
   "status": "ok",
-  "message": "..."
+  "operation": "move",
+  "project_path": "/path/to/project",
+  "source_path": ["src/old.go"],
+  "target_path": ["pkg/new/old.go"],
+  "result": "..."
 }
 ```
 
-On partial or full failure, `"status"` is `"error"` and `"message"` contains a structured description of what succeeded and what failed.
+On failure, `"status"` is `"error"` and `"error"` contains the descriptive failure chain. Successful `move-module --json` output additionally reports `source_module`, `target_module`, `moved_paths`, and `edited_files`.
 
 ### Exit codes
 
@@ -192,8 +210,10 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - Namespace packages (no `__init__.py`) may see incomplete updates.
 
 **Rust**
-- **Cross-directory moves do not rewrite caller imports.** Moving a file to a different directory adds a `#[path = "..."]` attribute in the declaring file and a `pub use crate::...` alias in the target module. These are permanent code changes that will appear in your diff. Existing caller files continue to compile through the alias but their import paths are not migrated. Same-directory renames do fully rewrite all `use` paths via rust-analyzer.
-- Single crate only. Cross-crate reference updates are not supported.
+- Use `move-module` for cross-directory or otherwise structural moves. Ordinary `move` rejects cross-directory `.rs` paths instead of guessing the logical module change.
+- Source and target must be logical `crate::...` paths in the same crate. Workspace dependants are updated, but a source path that resolves in multiple workspace crates is rejected as ambiguous.
+- v1 rejects inline source modules, `#[path]`, attributed declarations such as `#[cfg]`, nonstandard visibility, syntax errors, complex paths it cannot preserve, and grouped imports that would require restructuring.
+- The semantic command never adds `#[path]` or compatibility re-export shims. It validates after applying and rolls planned source changes back on failure.
 
 **Go**
 - **Moving any `.go` file cross-directory renames the entire package.** All files in the source directory move together. If `pkg/` contains `a.go`, `b.go`, and `c.go`, asking to move `pkg/a.go` will cause gopls to move all three. Partial-package moves are not supported.
@@ -209,7 +229,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 
 **General**
 - No dry-run mode. Changes are applied to disk immediately.
-- If a target path already exists, the tool will overwrite it.
+- Ordinary file-move backends may overwrite a target path. Rust `move-module` rejects existing targets during preflight.
 - The tool does not walk into `node_modules/`, `target/`, `.git/`, or similar build/vendor directories when scanning for references.
 
 ---
@@ -221,12 +241,12 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
 | Python | `rope` importable from `.venv` or `python3` | `pip install rope` |
 | Python (fallback) | `pyrefly` (only if Rope is absent) | `pip install pyrefly` |
-| Rust | `rust-analyzer` | [rust-analyzer.github.io](https://rust-analyzer.github.io) |
+| Rust | `rust-analyzer` for ordinary file renames; semantic module support is embedded | [rust-analyzer.github.io](https://rust-analyzer.github.io) |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
 | Markdown | none | — |
 
-No specific minimum version is enforced for any external tool, but use recent releases. Older versions of gopls and rust-analyzer may behave differently or not at all.
+No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.98.1 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
 
 ---
 
@@ -234,7 +254,9 @@ No specific minimum version is enforced for any external tool, but use recent re
 
 The approach depends on the language:
 
-**LSP-backed (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current.
+**LSP-backed file moves (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current.
+
+**Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
 
 **ts-morph (TypeScript / JavaScript):** A Bun script loads the project using ts-morph (a TypeScript Compiler API wrapper), performs the move, and ts-morph rewrites all affected import paths using the compiler's own reference graph.
 

@@ -10,17 +10,22 @@ Same-directory renames (file rename with no directory change) are a filesystem-o
 
 Requires `go.mod` at the project root for any cross-directory move. Without it the move will error.
 
-## Rust — cross-directory moves use a shim
+## Rust — semantic module moves
 
-Moving a Rust file to a different directory does **not** rewrite caller imports. Instead it:
-1. Adds a `#[path = "..."]` attribute in the declaring file pointing to the new location.
-2. Adds a `pub use crate::...` alias so existing callers continue to compile.
+Use logical module paths for any structural move:
 
-These are permanent code changes that will appear in your diff. Caller files are not migrated — they keep working through the alias. To fully migrate callers you must update them manually or run a follow-up rename.
+```bash
+refac move-module --project-path /path/to/cargo-workspace \
+  crate::engine::matching crate::domain::matching
+```
 
-Same-directory renames (file rename within the same directory) do fully rewrite all `use` paths via rust-analyzer.
+The command resolves the source with embedded rust-analyzer HIR, moves its complete file or `mod.rs` subtree, rewrites resolved references across the Cargo workspace, adjusts affected `super::` paths, creates conventional missing parent modules, and runs `cargo check --workspace --all-targets`. It never creates `#[path]` or compatibility re-export shims. A failed check rolls the planned source changes back.
 
-Single crate only — cross-crate reference updates are not supported.
+Source and target must be in the same crate. A `crate::...` source that is ambiguous across workspace crates is rejected with the matching declaration locations. Workspace dependants of the selected crate are updated.
+
+Strict v1 rejections include inline source modules, `#[path]`, attributed module declarations such as `#[cfg]`, visibility other than private/`pub`/`pub(crate)`, syntax errors, complex paths the rewriter cannot preserve, and grouped imports that would need restructuring.
+
+Use ordinary `refac move` for same-directory `.rs` filename renames; rust-analyzer LSP rewrites the module symbol. Cross-directory `.rs` paths through `move` are rejected and direct you to `move-module`.
 
 ## Dart — package URI rewriting requires package config
 

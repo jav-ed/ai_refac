@@ -1,40 +1,79 @@
 # Rust
 
-The Rust backend uses `rust-analyzer` via LSP. It handles two structurally different cases — same-directory renames and cross-directory moves — with different strategies for each.
+The Rust backend keeps simple file renames and structural module moves separate. Same-directory `.rs` renames use the rust-analyzer language server. `move-module` uses embedded rust-analyzer HIR to move one complete logical module subtree and rewrite resolved references without `#[path]` or compatibility shims.
 
-## Required tooling
+## Commands
 
-- `rust-analyzer` — checked at `rust-analyzer` in PATH, then `~/.cargo/bin/rust-analyzer`
+Rename a module file without changing its parent module:
 
-## How it works
+```bash
+refac move --project-path /path/to/package \
+  --source-path src/domain/old_name.rs \
+  --target-path src/domain/new_name.rs
+```
 
-### Same-directory rename
+Move a logical module to a different parent:
 
-When source and target share the same directory, the filename change corresponds to a module rename. The driver:
+```bash
+refac move-module --project-path /path/to/cargo-workspace \
+  crate::engine::matching \
+  crate::domain::matching
+```
 
-1. Locates the `mod <name>;` declaration in the parent module file (e.g. `src/lib.rs`, `src/main.rs`, or the directory's `mod.rs`).
-2. Issues a `textDocument/rename` on the module name symbol. rust-analyzer rewrites all `use` paths that reference it across the crate.
-3. Moves the file on the filesystem.
+Structural source and target arguments always begin with `crate::`. They identify modules in the same crate, not filesystem paths. If the source path matches multiple workspace crates, Refac stops and reports the matching declaration files.
 
-### Cross-directory move (shim strategy)
+## Semantic move sequence
 
-Cross-directory moves in Rust require changing the module tree, which LSP rename cannot do safely. The driver uses a static rewrite instead:
+Before mutation, Refac:
 
-1. Finds the existing `mod <name>;` declaration in the declaring file.
-2. Physically moves the source file to the target path.
-3. Rewrites the declaration to add a `#[path = "..."]` attribute pointing at the new location, preserving the original module name so all existing `use crate::...` paths continue to compile.
-4. Adds a `pub use crate::<old_path>` alias in the target directory's module file, so external callers using the old module path see a re-export rather than a broken reference.
+1. loads the Cargo package or workspace with embedded rust-analyzer crates;
+2. resolves the source as an out-of-line HIR module and confirms that the target does not exist;
+3. discovers its conventional physical representation: `name.rs` plus an optional `name/` companion, or the complete `name/mod.rs` directory;
+4. finds resolved references across workspace crates and plans their new paths;
+5. plans declaration removal/insertion, missing conventional parent modules, and `super::` rewrites inside moved files;
+6. rejects target collisions, overlapping edits, and unsupported source layouts.
 
-This is a **shim strategy**: callers are not rewritten. They continue to use the old path and reach the module through the alias. The project stays buildable; the import paths are not fully migrated.
+It then applies the plan, reloads the workspace to confirm the new logical path resolves and the old one does not, and runs:
 
-### Batch session architecture
+```bash
+cargo check --workspace --all-targets
+```
 
-When a batch contains multiple same-directory renames, all are processed in **one rust-analyzer session**. Each rename fires as a sequential `textDocument/rename` within that session, with `textDocument/didChange` notifications sent between renames to keep rust-analyzer's view current. This is O(1) rust-analyzer startups for the entire batch.
+If semantic reload or Cargo validation fails, Refac reverses the physical moves and restores every planned source-file write.
 
-Cross-directory moves are handled before the LSP batch, without a language server (static file rewrites only).
+## Conventional layout
 
-## Known limits
+The semantic command moves the module's complete representation:
 
-- **Cross-directory moves do not rewrite caller imports.** The shim keeps the project buildable but leaves old `use` paths in caller files intact. This is a known gap — full cross-directory migration via LSP is not implemented.
-- **`mod.rs` moves are handled via `willRenameFiles`, not symbol rename.** Moving a `mod.rs` file is treated separately because it does not correspond to a renaming symbol.
-- **Single crate only.** The driver operates on one Cargo crate at a time. Workspace-wide cross-crate reference updates are not supported.
+- `src/engine/matching.rs` moves as one module file; `src/engine/matching/`, when present, moves with it.
+- `src/engine/matching/mod.rs` moves with the entire `src/engine/matching/` directory.
+- Missing target parents are represented conventionally with `mod.rs` and a matching `mod <name>;` declaration.
+- Existing source visibility is preserved for the moved declaration and generated parent declarations.
+
+No `#[path]` attribute or old-path re-export is introduced. Callers migrate to the new path.
+
+## Workspace references
+
+References in the selected crate and dependent workspace crates are rewritten from rust-analyzer's resolved reference graph. For example, moving `crate::matching` to `crate::domain::matching` in package `core_lib` also changes `core_lib::matching::value` in a dependent workspace package to `core_lib::domain::matching::value`.
+
+## Strict v1 limits
+
+Refac stops before mutation when it encounters a layout it cannot preserve confidently. Current hard errors include:
+
+- inline source modules;
+- `#[path]` modules;
+- attributed module declarations, including `#[cfg]`;
+- visibility other than private, `pub`, or `pub(crate)`;
+- an inline descendant that declares an out-of-line child;
+- Rust syntax errors in a file that must be rewritten;
+- complex path syntax or a grouped import that would require structural rewriting;
+- a target that already exists or a target inside the source subtree;
+- resolved source references outside the selected Cargo workspace.
+
+Proc-macro expansion and build-script output loading are disabled for v1. The final Cargo check remains authoritative and triggers rollback if the moved workspace does not compile.
+
+## Ordinary Rust file moves
+
+Same-directory file renames use one rust-analyzer LSP session for the batch and rename the module symbol before the filesystem move. A cross-directory `.rs` path passed to ordinary `refac move` fails with guidance to use `move-module`; Refac does not silently create a shim.
+
+The external `rust-analyzer` binary is therefore required for ordinary file renames. `move-module` uses the embedded rust-analyzer libraries locked in `Cargo.lock`.

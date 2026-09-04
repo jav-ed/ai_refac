@@ -2,6 +2,8 @@
 
 This repo is a Rust CLI tool. The main binary is `refac`, and the supporting utility binary is `create_testbed`.
 
+The crate requires Rust 1.98 or newer. `rust-toolchain.toml` pins development to Rust 1.98.1 with rustfmt and rust-analyzer.
+
 ## 1. Build
 
 Use Cargo in the normal way:
@@ -60,9 +62,19 @@ cargo run -- move \
   --target-path src/new_file.ts
 ```
 
+Run a semantic Rust module move:
+
+```bash
+cargo run -- move-module \
+  --project-path /absolute/path/to/cargo-workspace \
+  crate::engine::matching \
+  crate::domain::matching
+```
+
 Useful CLI notes:
 
-- `--project-path` should point at the concrete package root.
+- For `move`, `--project-path` should point at the concrete package root.
+- For Rust `move-module`, it may point at a Cargo package or workspace root.
 - If you reuse the same root often, set `REFAC_PROJECT_PATH=/absolute/path/to/project` and omit `--project-path`.
 - `--source-path` and `--target-path` are relative to `--project-path`.
 - Repeat `--source-path` and `--target-path` to run a batch move.

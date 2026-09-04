@@ -35,12 +35,45 @@ fn top_level_help_mentions_primary_commands() {
     assert!(stdout.contains("Usage:"), "missing usage text: {stdout}");
     assert!(stdout.contains("move"), "missing move subcommand: {stdout}");
     assert!(
+        stdout.contains("move-module"),
+        "missing Rust module subcommand: {stdout}"
+    );
+    assert!(
         stdout.contains("completions") || stdout.contains("completion"),
         "missing completions command: {stdout}"
     );
     assert!(
         stdout.contains("man") || stdout.contains("manpage"),
         "missing manpage command: {stdout}"
+    );
+}
+
+#[test]
+fn move_module_help_exposes_logical_paths_and_workspace_root() {
+    let output = run_cli(&["move-module", "--help"]);
+
+    assert!(
+        output.status.success(),
+        "subcommand help should succeed: stderr={}",
+        stderr_text(&output)
+    );
+
+    let stdout = stdout_text(&output);
+    assert!(
+        stdout.contains("--project-path"),
+        "missing project path: {stdout}"
+    );
+    assert!(
+        stdout.contains("<SOURCE_MODULE>"),
+        "missing source module: {stdout}"
+    );
+    assert!(
+        stdout.contains("<TARGET_MODULE>"),
+        "missing target module: {stdout}"
+    );
+    assert!(
+        stdout.contains("crate::"),
+        "missing logical-path guidance: {stdout}"
     );
 }
 

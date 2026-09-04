@@ -2,6 +2,7 @@
 name = "refac"
 version = "0.1.2"
 edition = "2024"
+rust-version = "1.98"
 default-run = "refac"
 
 [dependencies]
@@ -21,6 +22,12 @@ url = "2.5.7"
 which = "8.0.0"
 pathdiff = "0.2"
 walkdir = "2.5"
+ra_ap_hir = "=0.0.350"
+ra_ap_ide = "=0.0.350"
+ra_ap_load-cargo = "=0.0.350"
+ra_ap_project_model = "=0.0.350"
+ra_ap_syntax = "=0.0.350"
+ra_ap_vfs = "=0.0.350"
 
 [dev-dependencies]
 tempfile = "3.8"

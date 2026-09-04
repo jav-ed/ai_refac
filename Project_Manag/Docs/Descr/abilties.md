@@ -19,7 +19,7 @@ The tool integrates with the following language toolchains:
 | **Python** | `Rope` (primary) / `Pyrefly` (fallback) | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback |
 | **TypeScript / JS** | `Bun` | `bun` |
 | **Markdown** | Native Rust backend | none |
-| **Rust** | `rust-analyzer` | `rust-analyzer` binary |
+| **Rust** | `rust-analyzer` LSP plus embedded HIR | `rust-analyzer` binary for ordinary file renames |
 | **Go** | `gopls` | `gopls` in PATH or `~/go/bin` |
 | **Dart** | Dart SDK analysis server | `dart` (Dart SDK) |
 
@@ -32,7 +32,7 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | **TypeScript / JS** | Complete caller updates require an authoritative `tsconfig.json` that includes all local TS/JS sources. Batches are limited to 30 contained source files. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
 | **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
-| **Rust** | Same-dir renames use LSP symbol rename (all `use` paths updated). Cross-dir moves use a shim strategy (`#[path]` + `pub use` alias) — caller files are **not** rewritten. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |
+| **Rust** | Same-dir file renames use LSP symbol rename. Structural moves use `move-module`, move the complete conventional module subtree, rewrite resolved workspace references, never add `#[path]` shims, and roll back source changes when validation fails. Strict v1 rejects ambiguous or unsupported layouts. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |
 | **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Details in [Go Feature Docs](../Features/Go/linker_Go.md). |
 | **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, only relative imports are updated. |
 
@@ -41,18 +41,18 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 Pass `--json` to get machine-readable output instead of human-readable terminal text. Returns a single JSON object:
 
 ```json
-{ "status": "ok", "message": "..." }
+{ "status": "ok", "operation": "move", "result": "..." }
 ```
 
 On partial or full failure:
 
 ```json
-{ "status": "error", "message": "..." }
+{ "status": "error", "error": "..." }
 ```
 
-`"message"` on failure describes exactly which moves succeeded and which failed. Exit codes: `0` = all succeeded, `1` = one or more failed.
+`"error"` on failure contains the descriptive error chain. Exit codes: `0` = all succeeded, `1` = one or more failed.
 
-The `--json` flag is the intended interface for agent use — parse `status` to branch on success/failure, read `message` for detail.
+The `--json` flag is the intended interface for agent use. Parse `status` to branch, then read the operation-specific success fields or `error` for detail.
 
 ## 5. Why Use `refac`?
 

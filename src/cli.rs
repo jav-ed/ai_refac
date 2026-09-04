@@ -16,7 +16,7 @@ use serde::Serialize;
 Move or rename source or Markdown files and update all references across the project.
 
 Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart.
-Only individual FILES are supported — directory moves are not.
+Use `move-module` for semantic Rust module-subtree moves.
 Paths may be absolute or relative to --project-path.
 
 EXAMPLES:
@@ -27,7 +27,11 @@ EXAMPLES:
   # Move multiple files in one call (1:1 mapping)
   refac move --project-path /my/project \\
     --source-path src/a.ts --source-path src/b.ts \\
-    --target-path src/x.ts --target-path src/y.ts",
+    --target-path src/x.ts --target-path src/y.ts
+
+  # Move a complete Rust module subtree
+  refac move-module --project-path /my/cargo-workspace \\
+    crate::engine::matching crate::domain::matching",
     version
 )]
 pub struct Cli {
@@ -39,6 +43,8 @@ pub struct Cli {
 enum Commands {
     /// Move or rename files and update imports/references. Only files are supported, not directories.
     Move(MoveArgs),
+    /// Move a complete Rust module subtree and rewrite its semantic references.
+    MoveModule(MoveModuleArgs),
     /// Generate shell completions to stdout.
     Completions(CompletionsArgs),
     /// Generate a manpage for the CLI to stdout.
@@ -58,6 +64,23 @@ struct MoveArgs {
     /// Target file path (relative to project_path or absolute). Must match source count 1:1. Repeat for multiple files.
     #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
     target_path: Vec<String>,
+
+    /// Emit machine-readable JSON instead of human text.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct MoveModuleArgs {
+    /// Cargo package or workspace root. Defaults to the current directory.
+    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    project_path: Option<std::path::PathBuf>,
+
+    /// Existing logical module path in one workspace crate, beginning with `crate::`.
+    source_module: String,
+
+    /// New logical module path in the same crate, beginning with `crate::`.
+    target_module: String,
 
     /// Emit machine-readable JSON instead of human text.
     #[arg(long)]
@@ -87,6 +110,17 @@ struct MoveSuccessOutput<'a> {
 }
 
 #[derive(Debug, Serialize)]
+struct MoveModuleSuccessOutput<'a> {
+    status: &'static str,
+    operation: &'static str,
+    project_path: &'a str,
+    source_module: &'a str,
+    target_module: &'a str,
+    moved_paths: usize,
+    edited_files: usize,
+}
+
+#[derive(Debug, Serialize)]
 struct ErrorOutput<'a> {
     status: &'static str,
     error: &'a str,
@@ -107,6 +141,7 @@ pub async fn run() -> ExitCode {
 async fn execute(cli: Cli) -> Result<(), CliError> {
     match cli.command {
         Commands::Move(args) => execute_move(args).await,
+        Commands::MoveModule(args) => execute_move_module(args),
         Commands::Completions(args) => execute_completions(args),
         Commands::Man => execute_man(),
     }
@@ -161,6 +196,45 @@ async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
             error,
         }),
     }
+}
+
+fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {
+    let project_path = args
+        .project_path
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(std::env::current_dir)
+        .map_err(|error| CliError {
+            json: args.json,
+            error: error.into(),
+        })?;
+    let report =
+        crate::drivers::rust::move_module(&project_path, &args.source_module, &args.target_module)
+            .map_err(|error| CliError {
+                json: args.json,
+                error,
+            })?;
+
+    if args.json {
+        let project_display = project_path.to_string_lossy();
+        let payload = MoveModuleSuccessOutput {
+            status: "ok",
+            operation: "move-module",
+            project_path: &project_display,
+            source_module: &args.source_module,
+            target_module: &args.target_module,
+            moved_paths: report.moved_paths,
+            edited_files: report.edited_files,
+        };
+        write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })?;
+    } else {
+        println!(
+            "// Alhamdulillah Rust module moved semantically:\n{} -> {}\n// {} filesystem path(s) moved; {} source file(s) updated.",
+            args.source_module, args.target_module, report.moved_paths, report.edited_files
+        );
+    }
+
+    Ok(())
 }
 
 fn execute_completions(args: CompletionsArgs) -> Result<(), CliError> {

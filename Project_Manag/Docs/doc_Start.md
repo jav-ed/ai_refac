@@ -14,7 +14,7 @@ Operational decision: after building `refac`, the binary is made available via `
 - **[TypeScript / JS](./Features/TypeScript/linker_TypeScript.md)** — tsconfig coverage, low-RAM project loading, aliases, directory moves
 - **[Python](./Features/Python/linker_Python.md)** — Rope/Pyrefly backends, re-export limits, namespace packages
 - **[Go](./Features/Go/linker_Go.md)** — whole-package moves, batch session architecture, go.mod requirement
-- **[Rust](./Features/Rust/linker_Rust.md)** — same-dir vs cross-dir, shim strategy (`#[path]` + `pub use` alias), caller migration
+- **[Rust](./Features/Rust/linker_Rust.md)** — LSP file renames, semantic module-subtree moves, workspace reference migration, strict v1 limits
 - **[Markdown](./Features/Markdown/linker_Markdown.md)** — relative link rewriting, limits (no code blocks, no absolute URLs)
 - **[Install & Build](./Guides/dev_guide.md)** — build from source, symlink to `~/.local/bin/`, cargo install, PATH setup
 - **[Testing & Debugging](./Guides/Testing_and_Debugging.md)** — test suite structure, fixture projects, batch move tests, debugging failures
