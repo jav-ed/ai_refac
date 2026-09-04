@@ -1,6 +1,6 @@
 ---
 name: refac-cli
-description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates. For TypeScript/JavaScript, use the package root with its authoritative tsconfig so local callers and aliases can be updated completely. This skill is for using the tool, not changing its implementation.
+description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates, move TypeScript/JavaScript directories, or move a complete Rust module subtree semantically. For TypeScript/JavaScript, use the package root with its authoritative tsconfig so local callers and aliases can be updated completely. This skill is for using the tool, not changing its implementation.
 ---
 
 # Use Refac CLI
