@@ -77,14 +77,14 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 | Language | Files | Directories | Logical modules | Engine |
 |---|---|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ | — | ts-morph via Bun |
+| TypeScript / JavaScript | ✅ | ✅ | — | Oxc parser + TypeScript resolver via Bun |
 | Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly) |
 | Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR |
 | Go | ✅ | ❌ | — | gopls (LSP) |
 | Dart | ✅ | ❌ | — | Dart analysis server (LSP) |
 | Markdown | ✅ | ❌ | — | Native (no external tooling) |
 
-Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.rs`, `.go`, `.dart`, `.md`). Directory sources are routed to the TypeScript driver; all other languages require individual files.
+Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.md`). Directory sources are routed to the TypeScript driver; all other languages require individual files.
 
 ---
 
@@ -258,7 +258,7 @@ The approach depends on the language:
 
 **Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
 
-**ts-morph (TypeScript / JavaScript):** A Bun script loads the project using ts-morph (a TypeScript Compiler API wrapper), performs the move, and ts-morph rewrites all affected import paths using the compiler's own reference graph.
+**Oxc (TypeScript / JavaScript):** A Bun helper parses configured sources with Oxc and resolves code imports with TypeScript, without a compiler Program or type checker. It plans the complete batch, edits module literals precisely, and verifies resolution after movement. Ordinary apply/verification failures roll back. Assets use Oxc Resolver; the supervisor enforces time and memory limits. See [TypeScript details](Project_Manag/Docs/Features/TypeScript/linker_TypeScript.md).
 
 **Rope (Python):** The Rope refactoring library is invoked directly via Python. It performs the move and updates all import statements it can trace.
 
@@ -270,6 +270,9 @@ The approach depends on the language:
 
 ```bash
 cargo test
+bun install --cwd scripts --frozen-lockfile
+bun run --cwd scripts test
+bun run --cwd scripts typecheck
 ```
 
 The suite covers unit tests and integration tests for all supported languages. Integration tests copy fixture projects into temp directories and run assertions on the resulting files. Tests that require external tools (gopls, rust-analyzer, etc.) skip gracefully if the tool is not installed — they do not fail, but they also do not provide coverage.

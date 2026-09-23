@@ -36,7 +36,7 @@ fn typescript_batch_moves_two_unrelated_files() {
 #[test]
 fn typescript_batch_updates_cross_import_when_both_files_move_to_same_dir() {
     // task_service.ts imports date_helpers.ts via '../utils/date_helpers'.
-    // Both move to src/core/.  Since they land in the same directory, ts-morph
+    // Both move to src/core/.  Since they land in the same directory, Refac
     // must rewrite the import to './date_helpers' (same-dir relative path).
     let temp = common::setup_fixture("typescript/project");
     let project = temp.path();

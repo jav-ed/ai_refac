@@ -8,7 +8,7 @@ pub const MAX_FILES_PER_MOVE: usize = 30;
 fn is_typescript_or_javascript(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|extension| extension.to_str()),
-        Some("ts" | "tsx" | "js" | "jsx")
+        Some("ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs")
     )
 }
 
@@ -24,7 +24,7 @@ fn resolve_source(source: &str, root: Option<&Path>) -> PathBuf {
 }
 
 /// Count distinct source files before moving anything. Directory request counts
-/// alone hide the actual ts-morph workload and make the memory limit meaningless.
+/// alone hide the actual source count and bypass the batch safety limit.
 pub fn count_source_files(file_map: &[(String, String)], root: Option<&Path>) -> Result<usize> {
     let mut files = HashSet::new();
 

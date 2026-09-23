@@ -1,5 +1,7 @@
 # Comprehensive Refactoring Tools Research Report
 
+Historical backend evaluation. The TypeScript recommendation was superseded by the [Oxc parser and TypeScript resolver backend](../Features/TypeScript/linker_TypeScript.md) on 2026-09-23.
+
 ## Objective
 
 Identify the best backend tools for a Rust-based refactoring engine capable of symbol renaming and file moves across multiple languages.

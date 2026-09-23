@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "types": ["bun"]
+  },
+  "include": ["TypeScript/**/*.ts", "Tests/**/*.ts", "ts_refactor.ts"]
+}

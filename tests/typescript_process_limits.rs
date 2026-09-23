@@ -29,6 +29,14 @@ fn invalid_memory_limits_fail_before_moving_files() {
 #[test]
 fn memory_failure_reports_the_limit_and_cleanup_through_cli() {
     let temp = common::setup_fixture("typescript/project");
+    // Keep the helper alive beyond an RSS sample even with the faster parser.
+    for index in 0..3_000 {
+        std::fs::write(
+            temp.path().join(format!("src/caller_{index}.ts")),
+            "export * from './utils/date_helpers';\n",
+        )
+        .unwrap();
+    }
     let output = Command::new(common::cli_binary())
         .args([
             "move",

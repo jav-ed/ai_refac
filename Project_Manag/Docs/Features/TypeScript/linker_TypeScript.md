@@ -1,32 +1,36 @@
 # TypeScript / JavaScript
 
-The TypeScript backend delegates to `ts-morph` via a Bun script (`scripts/ts_refactor.ts`). It handles both file and directory moves and rewrites import paths across the project.
+Refac uses Oxc to parse each source file, TypeScript to resolve code imports, and Oxc Resolver for asset requests. Precise literal edits preserve other source bytes. The Bun helper creates no TypeScript Program, type checker, language service, or ts-morph project.
 
-## Required tooling
+## Required tooling and scope
 
-- `bun` — checked at `bun` in PATH, then `~/.bun/bin/bun`
-- `ts-morph` 28 — auto-installed via `bun install` on first run if not found in `scripts/node_modules`
-- `tsconfig.json` — required for complete local caller and alias coverage
+Bun runs `scripts/ts_refactor.ts`. Missing dependencies are installed from `scripts/bun.lock` with `bun install --frozen-lockfile`.
 
-## How project loading works
+Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads config inheritance, `files`, `include`, `exclude`, aliases, and resolution options. Every configured source is scanned, plus explicitly moved sources; dependencies are resolved on demand without loading their ASTs. Without a tsconfig, the helper uses TypeScript's default file discovery with `allowJs`, ESNext modules, and bundler resolution.
 
-| Condition | What happens |
-| :--- | :--- |
-| `tsconfig.json` present | Every configured source file is loaded; recursive dependency discovery is skipped to reduce RAM |
-| No `tsconfig.json` | Falls back to globbing all `*.ts/.tsx/.js/.jsx` under `--project-path` |
+## Implementation owners
 
-Point `--project-path` at the package that owns the authoritative tsconfig. Its `include` or `files` configuration must cover all local TS/JS files that participate in imports. External packages such as React or SolidJS remain package imports and do not need to be included.
+- [CLI entry](../../../../scripts/ts_refactor.ts): argument parsing and error reporting.
+- [TypeScript modules](../../../../scripts/TypeScript/): `project.ts` reads config; `imports.ts` collects literal spans; `resolver.ts` resolves and spells paths; `moves.ts` validates requests; `plan.ts` plans and verifies the batch; `apply.ts` owns filesystem changes and rollback.
+- [Behavior tests](../../../../scripts/Tests/TypeScript/): syntax, paths, batches, safety, and a 3,005-file stress fixture.
+- [CLI stress test](../../../../tests/typescript_large_project.rs): five dependent moves and 3,000 callers under a 1 GiB RSS budget.
 
-## Performance status
+## Reference updates
 
-Version 28 does not claim a move-performance improvement; it primarily upgrades the embedded compiler to TypeScript 6. Upstream still tracks slow `sourceFile.move` and directory-move behavior in [issue 1613](https://github.com/dsherret/ts-morph/issues/1613) and [issue 953](https://github.com/dsherret/ts-morph/issues/953), so Refac keeps the 30-file hard limit.
+Supported forms include imports, re-exports, side-effect imports, literal dynamic imports, CommonJS `require`, TypeScript import-equals, import types, and resolved module augmentations. No-substitution template literals are supported. Node ESM/CommonJS conditions and explicit `resolution-mode` attributes use TypeScript's resolver. Asset imports preserve query and fragment suffixes.
 
-A local comparison on the Shadi Intake project found no consistent advantage from the Node `tsx` runner. `tsx` was about 10% faster for one 27-file directory move, but Bun was slightly faster when the same 27 files were moved individually in one batch. Both produced identical trees, so Refac continues to use Bun rather than adding a second runtime dependency.
+Aliases in `compilerOptions.paths` retain their spelling when the destination fits the same alias. Fixed aliases or moves outside an alias become explicit relative imports; tsconfig mappings themselves are not edited. Resolution is checked after all moves against each previously resolved target in affected files. A normal apply or verification error restores edited bytes and moved paths; rollback failure is reported explicitly.
 
 ## Key limits
 
-- **Project size**: there is no partial-load success path. File and directory moves retain the complete tsconfig source set so external callers remain visible.
-- **Process limits**: the helper is explicitly terminated and reaped after 5 minutes or when its sampled resident memory exceeds 4 GiB. RSS is sampled every 100 ms, so brief overshoot is possible. `REFAC_TYPESCRIPT_MAX_RSS_MB` accepts a positive integer in MiB to change the threshold. Cancelling the supervising future also terminates the helper. Failures do not guarantee rollback: inspect the working tree before retrying. Use the authoritative package root; shrinking it to exclude callers is unsafe.
-- **No tsconfig**: without a tsconfig, compiler options default to `allowJs: true`. Type-aware reference resolution is weaker.
-- **Batch size**: at most 30 contained TypeScript/JavaScript source files. Directory contents are counted recursively before mutation, and the measured count is included in successful output.
-- **Aliases**: file and directory imports using aliases declared in `compilerOptions.paths` are rewritten explicitly. A stale moved alias import makes the operation fail instead of reporting success.
+- **Coverage:** callers must be in the owning tsconfig. Project references are rejected until cross-project planning is supported.
+- **Unsupported ambiguity:** malformed source/config, symlink move paths, overlapping requests, locally rebound `require` calls, and unresolved outgoing relative imports fail explicitly.
+- **Manual audit:** computed module paths, arbitrary strings, JSDoc/triple-slash comments, framework path conventions, and package/config metadata are not rewritten. Search for old paths and run the target project's typecheck/build.
+- **Batch size:** at most 30 contained TypeScript/JavaScript source files, counted before mutation.
+- **Process limits:** the Rust supervisor terminates and reaps the helper after 5 minutes or sampled RSS above 4 GiB. RSS is sampled every 100 ms, so brief overshoot is possible. `REFAC_TYPESCRIPT_MAX_RSS_MB` sets a positive integer MiB threshold. Cancellation also terminates the child. Process termination or a crash can interrupt rollback: inspect the working tree before retrying.
+
+## Performance evidence
+
+On 2026-09-23, a disposable copy of Shadi Intake replayed the five Sentry moves across 3,150 configured sources in 1.1–1.8 seconds per batch, with peak helper RSS about 212 MiB. The reverse/forward round trip was byte-identical and the copied project passed typechecking. These are workload-specific local measurements.
+
+The old ts-morph move path reached about 21.5 GiB in the reported task. Upstream [issue 1613](https://github.com/dsherret/ts-morph/issues/1613) and [issue 953](https://github.com/dsherret/ts-morph/issues/953) track slow move operations. Oxc parser spans matched TypeScript's parser for all 15,058 module references in the comparison. TypeScript's resolver is retained because general Oxc resolver options did not establish parity for every code-module resolution mode.

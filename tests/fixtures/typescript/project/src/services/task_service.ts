@@ -8,7 +8,7 @@ export function summarise(task: Task): string {
 }
 
 export async function loadDateHelpers() {
-  // Static-string dynamic import — ts-morph updates this path.
+  // Static-string dynamic import — Refac updates this path.
   const mod = await import('../utils/date_helpers');
   return mod.formatDate;
 }

@@ -79,15 +79,22 @@ impl RefactorDriver for TypeScriptDriver {
         let script_path = super::resolve_resource_path("scripts/ts_refactor.ts")?;
         let bun_cmd = self.get_bun_command();
 
-        // Ensure ts-morph is installed — bun install is idempotent and fast when up to date.
+        // Install the locked parser/resolver dependencies when this checkout is new.
         let script_dir = script_path
             .parent()
             .ok_or_else(|| anyhow::anyhow!("Could not determine scripts directory"))?;
-        let ts_morph_dir = script_dir.join("node_modules").join("ts-morph");
-        if !ts_morph_dir.exists() {
-            tracing::info!("ts-morph not found in {:?}, running bun install...", script_dir);
+        let dependencies = ["oxc-parser", "oxc-resolver", "typescript"];
+        if dependencies
+            .iter()
+            .any(|name| !script_dir.join("node_modules").join(name).exists())
+        {
+            tracing::info!(
+                "TypeScript dependencies missing in {:?}, running bun install...",
+                script_dir
+            );
             let install = tokio::process::Command::new(&bun_cmd)
                 .arg("install")
+                .arg("--frozen-lockfile")
                 .current_dir(script_dir)
                 .output()
                 .await?;
@@ -114,12 +121,12 @@ impl RefactorDriver for TypeScriptDriver {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            tracing::error!("TS-Morph batch stderr: {}", stderr);
-            anyhow::bail!("TS-Morph batch failed: {}", stderr);
+            tracing::error!("TypeScript/Oxc batch stderr: {}", stderr);
+            anyhow::bail!("TypeScript/Oxc batch failed: {}", stderr);
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        tracing::info!("TS-Morph batch output: {}", stdout);
+        tracing::info!("TypeScript/Oxc batch output: {}", stdout);
 
         Ok(())
     }
@@ -149,7 +156,7 @@ mod tests {
         let tmp = tempfile::tempdir()?;
         let root = tmp.path();
 
-        // Minimal tsconfig so ts-morph loads the project properly
+        // Minimal tsconfig covering the complete project source set
         tokio::fs::write(
             root.join("tsconfig.json"),
             r#"{"compilerOptions":{"target":"es2020","module":"commonjs"},"include":["src/**/*"]}"#,

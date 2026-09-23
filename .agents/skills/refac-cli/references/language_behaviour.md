@@ -37,17 +37,13 @@ Run `dart pub get` in the project root to generate it before calling `refac`.
 
 Point `--project-path` at the package containing the authoritative `tsconfig.json`. Its `include` or `files` configuration must cover all local TS/JS sources that participate in imports. External packages in `node_modules` do not need to be included.
 
-Refac loads the complete tsconfig source set for file and directory moves while skipping recursive dependency discovery. There is no project-size path that silently omits external callers. Without tsconfig, Refac globs local source files but alias and module resolution is weaker.
+Refac scans the complete tsconfig source set with Oxc and resolves code imports with TypeScript without constructing a type checker. Batches remain limited to 30 contained source files. Ordinary apply/verification failures roll back; a crash or forced termination can interrupt rollback.
 
-### Batch safety
-
-Each invocation has a hard limit of 30 TypeScript/JavaScript source files. Directory contents count toward the limit, and successful output reports the measured source-file count. Stop duplicate dev/build watchers first; after each batch, inspect the diff and run the build.
-
-The helper is terminated and reaped after 5 minutes or when sampled RSS exceeds 4 GiB (100 ms sampling). `REFAC_TYPESCRIPT_MAX_RSS_MB` changes the threshold in positive integer MiB. A failed move can leave partial changes: inspect the working tree before retrying. One-file batches still load the whole configured project; do not shrink tsconfig coverage to hide callers.
+The helper is terminated and reaped after 5 minutes or sampled RSS above 4 GiB (100 ms sampling). `REFAC_TYPESCRIPT_MAX_RSS_MB` changes the threshold in positive integer MiB. Inspect the working tree after a limit failure. One-file batches still scan every configured source; do not shrink coverage to hide callers.
 
 ### Reference-update gaps
 
-Aliases declared through `compilerOptions.paths`, including `~/*`, are rewritten for file and directory moves and checked for stale module specifiers. Aliases missing from tsconfig and arbitrary path strings, such as catalog ownership labels, cannot be mapped safely; search for old path strings and run the project build.
+Declared aliases are rewritten and verified. Project references, symlink moves, overlapping requests, and ambiguous locally bound `require` calls fail explicitly. Computed imports, arbitrary path strings, comments, and package/config metadata need manual audit. Search old paths and run the project build. See [TypeScript backend](../../../../Project_Manag/Docs/Features/TypeScript/linker_TypeScript.md) for supported forms and exact limits.
 
 ## Python — re-export limits
 

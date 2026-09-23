@@ -8,6 +8,9 @@ Run the full suite:
 
 ```bash
 cargo test
+bun install --cwd scripts --frozen-lockfile
+bun run --cwd scripts test
+bun run --cwd scripts typecheck
 ```
 
 Run a targeted test:
@@ -20,7 +23,7 @@ The current test suite covers:
 
 - shared LSP edit application
 - CLI help and validation
-- TypeScript move flow
+- TypeScript CLI moves, parser/resolver edge cases, rollback, 3,005-file batches under a 1 GiB RSS budget, and helper termination
 - Python move flow (Rope backend)
 - Rust same-dir and cross-dir move flow
 - Go move flow, including whole-package rename cascade
@@ -117,7 +120,7 @@ After a move, validate the affected project with its native toolchain when possi
 
 ### TypeScript scans are too broad
 
-Check the project scope when TypeScript work becomes slow or memory-heavy. Even the correct package root can exhaust RAM through ts-morph's compiler state. The helper now stops on its time or sampled RSS limit; see [TypeScript process limits](../Features/TypeScript/linker_TypeScript.md#key-limits). A limit failure requires inspecting the working tree before retrying; one-file batches still load the complete configured project.
+Check the project scope when TypeScript work becomes slow or memory-heavy. The Oxc backend scans all configured callers without a compiler Program or type checker. The helper stops on its time or sampled RSS limit; see [TypeScript process limits](../Features/TypeScript/linker_TypeScript.md#key-limits). A limit failure requires inspecting the working tree before retrying; one-file batches still scan the complete configured project.
 
 - Good: point `--project-path` at the concrete TypeScript package that owns `tsconfig.json`
 - Bad: point `--project-path` at a monorepo root and pass long nested paths

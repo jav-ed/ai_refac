@@ -82,7 +82,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         let lang = match ext {
             "md" => "markdown".to_string(),
             "py" => "python".to_string(),
-            "ts" | "tsx" | "js" | "jsx" => "typescript".to_string(),
+            "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs" => "typescript".to_string(),
             "rs" => "rust".to_string(),
             "go" => "go".to_string(),
             "dart" => "dart".to_string(),
@@ -315,7 +315,7 @@ fn dir_looks_like_typescript(dir: &std::path::Path) -> bool {
                     .path()
                     .extension()
                     .and_then(|e| e.to_str())
-                    .map(|e| matches!(e, "ts" | "tsx" | "js" | "jsx"))
+                    .map(|e| matches!(e, "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs"))
                     .unwrap_or(false)
             })
         })
