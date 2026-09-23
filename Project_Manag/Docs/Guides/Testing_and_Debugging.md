@@ -117,7 +117,7 @@ After a move, validate the affected project with its native toolchain when possi
 
 ### TypeScript scans are too broad
 
-If TypeScript work becomes slow or memory-heavy, the usual problem is an overly broad `--project-path`.
+Check the project scope when TypeScript work becomes slow or memory-heavy. Even the correct package root can exhaust RAM through ts-morph's compiler state. The helper now stops on its time or sampled RSS limit; see [TypeScript process limits](../Features/TypeScript/linker_TypeScript.md#key-limits). A limit failure requires inspecting the working tree before retrying; one-file batches still load the complete configured project.
 
 - Good: point `--project-path` at the concrete TypeScript package that owns `tsconfig.json`
 - Bad: point `--project-path` at a monorepo root and pass long nested paths

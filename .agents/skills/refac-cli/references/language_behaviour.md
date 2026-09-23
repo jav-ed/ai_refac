@@ -43,6 +43,8 @@ Refac loads the complete tsconfig source set for file and directory moves while 
 
 Each invocation has a hard limit of 30 TypeScript/JavaScript source files. Directory contents count toward the limit, and successful output reports the measured source-file count. Stop duplicate dev/build watchers first; after each batch, inspect the diff and run the build.
 
+The helper is terminated and reaped after 5 minutes or when sampled RSS exceeds 4 GiB (100 ms sampling). `REFAC_TYPESCRIPT_MAX_RSS_MB` changes the threshold in positive integer MiB. A failed move can leave partial changes: inspect the working tree before retrying. One-file batches still load the whole configured project; do not shrink tsconfig coverage to hide callers.
+
 ### Reference-update gaps
 
 Aliases declared through `compilerOptions.paths`, including `~/*`, are rewritten for file and directory moves and checked for stale module specifiers. Aliases missing from tsconfig and arbitrary path strings, such as catalog ownership labels, cannot be mapped safely; search for old path strings and run the project build.

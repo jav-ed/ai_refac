@@ -26,7 +26,7 @@ A local comparison on the Shadi Intake project found no consistent advantage fro
 ## Key limits
 
 - **Project size**: there is no partial-load success path. File and directory moves retain the complete tsconfig source set so external callers remain visible.
-- **Timeout**: 5-minute hard limit. If it fires, narrow `--project-path` to the package that owns the relevant tsconfig.
+- **Process limits**: the helper is explicitly terminated and reaped after 5 minutes or when its sampled resident memory exceeds 4 GiB. RSS is sampled every 100 ms, so brief overshoot is possible. `REFAC_TYPESCRIPT_MAX_RSS_MB` accepts a positive integer in MiB to change the threshold. Cancelling the supervising future also terminates the helper. Failures do not guarantee rollback: inspect the working tree before retrying. Use the authoritative package root; shrinking it to exclude callers is unsafe.
 - **No tsconfig**: without a tsconfig, compiler options default to `allowJs: true`. Type-aware reference resolution is weaker.
 - **Batch size**: at most 30 contained TypeScript/JavaScript source files. Directory contents are counted recursively before mutation, and the measured count is included in successful output.
 - **Aliases**: file and directory imports using aliases declared in `compilerOptions.paths` are rewritten explicitly. A stale moved alias import makes the operation fail instead of reporting success.

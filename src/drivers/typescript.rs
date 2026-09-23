@@ -2,6 +2,8 @@ use super::RefactorDriver;
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
+mod process;
+
 pub struct TypeScriptDriver;
 
 impl TypeScriptDriver {
@@ -108,17 +110,7 @@ impl RefactorDriver for TypeScriptDriver {
             cmd.arg(r.to_string_lossy().to_string());
         }
 
-        let output = tokio::time::timeout(
-            std::time::Duration::from_secs(300),
-            cmd.output(),
-        )
-        .await
-        .map_err(|_| anyhow::anyhow!(
-            "TypeScript refactor timed out after 5 minutes. \
-             The project may be too large or bun/ts-morph hung. \
-             Try passing --project-path to the package root (the folder with tsconfig.json), \
-             not the monorepo root."
-        ))??;
+        let output = process::run(&mut cmd, process::Limits::from_env()?).await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
