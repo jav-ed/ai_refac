@@ -1,24 +1,10 @@
 use super::*;
-
-#[test]
-fn accepts_identifiers_and_rejects_everything_else() {
-    assert!(validate_names("total", "grandTotal").is_ok());
-    assert!(validate_names("total", "_élan2").is_ok());
-    assert!(validate_names("total", "2fast").is_err());
-    assert!(validate_names("total", "has space").is_err());
-    assert!(validate_names("total", "$total").is_err());
-    assert!(validate_names("total", "`quoted`").is_err());
-    assert!(validate_names("total", "").is_err());
-    assert!(validate_names("total", "class").is_err());
-    assert!(validate_names("total", "total").is_err());
-    // Soft keywords are fine as names.
-    assert!(validate_names("total", "value").is_ok());
-}
+use crate::drivers::lsp_rename::discover::EditedFile;
 
 fn plan_for(path: &std::path::Path, before: &str) -> RenamePlan {
     RenamePlan {
-        files: vec![plan::EditedFile {
-            file: crate::drivers::kotlin::edits::PlannedFile {
+        files: vec![EditedFile {
+            file: crate::drivers::lsp_rename::edits::PlannedFile {
                 path: path.to_path_buf(),
                 bytes: b"new".to_vec(),
                 before: before.to_string(),

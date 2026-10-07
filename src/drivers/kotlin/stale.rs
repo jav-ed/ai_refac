@@ -3,9 +3,9 @@
 //! configuration, XML it could not rewrite, and string literals (reflection).
 //! Nothing is changed; each hit is reported so the user can fix it.
 
-use super::journal::FileWrite;
 use super::renames::Renames;
 use super::survey::Survey;
+use crate::drivers::lsp_rename::journal::FileWrite;
 use anyhow::{Context, Result};
 use std::path::Path;
 

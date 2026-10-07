@@ -4,9 +4,9 @@
 //! server is done. Projects without Android modules pass through untouched.
 
 use super::declarations::declared_package;
-use super::journal::FileWrite;
 use super::moved::MovedFile;
 use super::survey::Survey;
+use crate::drivers::lsp_rename::journal::FileWrite;
 use anyhow::{Context, Result};
 use std::path::Path;
 

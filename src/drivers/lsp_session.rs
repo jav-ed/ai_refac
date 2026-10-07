@@ -37,6 +37,18 @@ pub struct SessionConfig<'a> {
     pub language_id: fn(&Path) -> &'static str,
 }
 
+/// `REFAC_LSP_TRACE=1` prints every message of every session to stderr, cut
+/// to 400 characters (`full` keeps them whole), to see what a server was told
+/// and answered.
+fn trace(direction: &str, server: &str, body: &str) {
+    let Some(mode) = std::env::var_os("REFAC_LSP_TRACE") else {
+        return;
+    };
+    let limit = if mode == "full" { usize::MAX } else { 400 };
+    let cut: String = body.chars().take(limit).collect();
+    eprintln!("{direction} {server}: {cut}");
+}
+
 pub struct LspSession {
     name: String,
     child: Child,
@@ -129,6 +141,7 @@ impl LspSession {
 
     async fn send(&mut self, message: Value) -> Result<()> {
         let body = serde_json::to_string(&message)?;
+        trace(">>", &self.name, &body);
         let framed = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
         self.stdin.write_all(framed.as_bytes()).await?;
         self.stdin.flush().await?;
@@ -221,6 +234,7 @@ impl LspSession {
     /// Answer server requests, keep wanted notifications, and hand back
     /// responses to the caller.
     async fn route(&mut self, message: Value) -> Result<Option<Value>> {
+        trace("<<", &self.name, &message.to_string());
         let Some(method) = message.get("method").and_then(Value::as_str) else {
             return Ok(Some(message));
         };

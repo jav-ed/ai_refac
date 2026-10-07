@@ -27,6 +27,17 @@ Strict v1 rejections include inline source modules, `#[path]`, attributed module
 
 Use ordinary `refac move` for same-directory `.rs` filename renames; rust-analyzer LSP rewrites the module symbol. Cross-directory `.rs` paths through `move` are rejected and direct you to `move-module`.
 
+## Go, Rust, Python, Dart: symbol rename
+
+`refac rename` works in these four with the same rules as TypeScript and Kotlin: the language comes from the extension, nothing is written until the rename is planned and proven in memory, a clash or shadowing is refused with the lost or gained usages listed, and `--dry-run` writes nothing. The server is started and stopped by the command. Per language:
+
+- **Go** (gopls, `--project-path` has `go.mod` or `go.work`): renames interface methods together with their implementers and the test variants. Renaming a `package` clause is refused: use `refac move` on the package directory. gopls sometimes answers under load with part of the edits; refac notices and asks again by itself.
+- **Rust** (rust-analyzer, `--project-path` has `Cargo.toml`): follows traits, `use` trees, and re-exports. Names written inside `macro_rules!` are not renamed; the output starts with `ATTENTION` and names the lines to edit by hand. A `mod` name is refused: use `refac move-module`.
+- **Python** (basedpyright, any `--project-path`): renames overrides together with the base method (rename from the base, not from an override), `__init__.py` re-exports, `__all__` strings, and keyword arguments. Special methods (`__init__`) are refused. Calls on a parameter without an annotation are listed in the note, not renamed. A module name in an import is a path: use `refac move`.
+- **Dart** (the SDK's `dart language-server`, `--project-path` has `pubspec.yaml` and `.dart_tool/package_config.json`): renames overrides, `export ... show`, named arguments, field formals, and `[Name]` doc links. Run `dart pub get` first or the command stops and says so.
+
+When the server is not installed the error says what was looked at; `refac doctor <language>` prints the install steps. Pages: [Symbol rename](../../../../Project_Manag/Docs/Features/Symbol_Rename/linker_Symbol_Rename.md), [Language servers](../../../../Project_Manag/Docs/Setup/language_Servers.md).
+
 ## Dart — package URI rewriting requires package config
 
 `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Without it, a move that would leave a `package:` import pointing at a missing file is refused before anything is written, and the error lists the imports.

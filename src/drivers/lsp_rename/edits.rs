@@ -1,4 +1,4 @@
-//! Turning a `WorkspaceEdit` from the Kotlin server into the new content of
+//! Turning a `WorkspaceEdit` from a language server into the new content of
 //! each file, without writing anything. Writing goes through the journal.
 
 use crate::drivers::lsp_text::apply_text_edits;
@@ -34,11 +34,15 @@ pub enum Change {
         from: PathBuf,
         to: PathBuf,
     },
+    /// A file the server wants created or deleted ("create" or "delete"),
+    /// which no move or symbol rename of refac applies.
+    Other {
+        kind: String,
+        path: PathBuf,
+    },
 }
 
-/// Read the steps of a `WorkspaceEdit`. Creating and deleting files is never
-/// part of a Kotlin move or rename, so it is a protocol surprise worth
-/// stopping on.
+/// Read the steps of a `WorkspaceEdit`, in the order the server sent them.
 pub fn parse_changes(edit: &Value) -> Result<Vec<Change>> {
     let mut changes = Vec::new();
     if let Some(by_uri) = edit.get("changes").and_then(Value::as_object) {
@@ -71,9 +75,14 @@ pub fn parse_changes(edit: &Value) -> Result<Vec<Change>> {
                         .context("A rename without newUri")?,
                 )?,
             }),
-            Some(kind) => bail!(
-                "The Kotlin language server asked for a {kind} file operation, which refac does not apply"
-            ),
+            Some(kind) => changes.push(Change::Other {
+                kind: kind.to_string(),
+                path: file_path(
+                    change["uri"]
+                        .as_str()
+                        .context("A file operation without uri")?,
+                )?,
+            }),
             None => {
                 let uri = change["textDocument"]["uri"]
                     .as_str()
@@ -100,9 +109,13 @@ pub fn parse_workspace_edit(edit: &Value) -> Result<Vec<FileEdits>> {
         match change {
             Change::Edit(file) => per_file.entry(file.path).or_default().extend(file.edits),
             Change::Rename { from, to } => bail!(
-                "The Kotlin language server asked for a rename file operation ({} to {}), which refac does not apply here",
+                "The language server asked for a rename file operation ({} to {}), which refac does not apply here",
                 from.display(),
                 to.display()
+            ),
+            Change::Other { kind, path } => bail!(
+                "The language server asked for a {kind} file operation ({}), which refac does not apply",
+                path.display()
             ),
         }
     }
@@ -219,10 +232,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_changes_refuses_creating_and_deleting_files() {
+    fn creating_and_deleting_files_are_reported_as_other_changes() {
         for kind in ["create", "delete"] {
             let answer = json!({ "documentChanges": [{ "kind": kind, "uri": "file:///p/A.kt" }] });
-            let error = parse_changes(&answer).err().unwrap().to_string();
+            let changes = parse_changes(&answer).unwrap();
+            assert!(
+                matches!(&changes[0], Change::Other { kind: found, path } if found == kind && path == Path::new("/p/A.kt"))
+            );
+            let error = parse_workspace_edit(&answer).err().unwrap().to_string();
             assert!(error.contains(kind), "{error}");
         }
     }

@@ -1,6 +1,6 @@
 # Python
 
-The Python backend runs two engines — Rope (primary) and Pyrefly (fallback). Both are tried in order; the first to succeed wins.
+The Python backend has two jobs with different tools. **File moves** (`refac move`) run two engines, Rope (primary) and Pyrefly (fallback), tried in order; the first to succeed wins. **Symbol rename** (`refac rename` on a `.py` file) uses basedpyright and has its own page: [Python symbol rename](../Symbol_Rename/python.md); `refac doctor python` explains how to install that server. The sections below are about moves.
 
 ## Required tooling
 

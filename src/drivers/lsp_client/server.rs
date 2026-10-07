@@ -16,6 +16,8 @@ pub enum Server {
     Go,
     Rust,
     Pyrefly,
+    /// pyright and its fork basedpyright speak the same protocol.
+    Pyright,
 }
 
 impl Server {
@@ -35,6 +37,7 @@ impl Server {
             Self::Go => "gopls",
             Self::Rust => "rust-analyzer",
             Self::Pyrefly => "Pyrefly",
+            Self::Pyright => "Pyright",
         }
     }
 
@@ -43,7 +46,7 @@ impl Server {
             Self::Dart => |_| "dart",
             Self::Go => |_| "go",
             Self::Rust => |_| "rust",
-            Self::Pyrefly => |_| "python",
+            Self::Pyrefly | Self::Pyright => |_| "python",
         }
     }
 
@@ -53,8 +56,25 @@ impl Server {
             Self::Dart => &["$/analyzerStatus"],
             Self::Go => &["$/progress"],
             Self::Rust => &["experimental/serverStatus"],
-            Self::Pyrefly => &["textDocument/publishDiagnostics"],
+            Self::Pyrefly | Self::Pyright => &["textDocument/publishDiagnostics"],
         }
+    }
+
+    /// The capabilities the server announced in `initialize` that a rename
+    /// needs and it lacks. Rename and references always; basedpyright must
+    /// also list implementations, because that is how an override family is
+    /// found, and pyright, which cannot, would rename half of one.
+    pub fn missing_capabilities(self, provided: &Value) -> Vec<&'static str> {
+        let extra: &[&str] = match self {
+            Self::Pyright => &["implementationProvider"],
+            _ => &[],
+        };
+        ["renameProvider", "referencesProvider"]
+            .iter()
+            .chain(extra)
+            .filter(|name| provided[**name].is_null())
+            .copied()
+            .collect()
     }
 
     pub fn capabilities(self, file_operations: bool) -> Value {
@@ -80,9 +100,23 @@ impl Server {
                 capabilities["experimental"] = json!({ "serverStatusNotification": true })
             }
             // Without workDoneProgress the Dart server sends `$/analyzerStatus`.
-            Self::Dart | Self::Pyrefly => {}
+            Self::Dart | Self::Pyrefly | Self::Pyright => {}
         }
         capabilities
+    }
+
+    /// A request that makes the server finish analysing one document before
+    /// it answers, for servers that take a changed document in without
+    /// analysing it yet. The Dart server answers `references` from the files
+    /// it has analysed so far, and its status notifications cannot say when
+    /// it has caught up (they arrive after the answers they concern), but a
+    /// request for the semantic tokens of a document needs that document
+    /// fully resolved. The others answer from the latest text at once.
+    pub fn analysis_barrier(self) -> Option<&'static str> {
+        match self {
+            Self::Dart => Some("textDocument/semanticTokens/full"),
+            Self::Go | Self::Rust | Self::Pyrefly | Self::Pyright => None,
+        }
     }
 
     /// Wait until the server has loaded the project, or fail loudly.
@@ -105,9 +139,9 @@ impl Server {
                 .wait_notification(|note| note["params"]["quiescent"] == true, timeout)
                 .await
                 .map(|_| ()),
-            // Pyrefly announces nothing but diagnostics; it has checked a file
-            // once it has published them.
-            Self::Pyrefly => {
+            // Pyrefly and Pyright announce nothing but diagnostics; they have
+            // checked a file once they have published them.
+            Self::Pyrefly | Self::Pyright => {
                 for document in documents {
                     let uri = Url::from_file_path(document)
                         .map_err(|_| anyhow::anyhow!("Invalid path {}", document.display()))?

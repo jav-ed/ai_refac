@@ -1,6 +1,6 @@
 # Rust
 
-The Rust backend keeps simple file renames and structural module moves separate. Same-directory `.rs` renames use the rust-analyzer language server. `move-module` uses embedded rust-analyzer HIR to move one complete logical module subtree and rewrite resolved references without `#[path]` or compatibility shims.
+The Rust backend keeps simple file renames, structural module moves, and symbol renames separate. `refac rename` on an `.rs` file renames a function, method, field, variant, type, or local with rust-analyzer ([Rust symbol rename](../Symbol_Rename/rust.md); a `mod` name is not a symbol rename, it is `move-module`). The server is found by the shared locator (`REFAC_RUST_ANALYZER`, `PATH`, `~/.cargo/bin`) and `refac doctor rust` explains a missing one. Same-directory `.rs` renames use the rust-analyzer language server. `move-module` uses embedded rust-analyzer HIR to move one complete logical module subtree and rewrite resolved references without `#[path]` or compatibility shims.
 
 ## Commands
 

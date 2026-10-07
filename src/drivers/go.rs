@@ -2,6 +2,7 @@ use super::RefactorDriver;
 use super::complete_filesystem_moves;
 use super::lsp_client::LspClient;
 use super::lsp_client::SymbolRenameRequest;
+use crate::servers;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::Position;
@@ -15,22 +16,6 @@ impl GoDriver {
         // We'll try to find it dynamically or default to "gopls"
         Self
     }
-
-    fn find_gopls() -> Option<String> {
-        // Check if "gopls" is in PATH
-        if which::which("gopls").is_ok() {
-            return Some("gopls".to_string());
-        }
-
-        // Check common GOPATH
-        let home = std::env::var("HOME").ok()?;
-        let gopath_bin = PathBuf::from(home).join("go/bin/gopls");
-        if gopath_bin.exists() {
-            return Some(gopath_bin.to_string_lossy().to_string());
-        }
-
-        None
-    }
 }
 
 #[async_trait]
@@ -40,15 +25,7 @@ impl RefactorDriver for GoDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        let binary = Self::find_gopls().unwrap_or_else(|| "gopls".to_string());
-        match tokio::process::Command::new(&binary)
-            .arg("version")
-            .output()
-            .await
-        {
-            std::result::Result::Ok(output) => Ok(output.status.success()),
-            Err(_) => Ok(false),
-        }
+        Ok(servers::executable("go", &std::env::current_dir()?).is_ok())
     }
 
     async fn move_files(
@@ -56,9 +33,9 @@ impl RefactorDriver for GoDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        let binary = Self::find_gopls().unwrap_or_else(|| "gopls".to_string());
-        let client = LspClient::new(&binary);
         let root_dir = resolve_root_dir(root_path)?;
+        let binary = servers::executable("go", &root_dir)?;
+        let client = LspClient::new(&binary.to_string_lossy());
 
         // Pass 1: collect one LSP request per unique source package (directory).
         // Go's package-per-directory model means gopls renames the entire package

@@ -5,8 +5,6 @@
 
 use super::android;
 use super::checks::{Check, check_moved_file};
-use super::edits::{PlannedFile, parse_workspace_edit, plan_files};
-use super::journal::Journal;
 use super::moved::{Snapshot, locate, relocate};
 use super::plan::{self, Group, MovePlan, Step};
 use super::project::gradle_root;
@@ -14,6 +12,8 @@ use super::renames;
 use super::server::{self, KotlinServer};
 use super::stale;
 use super::survey::survey;
+use crate::drivers::lsp_rename::edits::{PlannedFile, parse_workspace_edit, plan_files};
+use crate::drivers::lsp_rename::journal::Journal;
 use crate::drivers::lsp_session::RpcError;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};

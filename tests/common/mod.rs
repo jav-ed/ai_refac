@@ -75,6 +75,8 @@ pub mod kotlin;
 #[allow(dead_code)]
 pub mod links;
 #[allow(dead_code)]
+pub mod lsp;
+#[allow(dead_code)]
 pub mod project;
 #[allow(dead_code)]
 pub mod site;

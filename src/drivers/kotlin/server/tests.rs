@@ -16,8 +16,8 @@ fn install_dir(build_txt: Option<&str>, with_executable: bool) -> TempDir {
 fn a_missing_setting_explains_the_install() {
     let error = locate_in(None).err().unwrap().to_string();
     assert!(error.contains(SERVER_ENV), "{error}");
-    assert!(error.contains(DOWNLOAD_URL), "{error}");
-    assert!(error.contains(DOWNLOAD_SHA256), "{error}");
+    assert!(error.contains("not set"), "{error}");
+    assert!(error.contains("refac doctor kotlin"), "{error}");
 }
 
 #[test]

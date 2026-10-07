@@ -31,8 +31,10 @@ The point of this file is to make the next audit quick: the pin column says wher
 | Tool | Version | Where it comes from | Notes |
 |---|---|---|---|
 | Kotlin language server | `ILS-263.6379.0` (newest release) | `REFAC_KOTLIN_SERVER`, see [Kotlin server setup](kotlin_Server.md) | Early access build; the license key it carries runs out on 2026-10-30. |
-| gopls | v0.23.0 (latest) | `go install golang.org/x/tools/gopls@latest` | Tested with Go 1.27.1 (latest) and 1.24.7. |
-| Dart SDK | 3.13.5 (latest) | the Dart SDK's `dart language-server` | Needs `.dart_tool/package_config.json` for `package:` imports. |
+| gopls | v0.23.0 (latest) | `go install golang.org/x/tools/gopls@latest` | Tested with Go 1.27.1 (latest) and 1.24.7. Moves and symbol rename. |
+| rust-analyzer | 1.99.0 (the rustup component of the pinned toolchain) | `rustup component add rust-analyzer` | Symbol rename and same-directory file renames. rustup picks the toolchain from the project directory. |
+| basedpyright | 1.40.2 (based on pyright 1.1.414) | `pip install basedpyright` | The Python symbol-rename server: the only one that offers `implementationProvider`, which the override family needs. Plain pyright is refused for that reason; Pyrefly 1.3.2 and ty 0.0.85 were compared and miss cross-file references ([Symbol rename options](../Investigation/symbol_Rename_Options.md)). |
+| Dart SDK | 3.13.5 (latest) | the Dart SDK's `dart language-server` | Moves and symbol rename. Needs `.dart_tool/package_config.json` for `package:` imports. |
 | Rope | 1.15.0 (latest) | `pip install rope` | First choice for Python moves. |
 | pyrefly | 1.3.2 (latest) | `pip install pyrefly` | Fallback behind Rope; the ignored test `test_pyrefly_move_rewrites_importer` exercises it. |
 

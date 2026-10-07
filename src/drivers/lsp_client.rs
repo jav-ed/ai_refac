@@ -18,7 +18,7 @@ use changes::{apply_workspace_edit, collect_pending_changes};
 pub use documents::collect_workspace_documents;
 use lsp_types::WorkspaceEdit;
 use serde_json::{Value, json};
-use server::Server;
+pub use server::Server;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -27,8 +27,8 @@ use url::Url;
 const TIMEOUT_ENV: &str = "REFAC_LSP_TIMEOUT_SECS";
 const DEFAULT_TIMEOUT_SECS: u64 = 300;
 /// How often a rename is repeated when the server answers "content modified".
-const RENAME_ATTEMPTS: u32 = 5;
-const CONTENT_MODIFIED_PAUSE: Duration = Duration::from_secs(1);
+pub(crate) const RENAME_ATTEMPTS: u32 = 5;
+pub(crate) const CONTENT_MODIFIED_PAUSE: Duration = Duration::from_secs(1);
 const CONTENT_MODIFIED_CODE: i64 = -32801;
 
 pub struct LspClient {
@@ -146,7 +146,7 @@ impl LspClient {
     }
 }
 
-fn timeout() -> Result<Duration> {
+pub fn timeout() -> Result<Duration> {
     match std::env::var(TIMEOUT_ENV) {
         Err(_) => Ok(Duration::from_secs(DEFAULT_TIMEOUT_SECS)),
         Ok(value) => match value.trim().parse::<u64>() {
@@ -266,7 +266,7 @@ async fn rename_with_retries(started: &mut Started, params: Value) -> Result<Val
     unreachable!("the last attempt always returns")
 }
 
-fn is_content_modified(error: &anyhow::Error) -> bool {
+pub(crate) fn is_content_modified(error: &anyhow::Error) -> bool {
     error.downcast_ref::<RpcError>().is_some_and(|rpc| {
         rpc.code == CONTENT_MODIFIED_CODE || rpc.message.eq_ignore_ascii_case("content modified")
     })

@@ -1,6 +1,6 @@
 # refac
 
-A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames TypeScript/JavaScript symbols with every reference. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
+A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames symbols (variables, parameters, functions, methods, fields, types) with every reference in TypeScript/JavaScript, Kotlin, Go, Rust, Python, and Dart. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
 
 > Built for personal use. If it's useful to you, go ahead — no guarantees.
 
@@ -79,14 +79,14 @@ Other agent tools that support a skills or prompts directory can be wired up the
 | Language | Files | Directories | Logical modules | Engine |
 |---|---|---|---|---|
 | TypeScript / JavaScript | ✅ | ✅ | — | Oxc parser + TypeScript resolver via Bun; symbol rename via the TypeScript 7 native language server |
-| Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly) |
-| Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR |
-| Go | ✅ | ❌ | — | gopls (LSP) |
-| Dart | ✅ | ❌ | — | Dart analysis server (LSP) |
+| Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly); symbol rename via basedpyright |
+| Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR; symbol rename via rust-analyzer |
+| Go | ✅ | ❌ | — | gopls (LSP), also for symbol rename |
+| Dart | ✅ | ❌ | — | Dart analysis server (LSP), also for symbol rename |
 | Markdown | ✅ | ❌ | — | Native (no external tooling) |
 | Kotlin / Android | ✅ | ✅ | — | JetBrains Kotlin language server, plus refac's own Android XML layer |
 
-Symbol rename (`refac rename`) is available for TypeScript / JavaScript and Kotlin.
+Symbol rename (`refac rename`) is available for TypeScript / JavaScript, Kotlin, Go, Rust, Python, and Dart. Language servers are started for the command and stopped afterwards, never left running. If one is not installed, the error lists where it looked and names `refac doctor <language>`, which prints the install steps; `refac doctor` alone shows every language.
 
 Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.kt`, `.md`). A directory source is routed by what it contains: TypeScript/JavaScript files, or Kotlin files anywhere below it; all other languages require individual files.
 
@@ -197,6 +197,24 @@ refac rename \
 
 `--project-path` is the Gradle root (the folder with `settings.gradle.kts`). The JetBrains Kotlin language server rewrites the `package` line, imports, and usages, including Java callers, and renames symbols with every reference. For Android, refac adds what the server never touches: class names in the manifest, layouts, and navigation graphs, and the `R` / `BuildConfig` imports a file loses when it leaves its namespace package. A rename that would clash with or shadow another declaration is refused, and every failure restores the project. Old names in ProGuard rules, build scripts, and strings are reported, not edited. The server is installed once by you; see [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) and [Kotlin and Android](Project_Manag/Docs/Features/Kotlin/linker_Kotlin.md).
 
+### Rename a symbol in Go, Rust, Python, or Dart
+
+```bash
+refac rename --project-path /path/to/module  --file shape/shape.go    --symbol Area --new-name Surface
+refac rename --project-path /path/to/crate   --file src/shapes.rs     --symbol area --new-name surface
+refac rename --project-path /path/to/project --file shop/shapes.py    --symbol area --new-name surface
+refac rename --project-path /path/to/package --file lib/shapes.dart   --symbol area --new-name surface
+```
+
+`--project-path` is the folder with `go.mod`, `Cargo.toml`, or `pubspec.yaml` (after `dart pub get`); for Python it is the folder basedpyright treats as the root. The same rules hold in all four: the server (gopls, rust-analyzer, basedpyright, the Dart SDK's analysis server) lists the references and proposes the edits, refac proves in memory that the renamed program still means the same (a new name that clashes with or shadows something is refused with the usages that would change), writes through an undo log, and reports where the old name is still written (untyped receivers, strings, comments, Rust `macro_rules!` bodies). `--dry-run` writes nothing; `--line` and `--column` choose one symbol when the name refers to several. Package, module, and file names are paths: use `refac move` or `move-module`. Details per language: [Symbol rename](Project_Manag/Docs/Features/Symbol_Rename/linker_Symbol_Rename.md).
+
+### Fix a missing language server
+
+```bash
+refac doctor            # every language: ready, MISSING, or BROKEN
+refac doctor go         # where gopls was looked for, the install command, a start check
+```
+
 ### JSON output
 
 ```bash
@@ -285,13 +303,14 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
 | Python | `rope` importable from `.venv` or `python3` | `pip install rope` |
 | Python (fallback) | `pyrefly` (only if Rope is absent) | `pip install pyrefly` |
-| Rust | `rust-analyzer` for ordinary file renames; semantic module support is embedded | [rust-analyzer.github.io](https://rust-analyzer.github.io) |
+| Python (`rename`) | `basedpyright` | `pip install basedpyright` |
+| Rust | `rust-analyzer` for symbol rename and ordinary file renames; semantic module support is embedded | `rustup component add rust-analyzer` |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
 | Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`), JDK 17+, a Gradle project; `ANDROID_HOME` for Android | [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) |
 | Markdown | none | — |
 
-No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.99.0 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
+`refac doctor <language>` prints these steps for the machine it runs on and proves the server starts. No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.99.0 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
 
 ---
 
@@ -302,6 +321,8 @@ The approach depends on the language:
 **LSP-backed file moves (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current. The tool never waits a fixed time: it sends the project's documents and waits for the server's own readiness signal (Dart `$/analyzerStatus`, gopls `$/progress` end, rust-analyzer `experimental/serverStatus`, pyrefly diagnostics). A server that never signals is an error after `REFAC_LSP_TIMEOUT_SECS` (default 300). For Dart the plan is checked before writing: if it would leave an import pointing at a missing file, nothing is changed.
 
 **Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
+
+**Shared rename engine (Go, Rust, Python, Dart, Kotlin symbol rename):** `rename` starts the language server for the file's language, asks it for the references and the rename edits, shows it the renamed text in memory and asks for the references again, and writes only if the sets match (and every listed reference was edited). The server is shut down before anything is written. Python overrides are found with `textDocument/implementation` and renamed together; gopls is asked again when it answers under load with only part of the edits; the Dart server is made to finish analysing the changed documents first. See [Engine](Project_Manag/Docs/Features/Symbol_Rename/engine.md).
 
 **TypeScript 7 native server (TypeScript / JavaScript symbol rename):** `rename` starts `tsc --lsp --stdio` from the locked `typescript-native` dependency, asks it for the rename edits, applies them in memory only, and asks for the references of the renamed declaration to prove that no clash or shadowing changed any meaning. Files are written only after that check, with rollback on a failed write. See [Symbol rename](Project_Manag/Docs/Features/TypeScript/symbol_Rename.md).
 

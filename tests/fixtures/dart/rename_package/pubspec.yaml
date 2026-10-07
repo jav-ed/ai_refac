@@ -1,0 +1,6 @@
+name: shop
+description: Shapes with an area, a fixture for symbol renames.
+version: 0.1.0
+
+environment:
+  sdk: ^3.0.0

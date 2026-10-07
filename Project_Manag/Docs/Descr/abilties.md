@@ -8,7 +8,8 @@
 * **Batch Operations**: Execute multiple move operations in one CLI invocation by repeating `--source-path` and `--target-path`.
 * **Cross-Language Orchestration**: Routes each move to the correct backend for the target language.
 * **Safety First**: Uses language-aware tooling instead of raw filesystem renames whenever possible.
-* **Symbol Rename (TypeScript / JavaScript and Kotlin)**: `refac rename` renames a variable, function, class, interface, enum, or member and updates every reference. It plans and verifies the whole rename in memory, supports `--dry-run`, and refuses name clashes and shadowing. Details in [TypeScript symbol rename](../Features/TypeScript/symbol_Rename.md) and [Kotlin symbol rename](../Features/Kotlin/symbol_Rename.md).
+* **Symbol Rename (TypeScript / JavaScript, Kotlin, Go, Rust, Python, Dart)**: `refac rename` renames a variable, parameter, function, class, interface, enum, method, or field and updates every reference. It plans and verifies the whole rename in memory, supports `--dry-run`, refuses name clashes and shadowing, and reports where the old name is still written. One command per rename: the language server is started and stopped by the command. Overview in [Symbol rename](../Features/Symbol_Rename/linker_Symbol_Rename.md); TypeScript and Kotlin also have [TypeScript symbol rename](../Features/TypeScript/symbol_Rename.md) and [Kotlin symbol rename](../Features/Kotlin/symbol_Rename.md).
+* **Self-help for missing servers**: `refac doctor [language]` finds each language server, runs it once to prove it starts, and prints the install steps; every command that needs a missing server prints where it looked and names this command. See [Language servers](../Setup/language_Servers.md).
 * **Android**: Kotlin moves and renames also update class names in the manifest, layouts, and navigation graphs, and add the `R` and `BuildConfig` imports a file loses when it leaves its namespace package. Details in [Android layer](../Features/Kotlin/android_Layer.md).
 * **Human or JSON Output**: Supports human-readable output and machine-readable `--json` responses.
 
@@ -18,12 +19,12 @@ The tool integrates with the following language toolchains:
 
 | Language | Driver Engine | Required Tooling |
 | :--- | :--- | :--- |
-| **Python** | `Rope` (primary) / `Pyrefly` (fallback) | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback |
+| **Python** | `Rope` (primary) / `Pyrefly` (fallback) for moves; basedpyright for rename | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback; `basedpyright` for `refac rename` |
 | **TypeScript / JS** | Oxc parser + TypeScript resolver (moves); TypeScript 7 native language server (rename) | `bun` |
 | **Markdown** | Native Rust backend (`pulldown-cmark` parser): Markdown files, assets, document folders, and links to files other backends moved | none |
-| **Rust** | `rust-analyzer` LSP plus embedded HIR | `rust-analyzer` binary for ordinary file renames |
-| **Go** | `gopls` | `gopls` in PATH or `~/go/bin` |
-| **Dart** | Dart SDK analysis server | `dart` (Dart SDK) |
+| **Rust** | `rust-analyzer` LSP plus embedded HIR (moves); `rust-analyzer` (symbol rename) | `rust-analyzer` binary (`rustup component add rust-analyzer`) |
+| **Go** | `gopls` (moves and symbol rename) | `gopls` (`REFAC_GOPLS`, `PATH`, `$GOBIN`, `$GOPATH/bin`, `~/go/bin`) |
+| **Dart** | Dart SDK analysis server (moves and symbol rename) | `dart` (Dart SDK); symbol rename also needs `dart pub get` having run |
 | **Kotlin / Android** | JetBrains Kotlin language server (moves and rename), refac's own Android XML layer | The server via `REFAC_KOTLIN_SERVER` ([setup](../Setup/kotlin_Server.md)), a JDK 17+, Gradle project; Android SDK for Android projects |
 
 Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md).
@@ -33,11 +34,11 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | Language | Limit |
 | :--- | :--- |
 | **TypeScript / JS** | Complete caller updates require an authoritative `tsconfig.json` that includes all local TS/JS sources. Batches are limited to 30 contained source files. Rename additionally needs a tsconfig that TypeScript 7 accepts (no `baseUrl`, no `node10` resolution). Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
-| **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
+| **Python** | Moves: Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Rename: calls on untyped receivers and names in strings are reported, not renamed; special methods (`__init__`) are refused; a module name is changed with `refac move`. Details in [Python Feature Docs](../Features/Python/linker_Python.md) and [Python symbol rename](../Features/Symbol_Rename/python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
-| **Rust** | Same-dir file renames use LSP symbol rename. Structural moves use `move-module`, move the complete conventional module subtree, rewrite resolved workspace references, never add `#[path]` shims, and roll back source changes when validation fails. Strict v1 rejects ambiguous or unsupported layouts. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |
-| **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Details in [Go Feature Docs](../Features/Go/linker_Go.md). |
-| **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, a move that would leave a `package:` import dangling is refused before anything is written, with the imports listed. |
+| **Rust** | Same-dir file renames use LSP symbol rename. Structural moves use `move-module`, move the complete conventional module subtree, rewrite resolved workspace references, never add `#[path]` shims, and roll back source changes when validation fails. Strict v1 rejects ambiguous or unsupported layouts. Symbol rename does not reach into `macro_rules!` bodies (reported as an `ATTENTION` note) and refuses a module name (use `move-module`). Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md) and [Rust symbol rename](../Features/Symbol_Rename/rust.md). |
+| **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Symbol rename refuses a package clause (use `refac move`). Details in [Go Feature Docs](../Features/Go/linker_Go.md) and [Go symbol rename](../Features/Symbol_Rename/go.md). |
+| **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, a move that would leave a `package:` import dangling is refused before anything is written, with the imports listed. A symbol rename is refused with "Run `dart pub get`" for the same reason. Details in [Dart symbol rename](../Features/Symbol_Rename/dart.md). |
 | **Kotlin / Android** | `--project-path` is the Gradle root. Every call imports the Gradle build first (about 30 seconds, about 1.6 GiB for the server on a tiny project), so batch moves into one call. Directory moves work; `.java` files, directories containing Java, and moves between modules or source sets are refused. Old class names in ProGuard rules, build scripts, and string literals are reported, not rewritten. Details in [Kotlin Feature Docs](../Features/Kotlin/linker_Kotlin.md). |
 
 ## 4. JSON Output

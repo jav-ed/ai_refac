@@ -17,7 +17,7 @@ refac rename --project-path /path/to/gradle/root \
 - `--dry-run`: plan and verify, print what would change, write nothing.
 - `--json`: machine-readable result with the per-file edit counts and `notes`.
 
-The server must be installed first: see [Kotlin server setup](../../Setup/kotlin_Server.md).
+The server must be installed first: see [Kotlin server setup](../../Setup/kotlin_Server.md); `refac doctor kotlin` checks the setup and prints what is missing. The steps below are the shared engine of Go, Rust, Python, Dart, and Kotlin ([Symbol rename](../Symbol_Rename/linker_Symbol_Rename.md), [Engine](../Symbol_Rename/engine.md)); this page is what is specific to Kotlin.
 
 ## Choosing the symbol
 

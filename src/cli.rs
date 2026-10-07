@@ -5,10 +5,19 @@ use crate::drivers::symbol_rename::RenameRequest;
 use crate::logic::rename::handle_rename;
 use crate::logic::{RefactorRequest, handle_refactor};
 use anyhow::Result;
-use clap::{Args, CommandFactory, Parser, Subcommand, ValueHint};
-use clap_complete::{Shell, generate};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::generate;
 use clap_mangen::Man;
 use serde::Serialize;
+
+mod args;
+mod doctor;
+mod output;
+
+use args::{CompletionsArgs, MoveArgs, MoveModuleArgs, RenameArgs};
+use output::{
+    ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput, RenameSuccessOutput, RenamedFile,
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -20,8 +29,8 @@ Move or rename source or Markdown files and update all references across the pro
 Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart, Kotlin (Android and JVM).
 Markdown files, images and other assets, and folders of them can be moved too; after any move, the Markdown links that point at the moved files are updated.
 Use `move-module` for semantic Rust module-subtree moves.
-Use `rename` to rename a TypeScript/JavaScript or Kotlin symbol (variable, function, class, member) and update every reference.
-Kotlin needs the JetBrains Kotlin language server; set REFAC_KOTLIN_SERVER to its install folder. For Kotlin, --project-path is the Gradle project root.
+Use `rename` to rename a TypeScript/JavaScript, Kotlin, Go, Rust, Python or Dart symbol (variable, parameter, function, type, member) and update every reference.
+Renames use a language server (gopls, rust-analyzer, basedpyright, the Dart SDK's server, the Kotlin server). refac starts it for the command and stops it afterwards, so nothing stays in memory. When a server is missing the error says where refac looked; `refac doctor <language>` shows how to install it. For Kotlin, --project-path is the Gradle project root.
 Paths may be absolute or relative to --project-path.
 
 EXAMPLES:
@@ -50,7 +59,15 @@ EXAMPLES:
   # Rename a Kotlin symbol and all of its references
   refac rename --project-path /my/gradle/project \\
     --file app/src/main/kotlin/com/example/util/Helper.kt \\
-    --symbol shout --new-name yell",
+    --symbol shout --new-name yell
+
+  # Rename a Go, Rust, Python or Dart symbol the same way (the file extension picks the language)
+  refac rename --project-path /my/module --file shape/shape.go \\
+    --symbol Area --new-name Surface
+
+  # A language server is missing: see what refac looked for and how to install it
+  refac doctor go
+  refac doctor",
     version
 )]
 pub struct Cli {
@@ -64,143 +81,20 @@ enum Commands {
     Move(MoveArgs),
     /// Move a complete Rust module subtree and rewrite its semantic references.
     MoveModule(MoveModuleArgs),
-    /// Rename a TypeScript/JavaScript or Kotlin symbol and update every reference.
+    /// Rename a TypeScript/JavaScript, Kotlin, Go, Rust, Python or Dart symbol and update every reference.
     Rename(RenameArgs),
+    /// Check the language servers refac starts (gopls, rust-analyzer, ...) and show how to install a missing one.
+    Doctor(doctor::DoctorArgs),
     /// Generate shell completions to stdout.
     Completions(CompletionsArgs),
     /// Generate a manpage for the CLI to stdout.
     Man,
 }
 
-#[derive(Debug, Args)]
-struct MoveArgs {
-    /// Absolute path to the package root (the folder containing tsconfig.json / pyproject.toml / Cargo.toml / settings.gradle.kts etc.). Also settable via REFAC_PROJECT_PATH env var.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
-    project_path: Option<std::path::PathBuf>,
-
-    /// Source file path (relative to project_path or absolute). Repeat for multiple files.
-    #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
-    source_path: Vec<String>,
-
-    /// Target file path (relative to project_path or absolute). Must match source count 1:1. Repeat for multiple files.
-    #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
-    target_path: Vec<String>,
-
-    /// Emit machine-readable JSON instead of human text.
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Debug, Args)]
-struct MoveModuleArgs {
-    /// Cargo package or workspace root. Defaults to the current directory.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
-    project_path: Option<std::path::PathBuf>,
-
-    /// Existing logical module path in one workspace crate, beginning with `crate::`.
-    source_module: String,
-
-    /// New logical module path in the same crate, beginning with `crate::`.
-    target_module: String,
-
-    /// Emit machine-readable JSON instead of human text.
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Debug, Args)]
-struct RenameArgs {
-    /// Package root containing the authoritative tsconfig.json, or the Gradle project root for Kotlin. Defaults to the current directory. Also settable via REFAC_PROJECT_PATH env var.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
-    project_path: Option<std::path::PathBuf>,
-
-    /// File containing the symbol (relative to project_path or absolute).
-    #[arg(long, value_hint = ValueHint::FilePath)]
-    file: std::path::PathBuf,
-
-    /// Current name of the symbol, as written in that file.
-    #[arg(long)]
-    symbol: String,
-
-    /// New identifier for the symbol.
-    #[arg(long)]
-    new_name: String,
-
-    /// 1-based line that picks the occurrence when the name refers to several symbols in the file.
-    #[arg(long)]
-    line: Option<u32>,
-
-    /// 1-based byte column on --line, like `rg --column`.
-    #[arg(long, requires = "line")]
-    column: Option<u32>,
-
-    /// Plan and verify the rename, report the edits, and change no files.
-    #[arg(long)]
-    dry_run: bool,
-
-    /// Emit machine-readable JSON instead of human text.
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Debug, Args)]
-struct CompletionsArgs {
-    #[arg(value_enum)]
-    shell: Shell,
-}
-
 #[derive(Debug)]
 struct CliError {
     json: bool,
     error: anyhow::Error,
-}
-
-#[derive(Debug, Serialize)]
-struct MoveSuccessOutput<'a> {
-    status: &'static str,
-    operation: &'static str,
-    project_path: Option<&'a str>,
-    source_path: &'a [String],
-    target_path: &'a [String],
-    result: &'a str,
-}
-
-#[derive(Debug, Serialize)]
-struct MoveModuleSuccessOutput<'a> {
-    status: &'static str,
-    operation: &'static str,
-    project_path: &'a str,
-    source_module: &'a str,
-    target_module: &'a str,
-    moved_paths: usize,
-    edited_files: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct RenameSuccessOutput<'a> {
-    status: &'static str,
-    operation: &'static str,
-    project_path: &'a str,
-    file: &'a str,
-    symbol: &'a str,
-    new_name: &'a str,
-    dry_run: bool,
-    edits: usize,
-    edited_files: usize,
-    files: Vec<RenamedFile>,
-    notes: &'a [String],
-}
-
-#[derive(Debug, Serialize)]
-struct RenamedFile {
-    path: String,
-    edits: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct ErrorOutput<'a> {
-    status: &'static str,
-    error: &'a str,
 }
 
 pub async fn run() -> ExitCode {
@@ -220,6 +114,7 @@ async fn execute(cli: Cli) -> Result<(), CliError> {
         Commands::Move(args) => execute_move(args).await,
         Commands::MoveModule(args) => execute_move_module(args),
         Commands::Rename(args) => execute_rename(args).await,
+        Commands::Doctor(args) => doctor::execute_doctor(args).await,
         Commands::Completions(args) => execute_completions(args),
         Commands::Man => execute_man(),
     }

@@ -18,8 +18,7 @@ All Kotlin code is under [`src/drivers/kotlin/`](../../../../src/drivers/kotlin/
 
 - `server.rs`: finds the install, starts the server, waits for readiness, owns the request timeout. Speaks LSP through the generic [`lsp_session.rs`](../../../../src/drivers/lsp_session.rs) that the TypeScript rename also uses.
 - `plan.rs`, `moves.rs`, `moved.rs`, `checks.rs`, `declarations.rs`: move planning and refusals, the move run, the record of what moved where, and the cheap checks of the server's work.
-- `edits.rs`, `journal.rs`: turn a `WorkspaceEdit` into new file contents without writing, and write everything through an undo log.
-- `rename.rs`, `rename/plan.rs`, `rename/verify.rs`: rename request, symbol discovery, and the in-memory proof. `symbol_scan.rs` and `symbol_rename.rs` in [`src/drivers/`](../../../../src/drivers/) are shared with TypeScript.
+- `rename.rs`, `rename/imports.rs`: the Kotlin `Language` for the shared rename engine in [`src/drivers/lsp_rename/`](../../../../src/drivers/lsp_rename/) (symbol discovery, the in-memory proof, `WorkspaceEdit` parsing, and the write with an undo log are the engine's, see [Engine](../Symbol_Rename/engine.md)). `rename.rs` says what is Kotlin about it: the server it starts, the import line the server drops, a class renamed with its file, the Android follow-up. `symbol_scan.rs` in [`src/drivers/`](../../../../src/drivers/) is shared with TypeScript.
 - `android.rs` and `android/{namespace,xml,imports}.rs`, `survey.rs`, `renames.rs`, `stale.rs`: the Android layer and the report of names left behind.
 - Dispatch: [`src/logic/route.rs`](../../../../src/logic/route.rs) sends `.kt` files and Kotlin directories here, and [`src/logic/rename.rs`](../../../../src/logic/rename.rs) sends `.kt` rename requests here.
 

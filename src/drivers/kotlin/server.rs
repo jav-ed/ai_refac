@@ -7,8 +7,10 @@
 //! answered `null`, which is why this module waits for the real signals and
 //! never sleeps.
 
+use crate::drivers::lsp_rename::server::RenameServer;
 use crate::drivers::lsp_session::{LspSession, SessionConfig};
 use anyhow::{Context, Result, bail};
+use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -18,17 +20,6 @@ use tempfile::TempDir;
 pub const SERVER_ENV: &str = "REFAC_KOTLIN_SERVER";
 pub const TIMEOUT_ENV: &str = "REFAC_KOTLIN_TIMEOUT_SECS";
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
-
-/// The build the protocol above was verified against.
-const VERIFIED_BUILD: &str = "263.6379.0";
-const DOWNLOAD_URL: &str = "https://download.jetbrains.com/language-server/kotlin-server/263.6379.0/kotlin-server-263.6379.0.tar.gz";
-const DOWNLOAD_SHA256: &str = "ab8ca4455dc2fc5fe1a24db2bccc46c104254d2c465155c4251ee65df8f3f7cc";
-
-const KEPT_NOTIFICATIONS: &[&str] = &[
-    "intellij/workspaceImportState",
-    "intellij/ready-for-test",
-    "intellij/importLog",
-];
 
 pub struct Install {
     dir: PathBuf,
@@ -41,48 +32,42 @@ impl Install {
     }
 }
 
-fn install_help() -> String {
-    format!(
-        "Download the Kotlin language server once and point refac at it:\n  curl -LO {DOWNLOAD_URL}\n  echo \"{DOWNLOAD_SHA256}  kotlin-server-{VERIFIED_BUILD}.tar.gz\" | sha256sum -c -\n  mkdir -p ~/.local/share/refac && tar -xzf kotlin-server-{VERIFIED_BUILD}.tar.gz -C ~/.local/share/refac\n  export {SERVER_ENV}=~/.local/share/refac/kotlin-server-{VERIFIED_BUILD}\nIt needs a JDK 17 or newer on PATH for the Gradle import."
-    )
-}
+const KEPT_NOTIFICATIONS: &[&str] = &[
+    "intellij/workspaceImportState",
+    "intellij/ready-for-test",
+    "intellij/importLog",
+];
 
-/// The installed server: the directory named by `REFAC_KOTLIN_SERVER`, which
-/// must hold `bin/intellij-server` and `build.txt`.
+/// The installed server, found like every language server (`crate::servers`):
+/// the directory named by `REFAC_KOTLIN_SERVER`, which must hold
+/// `bin/intellij-server` and `build.txt`. A missing install is reported with
+/// the places looked at and the command that teaches the install.
 pub fn locate() -> Result<Install> {
     locate_in(std::env::var_os(SERVER_ENV))
 }
 
 fn locate_in(configured: Option<OsString>) -> Result<Install> {
-    let Some(value) = configured else {
+    let server = crate::servers::for_language("kotlin")?;
+    let project = std::env::current_dir().context("Cannot read the current directory")?;
+    let found = crate::servers::locate_with(server, &project, configured)?;
+    let Some(build) = found.version.strip_prefix("ILS-") else {
         bail!(
-            "{SERVER_ENV} is not set, so the Kotlin language server cannot be found.\n{}",
-            install_help()
+            "{} does not name a Kotlin language server build (expected ILS-<number>, got `{}`). Run `refac doctor kotlin` to see which download refac expects.",
+            found
+                .folder
+                .as_deref()
+                .unwrap_or(&found.executable)
+                .join("build.txt")
+                .display(),
+            found.version
         );
     };
-    let dir = PathBuf::from(value);
-    let build_file = dir.join("build.txt");
-    let build = std::fs::read_to_string(&build_file).with_context(|| {
-        format!(
-            "{SERVER_ENV} points to {}, which has no build.txt.\n{}",
-            dir.display(),
-            install_help()
-        )
-    })?;
-    let Some(build) = build.trim().strip_prefix("ILS-") else {
-        bail!(
-            "{} does not name a Kotlin language server build (expected ILS-<number>)",
-            build_file.display()
-        );
-    };
-    let install = Install {
-        dir,
+    Ok(Install {
+        dir: found
+            .folder
+            .context("The Kotlin server was found without its folder")?,
         build: build.to_string(),
-    };
-    if !install.executable().is_file() {
-        bail!("{} does not exist", install.executable().display());
-    }
-    Ok(install)
+    })
 }
 
 fn timeout() -> Result<Duration> {
@@ -237,6 +222,23 @@ impl KotlinServer {
         self.session.shutdown().await;
         // Best effort: the server may still hold a file for a moment.
         let _ = self.system_dir.close();
+    }
+}
+
+/// The rename engine drives the Kotlin server through the same calls as the
+/// other languages' servers.
+#[async_trait]
+impl RenameServer for KotlinServer {
+    async fn request(&mut self, method: &str, params: Value) -> Result<Value> {
+        KotlinServer::request(self, method, params).await
+    }
+
+    async fn sync_document(&mut self, path: &Path, text: &str) -> Result<()> {
+        KotlinServer::sync_document(self, path, text).await
+    }
+
+    async fn shutdown(self: Box<Self>) {
+        KotlinServer::shutdown(*self).await;
     }
 }
 

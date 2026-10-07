@@ -1,9 +1,10 @@
-//! Planning a Kotlin symbol rename: which symbol the name stands for, and
-//! every text change and file rename that renaming it takes. Nothing is
-//! written here.
+//! Planning a symbol rename: which symbol the name stands for, and every text
+//! change and file rename that renaming it takes. Nothing is written here.
 
-use crate::drivers::kotlin::edits::{Change, FileEdits, PlannedFile, parse_changes, plan_files};
-use crate::drivers::kotlin::server::KotlinServer;
+use super::edits::{Change, FileEdits, PlannedFile, parse_changes, plan_files};
+use super::family;
+use super::language::Language;
+use super::server::RenameServer;
 use crate::drivers::lsp_session::RpcError;
 use crate::drivers::lsp_text::TextIndex;
 use crate::drivers::symbol_scan::Occurrence;
@@ -51,16 +52,19 @@ pub struct Candidate {
 /// are skipped; matches inside an earlier symbol's references are the same
 /// symbol. More than one distinct symbol is an explicit ambiguity.
 pub async fn discover(
-    server: &mut KotlinServer,
+    server: &mut dyn RenameServer,
+    language: &dyn Language,
     file: &Path,
     text: &str,
     occurrences: &[Occurrence],
+    symbol: &str,
     new_name: &str,
 ) -> Result<Candidate> {
     let uri = file_uri(file)?;
     let index = TextIndex::new(text);
     let mut candidates: Vec<(Candidate, Vec<(usize, usize)>)> = Vec::new();
     let mut refusal: Option<String> = None;
+    let mut symbol_refusal: Option<String> = None;
     for occurrence in occurrences {
         if candidates.iter().any(|(_, covered)| {
             covered
@@ -77,8 +81,10 @@ pub async fn discover(
                 .await,
         )? {
             Ok(Value::Null) => {
-                refusal
-                    .get_or_insert_with(|| "this position is not a renameable symbol".to_string());
+                refusal.get_or_insert_with(|| match language.not_a_symbol_hint() {
+                    Some(hint) => format!("this position is not a renameable symbol. {hint}"),
+                    None => "this position is not a renameable symbol".to_string(),
+                });
                 continue;
             }
             Ok(_) => {}
@@ -89,16 +95,25 @@ pub async fn discover(
         }
         let mut references_request = at.clone();
         references_request["context"] = json!({ "includeDeclaration": true });
-        let references = server
-            .request("textDocument/references", references_request)
-            .await?;
-        let references = parse_references(&references)?;
-        let mut rename_request = at;
+        let references = match refuse_or(
+            server
+                .request("textDocument/references", references_request)
+                .await,
+        )? {
+            Ok(references) => parse_references(&references)?,
+            Err(message) => {
+                refusal.get_or_insert(message);
+                continue;
+            }
+        };
+        let mut rename_request = at.clone();
         rename_request["newName"] = json!(new_name);
         let answer = match refuse_or(server.request("textDocument/rename", rename_request).await)? {
             Ok(answer) => answer,
             Err(message) => {
-                refusal.get_or_insert(message);
+                // The server knew the symbol and still refused: that reason
+                // (a name clash, a broken interface) beats "not a symbol".
+                symbol_refusal.get_or_insert(message);
                 continue;
             }
         };
@@ -108,7 +123,12 @@ pub async fn discover(
             .find(|(start, end)| *start <= occurrence.offset && occurrence.offset < *end)
             .map(|(start, _)| *start)
             .context("The server's references do not include the position it was asked about")?;
-        let plan = build_plan(parse_changes(&answer)?)?;
+        let mut changes = parse_changes(&answer)?;
+        if language.renames_overrides() {
+            changes =
+                family::with_overrides(server, &at, &references, symbol, new_name, changes).await?;
+        }
+        let plan = build_plan(changes, language)?;
         candidates.push((
             Candidate {
                 anchor: *occurrence,
@@ -122,7 +142,9 @@ pub async fn discover(
     match candidates.len() {
         0 => bail!(
             "Cannot rename: {}",
-            refusal.unwrap_or_else(|| "the server found no renameable symbol".into())
+            symbol_refusal
+                .or(refusal)
+                .unwrap_or_else(|| "the server found no renameable symbol".into())
         ),
         1 => Ok(candidates.remove(0).0),
         _ => bail!(
@@ -140,7 +162,7 @@ pub async fn discover(
 
 /// An error answer from the server is a refusal to report; a broken
 /// connection is not.
-fn refuse_or(answer: Result<Value>) -> Result<std::result::Result<Value, String>> {
+pub(super) fn refuse_or(answer: Result<Value>) -> Result<std::result::Result<Value, String>> {
     match answer {
         Ok(value) => Ok(Ok(value)),
         Err(error) => match error.downcast_ref::<RpcError>() {
@@ -150,7 +172,7 @@ fn refuse_or(answer: Result<Value>) -> Result<std::result::Result<Value, String>
     }
 }
 
-fn parse_references(answer: &Value) -> Result<Vec<Reference>> {
+pub(super) fn parse_references(answer: &Value) -> Result<Vec<Reference>> {
     let Some(locations) = answer.as_array() else {
         bail!("The server answered the references request with {answer}");
     };
@@ -189,7 +211,7 @@ fn covered_in(
         .collect()
 }
 
-fn build_plan(changes: Vec<Change>) -> Result<RenamePlan> {
+fn build_plan(changes: Vec<Change>, language: &dyn Language) -> Result<RenamePlan> {
     let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut edits: Vec<FileEdits> = Vec::new();
     for change in changes {
@@ -211,7 +233,23 @@ fn build_plan(changes: Vec<Change>) -> Result<RenamePlan> {
                     edits: file.edits,
                 });
             }
+            Change::Other { kind, path } => {
+                let advice = language
+                    .refuse_file_operations()
+                    .unwrap_or("refac does not apply create or delete file operations");
+                bail!(
+                    "Renaming this symbol would also {kind} {}. {advice}",
+                    path.display()
+                );
+            }
             Change::Rename { from, to } => {
+                if let Some(advice) = language.refuse_file_operations() {
+                    bail!(
+                        "Renaming this symbol would also rename {} to {}. {advice}",
+                        from.display(),
+                        to.display()
+                    );
+                }
                 if to.exists() {
                     bail!(
                         "The rename would move {} onto {}, which already exists",
@@ -231,6 +269,25 @@ fn build_plan(changes: Vec<Change>) -> Result<RenamePlan> {
         .map(|(file, edits)| EditedFile { file, edits })
         .collect();
     Ok(RenamePlan { files, moves })
+}
+
+/// Every place the symbol at `position` is declared or used.
+pub(super) async fn references_at(
+    server: &mut dyn RenameServer,
+    path: &Path,
+    position: lsp_types::Position,
+) -> Result<Vec<Reference>> {
+    let answer = server
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": { "uri": file_uri(path)? },
+                "position": position,
+                "context": { "includeDeclaration": true },
+            }),
+        )
+        .await?;
+    parse_references(&answer)
 }
 
 pub fn file_uri(path: &Path) -> Result<String> {
@@ -263,3 +320,6 @@ fn ambiguity(text: &str, candidates: &[&Candidate]) -> String {
 fn plural(count: usize, word: &str) -> String {
     format!("{count} {word}{}", if count == 1 { "" } else { "s" })
 }
+
+#[cfg(test)]
+mod tests;

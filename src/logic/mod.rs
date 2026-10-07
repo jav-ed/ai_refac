@@ -6,6 +6,7 @@ mod markdown_links;
 pub mod rename;
 mod route;
 mod typescript;
+mod unavailable;
 
 /// Parameters for a refactoring request.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -100,7 +101,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         let driver = get_driver_by_lang(&lang)?;
 
         if !driver.check_availability().await? {
-            bail!("Driver for '{}' is not available.", lang);
+            bail!("{}", unavailable::message(&lang, root));
         }
 
         match driver.move_files_with_notes(files.clone(), root).await {

@@ -1,6 +1,6 @@
 use super::*;
-use crate::drivers::kotlin::journal::Journal;
 use crate::drivers::kotlin::survey::survey;
+use crate::drivers::lsp_rename::journal::Journal;
 use std::path::PathBuf;
 
 fn write(root: &Path, relative: &str, text: &str) -> PathBuf {

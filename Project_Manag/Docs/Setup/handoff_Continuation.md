@@ -1,11 +1,13 @@
 # Handoff: where the work stands
 
-Written on 2026-10-07 at the end of the session that added the Kotlin backend, rebuilt the shared language-server client, and audited every tool version. Everything below is pushed on the branch `claude/quirky-darwin-dh1zd2` (draft pull request into `main`). The working notes of that session live in the gitignored `Scratch/` folder and are not needed to continue.
+Written on 2026-10-07 at the end of the session that added the Kotlin backend, rebuilt the shared language-server client, audited every tool version, rebuilt Markdown moves, and added symbol rename for Go, Rust, Python, and Dart with `refac doctor`. Everything below is pushed on the branch `claude/quirky-darwin-dh1zd2` (draft pull request into `main`; the Markdown and symbol-rename work of the later rounds is committed on the same branch). The working notes of that session live in the gitignored `Scratch/` folder and are not needed to continue.
 
 ## State of the code
 
 - **TypeScript symbol rename** (`refac rename`): done and tested. Overview in [Symbol rename](../Features/TypeScript/symbol_Rename.md), evidence in [TypeScript rename engines](../Investigation/typescript_Rename_Engines.md).
 - **Kotlin backend** (file and directory moves, `refac rename`, the Android XML and `R`/`BuildConfig` layer, stale-name report, rollback): done and tested against the real JetBrains server. Overview in [Kotlin and Android](../Features/Kotlin/linker_Kotlin.md), setup in [Kotlin server setup](kotlin_Server.md), evidence in [Kotlin options](../Investigation/kotlin_Options.md).
+- **Symbol rename in Go, Rust, Python, and Dart**, and Kotlin ported onto the same engine (`src/drivers/lsp_rename/`): gopls, rust-analyzer, basedpyright, and the Dart analysis server, with an in-memory proof, override families for Python, retries for gopls, and a settle step for Dart. Overview in [Symbol rename](../Features/Symbol_Rename/linker_Symbol_Rename.md), evidence in [Symbol rename options](../Investigation/symbol_Rename_Options.md). Real-server tests: `tests/{go,rust,python,dart}_rename.rs`, all `#[ignore]`d.
+- **`refac doctor` and the server locator** (`src/servers/`, `src/cli/doctor.rs`): every language server is found the same way (variable, `PATH`, installer folders, each candidate must run) and a missing one is explained with the places looked at and `Run refac doctor <language>`. Servers are started per command and stopped after it. See [Language servers](language_Servers.md).
 - **Shared language-server client** (`src/drivers/lsp_client.rs` on `src/drivers/lsp_session.rs`): used by Dart, Go, Rust, and Pyrefly. It no longer sleeps for a fixed time; each server's own readiness signal is awaited and a missing signal fails after `REFAC_LSP_TIMEOUT_SECS` (default 300). The Dart, Go, batch, Rust, and Python suites pass on a machine under heavy load. Dart checks the server's plan before writing and refuses a move that would leave an import pointing at a missing file.
 - **Markdown**: the link scanner is now a CommonMark parser (`pulldown-cmark`), so links in code, comments, raw HTML, and front matter stay untouched, and a relative `--project-path` rewrites links like an absolute one. See [Limits and gaps](../Features/Markdown/limits_And_Gaps.md).
 - **Versions**: all tools were audited on 2026-10-07 and brought to their latest releases where the whole suite stayed green; see [Tool versions](tool_Versions.md) for the table, the pins, and the alternatives that were weighed.
@@ -23,6 +25,9 @@ Written on 2026-10-07 at the end of the session that added the Kotlin backend, r
 
 ## Known limits and untested corners
 
+- Symbol rename: Python calls on untyped receivers, Rust `macro_rules!` bodies, code behind inactive `cfg` or build constraints, and generated files are reported, not renamed. Package, module, and file names are `move` operations. gopls can answer with part of the edits under heavy load (the engine asks up to four times). Dart needs `dart pub get`. The real-server suites for Go, Rust, Python, and Dart were run on this session's tool versions (see [Tool versions](tool_Versions.md)); they are not part of plain `cargo test`.
+- Ideas not built: `refac move --dry-run`, Markdown heading rename, a Python rename that starts from an override and reaches the base.
+
 - Kotlin: moves between modules or source sets are refused, so cross-module moves are untested. Every Kotlin call costs about 30 seconds of Gradle import and about 1.6 GiB for the server on a tiny project; the server has no memory cap. One broken-build test hung for more than five minutes in one of nine runs and could not be reproduced; the 600 second timeout and the import log tail are the guard.
 - The README line that tool-dependent tests "skip gracefully" is not accurate for the Kotlin real-server tests: they are `#[ignore]`d and panic loudly when the environment is missing.
 - Pyrefly is a fallback behind Rope, so `python_move` never starts it; `cargo test --lib pyrefly -- --ignored` runs it for real.
@@ -36,4 +41,4 @@ cargo test
 cd scripts && bun install --frozen-lockfile && bun test
 ```
 
-For the real-server suites set `REFAC_KOTLIN_SERVER` and `ANDROID_HOME`, then `cargo test --test kotlin_moves --test kotlin_rename --test kotlin_android --test kotlin_dispatch --test kotlin_server -- --ignored --test-threads=1`.
+For the symbol-rename suites install gopls, rust-analyzer, basedpyright, and the Dart SDK (`refac doctor` shows what is missing) and run `cargo test --test go_rename --test rust_rename --test python_rename --test dart_rename -- --include-ignored`. For the real-server Kotlin suites set `REFAC_KOTLIN_SERVER` and `ANDROID_HOME`, then `cargo test --test kotlin_moves --test kotlin_rename --test kotlin_android --test kotlin_dispatch --test kotlin_server -- --ignored --test-threads=1`.

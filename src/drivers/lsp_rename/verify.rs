@@ -6,38 +6,157 @@
 //! they must be exactly the places that referred to the symbol before, carried
 //! through the edits. A usage that was lost or gained changed meaning.
 
-use super::plan::{Candidate, Reference, RenamePlan, file_uri};
-use crate::drivers::kotlin::server::KotlinServer;
+use super::discover::{Candidate, Reference, RenamePlan, file_uri};
+use super::language::Language;
+use super::related::{self, Group};
+use super::server::RenameServer;
 use crate::drivers::lsp_text::TextIndex;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use url::Url;
 
 /// (file, zero-based line, UTF-16 column) of where a reference starts.
 type Site = (PathBuf, u32, u32);
 
+/// The server's answer cannot be trusted as a faithful rename. A server under
+/// load can answer a rename with fewer edits than the references it lists
+/// (gopls does), so callers may ask again before giving up.
+#[derive(Debug)]
+pub struct Unfaithful(pub String);
+
+impl std::fmt::Display for Unfaithful {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for Unfaithful {}
+
+pub fn is_unfaithful(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<Unfaithful>().is_some()
+}
+
 pub async fn verify(
-    server: &mut KotlinServer,
+    server: &mut dyn RenameServer,
+    language: &dyn Language,
     candidate: &Candidate,
-    plan: &RenamePlan,
     target: &Path,
     symbol: &str,
 ) -> Result<()> {
-    check_edits_stay_inside_references(candidate, plan, symbol)?;
+    let plan = &candidate.plan;
+    let groups = related::groups(server, language, candidate, target, symbol).await?;
     for edited in &plan.files {
         server
             .sync_document(&edited.file.path, &edited.file.text)
             .await?;
     }
-    let expected = expected_sites(&candidate.references, plan)?;
-    let anchor = new_text_position(plan, target, candidate.anchor_start)?;
+    server.settle().await?;
+    for group in &groups {
+        check_every_reference_is_edited(plan, group, symbol)?;
+        check_group(server, plan, group).await?;
+    }
+    Ok(())
+}
+
+/// Whether an edit of `from..to` changes the reference at `start..end`. Some
+/// servers (the Kotlin one) answer with the smallest edits, a few letters
+/// inside the name or an insertion at its end, so an overlap counts.
+fn touches(from: usize, to: usize, start: usize, end: usize) -> bool {
+    let overlaps = from < end && to > start;
+    let inserts_inside = from == to && start <= from && from <= end;
+    overlaps || inserts_inside
+}
+
+/// A rename must change every place that writes the symbol's name. When the
+/// server lists a reference that spells the old name and none of its edits
+/// touches it, its answer is incomplete. A reference that spells something
+/// else (`Self` for a type, a Java accessor for a Kotlin property) is
+/// rightly left alone.
+fn check_every_reference_is_edited(plan: &RenamePlan, group: &Group, symbol: &str) -> Result<()> {
+    let mut texts: HashMap<&Path, String> = HashMap::new();
+    let mut missed = Vec::new();
+    for reference in &group.references {
+        let edited = plan
+            .files
+            .iter()
+            .find(|edited| edited.file.path == reference.path);
+        let before = match edited {
+            Some(edited) => edited.file.before.as_str(),
+            None => {
+                if !texts.contains_key(reference.path.as_path()) {
+                    let raw = std::fs::read_to_string(&reference.path).with_context(|| {
+                        format!(
+                            "Cannot read {}, a reference of the symbol",
+                            reference.path.display()
+                        )
+                    })?;
+                    texts.insert(
+                        reference.path.as_path(),
+                        raw.strip_prefix('\u{FEFF}').unwrap_or(&raw).to_string(),
+                    );
+                }
+                texts[reference.path.as_path()].as_str()
+            }
+        };
+        let index = TextIndex::new(before);
+        let (start, end) = (
+            index.offset(reference.range.start)?,
+            index.offset(reference.range.end)?,
+        );
+        if before.get(start..end) != Some(symbol) {
+            continue;
+        }
+        let touched = edited.is_some_and(|edited| {
+            edited.edits.iter().any(|edit| {
+                matches!(
+                    (index.offset(edit.range.start), index.offset(edit.range.end)),
+                    (Ok(from), Ok(to)) if touches(from, to, start, end)
+                )
+            })
+        });
+        if !touched {
+            missed.push(reference);
+        }
+    }
+    if missed.is_empty() {
+        return Ok(());
+    }
+    let places: Vec<String> = missed
+        .iter()
+        .take(6)
+        .map(|reference| {
+            format!(
+                "{}:{}",
+                reference.path.display(),
+                reference.range.start.line + 1
+            )
+        })
+        .collect();
+    Err(Unfaithful(format!(
+        "The server's rename leaves {} of the {} places that refer to the symbol unchanged (first: {}), so the renamed program would not mean the same. Nothing was changed.",
+        missed.len(),
+        group.references.len(),
+        places.join(", ")
+    ))
+    .into())
+}
+
+/// After the rename the symbol's usages are exactly the old ones, carried
+/// through the edits.
+async fn check_group(
+    server: &mut dyn RenameServer,
+    plan: &RenamePlan,
+    group: &Group,
+) -> Result<()> {
+    let expected = expected_sites(&group.references, plan)?;
+    let anchor = new_text_position(plan, &group.path, group.start)?;
     let answer = server
         .request(
             "textDocument/references",
             json!({
-                "textDocument": { "uri": file_uri(target)? },
+                "textDocument": { "uri": file_uri(&group.path)? },
                 "position": anchor,
                 "context": { "includeDeclaration": true },
             }),
@@ -47,98 +166,15 @@ pub async fn verify(
     if actual == expected {
         return Ok(());
     }
-    bail!(
-        "The rename is not faithful: after it, the symbol's usages differ from before, so something would change meaning (a clash with, or shadowing of, another declaration). Nothing was changed.\n{}",
+    Err(Unfaithful(format!(
+        "The rename is not faithful: after it, the usages of the symbol at {}:{} differ from before ({} before, {} after), so something would change meaning (a clash with, or shadowing of, another declaration). Nothing was changed.\n{}",
+        group.path.display(),
+        anchor.line + 1,
+        expected.len(),
+        actual.len(),
         describe(&expected, &actual)
-    )
-}
-
-/// An edit outside every reference would change code that has nothing to do
-/// with the symbol. The exception is the import of the symbol: the server does
-/// not list it as a reference (extension functions), yet rewrites or drops it,
-/// and tidies the blank lines around a dropped import.
-fn check_edits_stay_inside_references(
-    candidate: &Candidate,
-    plan: &RenamePlan,
-    symbol: &str,
-) -> Result<()> {
-    for edited in &plan.files {
-        let before = &edited.file.before;
-        let index = TextIndex::new(before);
-        let ranges: Vec<(usize, usize)> = candidate
-            .references
-            .iter()
-            .filter(|reference| reference.path == edited.file.path)
-            .map(|reference| {
-                Ok((
-                    index.offset(reference.range.start)?,
-                    index.offset(reference.range.end)?,
-                ))
-            })
-            .collect::<Result<_>>()?;
-        let spans: Vec<(usize, usize)> = edited
-            .edits
-            .iter()
-            .map(|edit| {
-                Ok((
-                    index.offset(edit.range.start)?,
-                    index.offset(edit.range.end)?,
-                ))
-            })
-            .collect::<Result<_>>()?;
-        let import_edited = spans
-            .iter()
-            .any(|(start, end)| edits_import_of_symbol(before, *start, *end, symbol));
-        for (edit, (start, end)) in edited.edits.iter().zip(spans) {
-            let inside_reference = ranges.iter().any(|(from, to)| *from <= start && end <= *to);
-            let import_cleanup = edits_import_of_symbol(before, start, end, symbol)
-                || (import_edited && removes_blank_lines(before, start, end, &edit.new_text));
-            if !inside_reference && !import_cleanup {
-                bail!(
-                    "The server edits {} line {} outside every place that refers to the symbol; refusing to rename without understanding that edit. Nothing was changed.",
-                    edited.file.path.display(),
-                    edit.range.start.line + 1
-                );
-            }
-        }
-    }
-    Ok(())
-}
-
-/// A deletion of whole blank lines, nothing else.
-fn removes_blank_lines(before: &str, start: usize, end: usize, new_text: &str) -> bool {
-    let removed = &before[start..end];
-    new_text.is_empty()
-        && !removed.is_empty()
-        && removed.ends_with('\n')
-        && removed.chars().all(char::is_whitespace)
-        && (start == 0 || before[..start].ends_with('\n'))
-}
-
-/// An edit on the `import ...<symbol>` line of the symbol being renamed. The
-/// server lists no reference for that import, yet it edits it: it rewrites the
-/// name, or drops the whole line when the new name no longer needs it (a member
-/// of the same name now wins over the imported extension). Dropping the line
-/// shows up in the usage comparison as lost usages when it changes meaning.
-fn edits_import_of_symbol(before: &str, start: usize, end: usize, symbol: &str) -> bool {
-    let line_start = before[..start].rfind('\n').map_or(0, |at| at + 1);
-    let line_end = before[start..]
-        .find('\n')
-        .map_or(before.len(), |at| start + at);
-    // The line break itself may go with the line.
-    let reach = (line_end + 1).min(before.len());
-    if end > reach {
-        return false;
-    }
-    let line = before[line_start..line_end].trim_end();
-    if !line.trim_start().starts_with("import ") {
-        return false;
-    }
-    // `import a.b.symbol` or `import a.b.symbol as alias`: the symbol is the
-    // last path segment.
-    let path = line.split(" as ").next().unwrap_or(line).trim_end();
-    path.strip_suffix(symbol)
-        .is_some_and(|prefix| prefix.ends_with('.'))
+    ))
+    .into())
 }
 
 /// Where each reference starts once the edits are applied. A file the

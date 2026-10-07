@@ -354,7 +354,12 @@ fn invalid_requests_are_rejected_early() {
     );
     assert!(!output.status.success(), "--column needs --line");
     let output = rename(project, "tsconfig.json", "compilerOptions", "x", &[]);
-    assert_refused_untouched(project, &before, &output, "and Kotlin (.kt) files only");
+    assert_refused_untouched(
+        project,
+        &before,
+        &output,
+        "Python (.py) and Dart (.dart) files",
+    );
 }
 
 // ── output modes ─────────────────────────────────────────────────────────────

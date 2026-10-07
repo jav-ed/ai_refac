@@ -1,10 +1,10 @@
 # Go
 
-The Go backend uses `gopls` (the official Go language server) via LSP `textDocument/rename` on the package name symbol. Because Go's package-per-directory model ties all files in a directory to a single package, renaming any one file's package also renames the whole package.
+The Go backend uses `gopls` (the official Go language server) for two operations. **Symbol rename** (`refac rename` on a `.go` file: variables, functions, methods, fields, types) is described in [Go symbol rename](../Symbol_Rename/go.md). **File moves** (`refac move`) use `textDocument/rename` on the package name symbol, described below. Because Go's package-per-directory model ties all files in a directory to a single package, renaming any one file's package also renames the whole package.
 
 ## Required tooling
 
-- `gopls` — checked at `gopls` in PATH, then `~/go/bin/gopls`
+- `gopls`, found by the shared locator: `REFAC_GOPLS`, then `PATH`, then `$GOBIN`, `$GOPATH/bin`, `~/go/bin`. When it is missing the error lists those places and names `refac doctor go`, which prints the install command (`go install golang.org/x/tools/gopls@latest`). See [Language servers](../../Setup/language_Servers.md).
 
 ## How it works
 

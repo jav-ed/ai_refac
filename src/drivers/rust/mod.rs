@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use std::path::Path;
 
 mod apply;
-mod availability;
 mod layout;
 mod module_graph;
 mod planner;
@@ -15,7 +14,6 @@ mod workspace;
 
 pub use planner::move_module;
 
-use availability::rust_analyzer_command;
 use rename::{RustSymbolRenameRequest, build_symbol_rename_request};
 
 pub struct RustDriver;
@@ -33,7 +31,7 @@ impl RefactorDriver for RustDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        availability::rust_analyzer_is_available().await
+        Ok(crate::servers::executable("rust", &std::env::current_dir()?).is_ok())
     }
 
     async fn move_files(
@@ -44,7 +42,8 @@ impl RefactorDriver for RustDriver {
         let root_dir = root_path
             .map(Path::to_path_buf)
             .unwrap_or(std::env::current_dir()?);
-        let client = super::lsp_client::LspClient::new(&rust_analyzer_command());
+        let binary = crate::servers::executable("rust", &root_dir)?;
+        let client = super::lsp_client::LspClient::new(&binary.to_string_lossy());
         let mut lsp_batch: Vec<(String, String, RustSymbolRenameRequest)> = Vec::new();
 
         for (source, target) in &file_map {

@@ -37,14 +37,14 @@ pub fn occurrences(
     symbol: &str,
     line: Option<u32>,
     column: Option<u32>,
-    is_identifier_char: fn(char) -> bool,
+    is_identifier_char: impl Fn(char) -> bool,
     position: impl Fn(usize) -> (u32, u32),
 ) -> Result<Vec<Occurrence>> {
     let mut found = Vec::new();
     for (offset, _) in text.match_indices(symbol) {
         let before = text[..offset].chars().next_back();
         let after = text[offset + symbol.len()..].chars().next();
-        if before.is_some_and(is_identifier_char) || after.is_some_and(is_identifier_char) {
+        if before.is_some_and(&is_identifier_char) || after.is_some_and(&is_identifier_char) {
             continue;
         }
         let (zero_line, zero_column) = position(offset);

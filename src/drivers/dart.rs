@@ -10,15 +10,12 @@ use std::path::{Path, PathBuf};
 
 mod directives;
 
-pub struct DartDriver {
-    client: LspClient,
-}
+#[derive(Default)]
+pub struct DartDriver;
 
 impl DartDriver {
     pub fn new() -> Self {
-        Self {
-            client: LspClient::new("dart"),
-        }
+        Self
     }
 }
 
@@ -29,14 +26,7 @@ impl RefactorDriver for DartDriver {
     }
 
     async fn check_availability(&self) -> Result<bool> {
-        match tokio::process::Command::new("dart")
-            .arg("--version")
-            .output()
-            .await
-        {
-            std::result::Result::Ok(output) => Ok(output.status.success()),
-            Err(_) => Ok(false),
-        }
+        Ok(crate::servers::executable("dart", &std::env::current_dir()?).is_ok())
     }
 
     async fn move_files(
@@ -50,8 +40,9 @@ impl RefactorDriver for DartDriver {
         };
 
         // The command to start LSP is `dart language-server`
-        let changes = self
-            .client
+        let dart = crate::servers::executable("dart", &root)?;
+        let client = LspClient::new(&dart.to_string_lossy());
+        let changes = client
             .plan_file_renames(
                 &["language-server"],
                 file_map.clone(),
