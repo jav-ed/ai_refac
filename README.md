@@ -320,7 +320,7 @@ bun run --cwd scripts test
 bun run --cwd scripts typecheck
 ```
 
-The suite covers unit tests and integration tests for all supported languages. Integration tests copy fixture projects into temp directories and run assertions on the resulting files. Tests that require external tools (gopls, rust-analyzer, etc.) skip gracefully if the tool is not installed — they do not fail, but they also do not provide coverage.
+The suite covers unit tests and integration tests for all supported languages. Integration tests copy fixture projects into temp directories and run assertions on the resulting files. Some driver unit tests and two batch tests skip when their tool is missing (they pass without giving coverage). The per-language integration tests (`dart_move`, `go_move`, `python_move`, `rust_move`) run the real tools and fail without them, and the Kotlin real-server tests are `#[ignore]`d and panic with an explanation when `REFAC_KOTLIN_SERVER` or `ANDROID_HOME` is missing.
 
 ---
 
