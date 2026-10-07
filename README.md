@@ -261,8 +261,10 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - Old class names in ProGuard rules, build scripts, service lists, and string literals are reported, not rewritten.
 
 **Markdown**
-- Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
-- The file is read as CommonMark, so links inside code (fenced blocks, indented blocks, inline spans), HTML comments, raw HTML, and front matter are not rewritten. HTML `<a href>` and `<img src>` are not links to refac and keep their text.
+- Only relative file paths are rewritten. Web addresses, `#anchors`, site-root `/paths`, and paths with template syntax are left unchanged.
+- The file is read as CommonMark, so links inside code (fenced blocks, indented blocks, inline spans), HTML comments, and front matter are not rewritten. HTML `href`, `src`, `poster`, and `srcset` values are rewritten; MDX imports, wiki-links `[[Page]]`, and paths inside other file types (SVG, CSS, JSON) are not.
+- Files ignored by the project's `.gitignore`, `.git/`, and `node_modules/` are not searched. Markdown files that are not valid UTF-8 are reported and left unchanged.
+- A folder with code (other than TypeScript, JavaScript, or Kotlin) is refused; move its files with their own backend.
 
 **TypeScript symbol rename**
 - Only usages in projects the engine loads are renamed: keep every caller in the package's tsconfig and search for the old name afterwards.
@@ -307,7 +309,7 @@ The approach depends on the language:
 
 **Rope (Python):** The Rope refactoring library is invoked directly via Python. It performs the move and updates all import statements it can trace.
 
-**Native (Markdown):** The tool parses Markdown link syntax directly in Rust, computes new relative paths, and rewrites affected links. No external tooling required.
+**Native (Markdown):** A CommonMark parser (`pulldown-cmark`) finds every link, image, reference definition, and the `href`/`src`/`srcset` values in raw HTML. The tool plans the full change (moves, then rewritten destinations written the way the author wrote them), applies it, and rolls back everything if a step fails. The same engine runs after any other backend has moved files, so a README that points at `src/app.py` follows the move. No external tooling required. See [Markdown](Project_Manag/Docs/Features/Markdown/linker_Markdown.md).
 
 ---
 

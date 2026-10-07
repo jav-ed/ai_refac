@@ -2,6 +2,7 @@ use crate::drivers::RefactorDriver;
 use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
 
+mod markdown_links;
 pub mod rename;
 mod route;
 mod typescript;
@@ -67,6 +68,8 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
 
     // 3. Dispatch Batches — sorted for deterministic output order
     let root = req.project_path.as_ref().map(std::path::Path::new);
+    // Folders are gone once moved, so ask now for the Markdown link pass later.
+    let directories = markdown_links::directories(&req.source_path, root);
     let mut successful_files: std::collections::HashMap<String, Vec<(String, String)>> =
         std::collections::HashMap::new();
     // What each driver reports beyond success, by language.
@@ -125,6 +128,13 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         bail!("{}", lines.join("\n\n"));
     }
 
+    // Markdown links to what the other languages moved.
+    let link_notes = if successful_files.is_empty() {
+        None
+    } else {
+        markdown_links::update(&successful_files, &directories, root).await?
+    };
+
     // 4. Build response
     let total_files: usize = successful_files.values().map(|v| v.len()).sum();
     let mut response = format!(
@@ -178,6 +188,13 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
                     ));
                 }
             }
+        }
+    }
+
+    if let Some(link_notes) = link_notes {
+        response.push_str("\n// Markdown links to the moved files:\n");
+        for note in link_notes {
+            response.push_str(&format!("\n// Note: {note}  \n"));
         }
     }
 

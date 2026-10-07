@@ -18,7 +18,7 @@ Entry points: `src/bin/refac.rs` and `src/cli.rs` (commands `move`, `move-module
 - [Python](Features/Python/linker_Python.md): Rope and Pyrefly backends, re-export limits, namespace packages.
 - [Go](Features/Go/linker_Go.md): whole-package moves, batch session architecture, the `go.mod` requirement.
 - [Rust](Features/Rust/linker_Rust.md): LSP file renames, semantic module-subtree moves, workspace reference migration, strict v1 limits.
-- [Markdown](Features/Markdown/linker_Markdown.md): relative link rewriting and its limits (no code blocks, no absolute URLs).
+- [Markdown](Features/Markdown/linker_Markdown.md): moving Markdown files, assets, and document folders with every link that follows (inline, reference, HTML, `%20`, queries), fixing Markdown links to files other backends moved, the rollback and refusal rules, and the limits (wiki-links, MDX imports, front matter).
 - [Install & Build](Guides/dev_guide.md): build from source, symlink to `~/.local/bin/`, cargo install, PATH setup.
 - [Testing & Debugging](Guides/Testing_and_Debugging.md): test suite structure, fixture projects, batch move tests, rename tests, the ignored real-server Kotlin tests, debugging failures.
 - [Agent Skill](../../.agents/skills/refac-cli/SKILL.md): using `refac` through an AI agent, Claude Code integration, language constraints summary.

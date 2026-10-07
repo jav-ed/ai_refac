@@ -18,6 +18,7 @@ use serde::Serialize;
 Move or rename source or Markdown files and update all references across the project.
 
 Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart, Kotlin (Android and JVM).
+Markdown files, images and other assets, and folders of them can be moved too; after any move, the Markdown links that point at the moved files are updated.
 Use `move-module` for semantic Rust module-subtree moves.
 Use `rename` to rename a TypeScript/JavaScript or Kotlin symbol (variable, function, class, member) and update every reference.
 Kotlin needs the JetBrains Kotlin language server; set REFAC_KOTLIN_SERVER to its install folder. For Kotlin, --project-path is the Gradle project root.

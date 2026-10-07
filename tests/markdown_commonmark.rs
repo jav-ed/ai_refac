@@ -42,7 +42,7 @@ fn a_relative_project_path_updates_links_like_an_absolute_one() {
     assert!(project.join("docs/manual/guide.md").exists());
     let readme = common::read_file(project, "README.md");
     assert!(
-        readme.contains("(./docs/manual/guide.md)"),
+        readme.contains("(docs/manual/guide.md)"),
         "the link must follow the move:\n{readme}"
     );
 }
@@ -72,12 +72,16 @@ fn only_real_links_are_rewritten() {
     common::assert_move_succeeded(&move_guide(project, project.to_str().unwrap()));
 
     let expected = original
-        .replace("[link](docs/guide.md)", "[link](./docs/manual/guide.md)")
-        .replace("[ref]: docs/guide.md", "[ref]: ./docs/manual/guide.md");
+        .replace("[link](docs/guide.md)", "[link](docs/manual/guide.md)")
+        .replace(
+            "<a href=\"docs/guide.md\">",
+            "<a href=\"docs/manual/guide.md\">",
+        )
+        .replace("[ref]: docs/guide.md", "[ref]: docs/manual/guide.md");
     assert_eq!(
         common::read_file(project, "README.md"),
         expected,
-        "code blocks, comments, and raw HTML keep their text; links and definitions follow"
+        "code blocks and comments keep their text; links, HTML references, and definitions follow"
     );
 }
 
@@ -96,7 +100,7 @@ fn a_definition_on_two_lines_is_rewritten() {
 
     let readme = common::read_file(project, "README.md");
     assert!(
-        readme.contains("[guide]:\n   ./docs/manual/guide.md\n"),
+        readme.contains("[guide]:\n   docs/manual/guide.md\n"),
         "{readme}"
     );
 }

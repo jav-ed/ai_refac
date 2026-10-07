@@ -50,6 +50,12 @@ async fn a_kotlin_move_is_routed_and_its_notes_reach_the_response() {
 async fn a_directory_with_kotlin_sources_is_routed_to_the_kotlin_driver() {
     common::kotlin::require_server();
     let project = common::setup_fixture("kotlin/jvm_project");
+    // A README that points at the folder and at a file in it follows the move.
+    std::fs::write(
+        project.path().join("README.md"),
+        format!("The [helpers]({K}/util/) and [Helper]({K}/util/Helper.kt).\n"),
+    )
+    .unwrap();
 
     let response = handle_refactor(move_request(project.path(), "util", "common"))
         .await
@@ -57,8 +63,16 @@ async fn a_directory_with_kotlin_sources_is_routed_to_the_kotlin_driver() {
 
     assert!(response.contains("Kotlin results"), "{response}");
     assert!(
+        response.contains("Markdown links to the moved files"),
+        "{response}"
+    );
+    assert!(
         common::read_file(project.path(), &format!("{K}/common/Helper.kt"))
             .starts_with("package com.example.common")
+    );
+    assert_eq!(
+        common::read_file(project.path(), "README.md"),
+        format!("The [helpers]({K}/common/) and [Helper]({K}/common/Helper.kt).\n")
     );
     common::kotlin::assert_compiles(project.path(), &["compileKotlin", "compileJava"]);
 }

@@ -20,7 +20,7 @@ The tool integrates with the following language toolchains:
 | :--- | :--- | :--- |
 | **Python** | `Rope` (primary) / `Pyrefly` (fallback) | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback |
 | **TypeScript / JS** | Oxc parser + TypeScript resolver (moves); TypeScript 7 native language server (rename) | `bun` |
-| **Markdown** | Native Rust backend | none |
+| **Markdown** | Native Rust backend (`pulldown-cmark` parser): Markdown files, assets, document folders, and links to files other backends moved | none |
 | **Rust** | `rust-analyzer` LSP plus embedded HIR | `rust-analyzer` binary for ordinary file renames |
 | **Go** | `gopls` | `gopls` in PATH or `~/go/bin` |
 | **Dart** | Dart SDK analysis server | `dart` (Dart SDK) |

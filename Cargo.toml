@@ -22,6 +22,10 @@ url = "2.5.7"
 # CommonMark parser for the Markdown backend: decides what is a link (code blocks,
 # comments, and HTML are not) while refac reads the destination ranges itself.
 pulldown-cmark = { version = "0.13", default-features = false }
+# Finds the Markdown files a move can affect, honouring .gitignore like git does.
+ignore = "0.4"
+# Link destinations are URLs: `My%20Notes.md` is the file `My Notes.md`.
+percent-encoding = "2"
 which = "8.0.0"
 pathdiff = "0.2"
 walkdir = "2.5"

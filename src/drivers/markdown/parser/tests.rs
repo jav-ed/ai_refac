@@ -95,11 +95,36 @@ fn skips_inline_code_spans() {
 }
 
 #[test]
-fn skips_html_comments_and_raw_html() {
-    let content =
-        "<!-- [c](./path.md) -->\n\n<a href=\"./path.md\">html</a>\n\n<img src=\"./a.png\">\n";
+fn html_comments_hide_links_but_raw_html_references_are_found() {
+    assert!(hrefs("<!-- [c](./path.md) -->\n").is_empty());
+    assert!(hrefs("<!--\n<a href=\"./path.md\">\n-->\n").is_empty());
 
-    assert!(hrefs(content).is_empty());
+    let content = "<a href=\"./path.md\">html</a>\n\n<img src=\"./a.png\">\n";
+    assert_eq!(hrefs(content), ["./path.md", "./a.png"]);
+}
+
+#[test]
+fn html_inside_a_paragraph_or_a_link_text_is_read_too() {
+    assert_eq!(
+        hrefs("text <img src=\"a.png\"> more [x](b.md)"),
+        ["a.png", "b.md"]
+    );
+    assert_eq!(hrefs("[<img src=\"a.png\">](b.md)"), ["a.png", "b.md"]);
+}
+
+#[test]
+fn a_multi_line_html_block_keeps_its_place_between_lines() {
+    let content =
+        "<div>\n  <img\n    src=\"a.png\"\n    alt=\"x\">\n  <a href=\"b.md\">b</a>\n</div>\n";
+
+    assert_eq!(hrefs(content), ["a.png", "b.md"]);
+}
+
+#[test]
+fn html_in_code_blocks_and_spans_is_text() {
+    assert!(hrefs("```html\n<a href=\"a.md\">\n```\n").is_empty());
+    assert!(hrefs("`<a href=\"a.md\">`").is_empty());
+    assert!(hrefs("    <a href=\"a.md\">\n").is_empty());
 }
 
 #[test]

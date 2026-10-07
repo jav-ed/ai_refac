@@ -4,17 +4,20 @@
 //! exactly that text and nothing else.
 //!
 //! Which constructs are links is decided by a CommonMark parser, not by this
-//! file: code blocks (fenced and indented), code spans, HTML comments, raw HTML,
-//! and front matter never produce a link, and a reference definition is found
+//! file: code blocks (fenced and indented), code spans, HTML comments, and
+//! front matter never produce a link, and a reference definition is found
 //! wherever CommonMark finds one (a definition may continue on the next line).
 //! The parser reports where a whole link or definition sits; `destination.rs`
-//! narrows that to the destination.
+//! narrows that to the destination. Raw HTML is not Markdown, so `html.rs`
+//! reads the `href`, `src`, and `srcset` values out of it.
 
 mod destination;
+mod html;
 #[cfg(test)]
 mod tests;
 
 use anyhow::{Result, bail};
+use html::HtmlScanner;
 use pulldown_cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
@@ -52,6 +55,8 @@ pub(crate) fn parse_markdown_links(content: &str) -> Result<Vec<MarkdownLinkTarg
     }
 
     let mut open: Vec<OpenLink> = Vec::new();
+    let mut html = HtmlScanner::default();
+    let mut html_destinations = Vec::new();
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(
@@ -96,13 +101,21 @@ pub(crate) fn parse_markdown_links(content: &str) -> Result<Vec<MarkdownLinkTarg
                     parent.text_end = parent.text_end.max(range.end);
                 }
             }
+            Event::Html(_) | Event::InlineHtml(_) => {
+                if let Some(link) = open.last_mut() {
+                    link.text_end = link.text_end.max(range.end);
+                }
+                html.scan(&content[range.clone()], range.start, &mut html_destinations);
+            }
             _ => {
+                html.interrupted();
                 if let Some(link) = open.last_mut() {
                     link.text_end = link.text_end.max(range.end);
                 }
             }
         }
     }
+    destinations.extend(html_destinations);
 
     destinations.sort_by_key(|range| range.start);
     Ok(destinations
