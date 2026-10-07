@@ -7,14 +7,19 @@ use super::RefactorDriver;
 use anyhow::Result;
 use async_trait::async_trait;
 
+pub mod android;
 pub mod checks;
 pub mod declarations;
 pub mod edits;
 pub mod journal;
+pub mod moved;
 pub mod moves;
 pub mod plan;
 pub mod project;
+pub mod renames;
 pub mod server;
+pub mod stale;
+pub mod survey;
 
 pub struct KotlinDriver;
 

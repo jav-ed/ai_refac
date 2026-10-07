@@ -197,3 +197,23 @@ async fn a_kotlin_file_moves_between_the_kotlin_and_java_folders_of_one_source_s
     assert!(moved.starts_with("package com.example.common"), "{moved}");
     common::kotlin::assert_compiles(project.path(), COMPILE);
 }
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_build_script_that_names_the_old_main_class_is_reported() {
+    common::kotlin::require_server();
+    let project = common::setup_fixture("kotlin/jvm_project");
+
+    let report = run(project.path(), &[pair("app/Main.kt", "launch/Main.kt")]).await;
+
+    // build.gradle.kts says mainClass.set("com.example.app.MainKt"): refac does
+    // not edit build scripts, so it must say so.
+    let note = report
+        .notes
+        .iter()
+        .find(|note| note.contains("build.gradle.kts"))
+        .unwrap_or_else(|| panic!("no note about the build script: {:?}", report.notes));
+    assert!(note.contains("com.example.app.MainKt"), "{note}");
+    assert!(note.contains("com.example.launch.MainKt"), "{note}");
+    common::kotlin::assert_compiles(project.path(), COMPILE);
+}

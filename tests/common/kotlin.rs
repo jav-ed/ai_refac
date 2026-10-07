@@ -56,3 +56,11 @@ pub fn assert_compiles(project: &Path, tasks: &[&str]) {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+/// Android builds need the SDK; a missing one is a setup mistake, not a skip.
+pub fn require_android_sdk() {
+    assert!(
+        std::env::var_os("ANDROID_HOME").is_some(),
+        "ANDROID_HOME is not set. The Android tests compile the fixture, which needs the Android SDK (platform 36, build-tools 36.0.0)."
+    );
+}

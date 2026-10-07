@@ -3,12 +3,17 @@
 //! and the server told what changed on disk before the next group. Every
 //! write and move is journaled, so a failure restores the project.
 
+use super::android;
 use super::checks::{Check, check_moved_file};
 use super::edits::{PlannedFile, parse_workspace_edit, plan_files};
 use super::journal::Journal;
+use super::moved::{Snapshot, locate, relocate};
 use super::plan::{self, Group, MovePlan, Step};
 use super::project::gradle_root;
+use super::renames;
 use super::server::{self, KotlinServer};
+use super::stale;
+use super::survey::survey;
 use crate::drivers::lsp_session::RpcError;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
@@ -31,7 +36,7 @@ pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Resu
     let install = server::locate()?;
     let mut server = KotlinServer::start(&install, &gradle).await?;
     let mut journal = Journal::default();
-    let outcome = run(&mut server, &plan, &mut journal).await;
+    let outcome = run(&mut server, &plan, &gradle, &mut journal).await;
     server.shutdown().await;
     match outcome {
         Ok(report) => Ok(report),
@@ -45,17 +50,28 @@ pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Resu
 async fn run(
     server: &mut KotlinServer,
     plan: &MovePlan,
+    root: &Path,
     journal: &mut Journal,
 ) -> Result<MoveReport> {
     let mut report = MoveReport {
         notes: plan.notes.clone(),
         ..MoveReport::default()
     };
+    let snapshot = Snapshot::take(plan)?;
     for group in &plan.groups {
         run_group(server, group, journal, &mut report)
             .await
             .with_context(|| describe(group))?;
     }
+
+    // What the server never touches: Android XML, the implicit R and
+    // BuildConfig, and old names in files nobody edits for us.
+    let moved = snapshot.finish(plan)?;
+    let renames = renames::collect(&moved)?;
+    let files = survey(root)?;
+    let android = android::update(&files, &moved, &renames.classes, journal)?;
+    report.edited.extend(android.edited);
+    report.notes.extend(stale::scan(root, &files, &renames)?);
     Ok(report)
 }
 
@@ -98,40 +114,6 @@ async fn run_group(
     sync(server, group, &edited).await?;
     report.edited.extend(edited);
     Ok(())
-}
-
-/// The path the server named, as it exists on disk now. An edit may address a
-/// file under its destination before the file has been moved there.
-fn locate(path: &Path, steps: &[Step]) -> PathBuf {
-    if path.exists() {
-        return path.to_path_buf();
-    }
-    for step in steps {
-        if let Ok(rest) = path.strip_prefix(&step.to) {
-            return join_relative(&step.from, rest);
-        }
-    }
-    path.to_path_buf()
-}
-
-/// `Path::join` with an empty path appends a trailing separator, which turns
-/// a file into a bogus directory path.
-fn join_relative(base: &Path, rest: &Path) -> PathBuf {
-    if rest.as_os_str().is_empty() {
-        base.to_path_buf()
-    } else {
-        base.join(rest)
-    }
-}
-
-/// The path of a file after the steps have been carried out.
-fn relocate(path: &Path, steps: &[Step]) -> PathBuf {
-    for step in steps {
-        if let Ok(rest) = path.strip_prefix(&step.from) {
-            return join_relative(&step.to, rest);
-        }
-    }
-    path.to_path_buf()
 }
 
 /// Every moved source file must end up in the package its directory stands for.
