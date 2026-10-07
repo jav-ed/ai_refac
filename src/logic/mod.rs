@@ -2,6 +2,7 @@ use crate::drivers::RefactorDriver;
 use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
 
+pub mod rename;
 mod typescript;
 
 /// Parameters for a refactoring request.

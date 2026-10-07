@@ -60,11 +60,14 @@ fn explicit_module_extensions_route_through_the_typescript_backend() {
         let project = temp.path();
         fs::write(project.join("tsconfig.json"), r#"{"compilerOptions":{"allowJs":true,"module":"nodenext","moduleResolution":"nodenext"},"include":["**/*"]}"#).unwrap();
         fs::write(project.join("package.json"), r#"{"type":"module"}"#).unwrap();
-        fs::write(
-            project.join(format!("value.{source_ext}")),
-            "export const value = 1;\n",
-        )
-        .unwrap();
+        // A .cjs file is CommonJS: ESM `export` syntax there is a parse error,
+        // which the parser reports and the tool refuses to guess around.
+        let body = if source_ext == "cjs" {
+            "exports.value = 1;\n"
+        } else {
+            "export const value = 1;\n"
+        };
+        fs::write(project.join(format!("value.{source_ext}")), body).unwrap();
         fs::write(
             project.join("caller.mts"),
             format!("import './value.{import_ext}';\n"),

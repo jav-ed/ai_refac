@@ -11,9 +11,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "oxc-parser": "0.151.0",
+    "oxc-parser": "0.153.0",
     "oxc-resolver": "11.24.2",
-    "typescript": "6.0.2"
+    "typescript": "6.0.3",
+    "typescript-native": "npm:typescript@7.0.2"
   },
   "devDependencies": {
     "@types/bun": "1.4.2"

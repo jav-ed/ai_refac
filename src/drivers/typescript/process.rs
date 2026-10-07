@@ -39,7 +39,7 @@ async fn read(mut pipe: impl AsyncRead + Unpin) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-async fn memory_limit(pid: Pid, limit: u64) -> Result<()> {
+pub(super) async fn memory_limit(pid: Pid, limit: u64) -> Result<()> {
     let mut system = System::new();
     let mut interval = tokio::time::interval(Duration::from_millis(100));
     loop {

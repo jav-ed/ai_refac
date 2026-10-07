@@ -2,33 +2,11 @@ use super::RefactorDriver;
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
+mod dependencies;
 mod process;
+pub mod rename;
 
 pub struct TypeScriptDriver;
-
-impl TypeScriptDriver {
-    fn get_bun_command(&self) -> String {
-        // 1. Try generic "bun"
-        if std::process::Command::new("bun")
-            .arg("--version")
-            .output()
-            .is_ok()
-        {
-            return "bun".to_string();
-        }
-
-        // 2. Try User's Home (Linux/macOS)
-        if let std::result::Result::Ok(home) = std::env::var("HOME") {
-            let path = std::path::Path::new(&home).join(".bun/bin/bun");
-            if path.exists() {
-                return path.to_string_lossy().to_string();
-            }
-        }
-
-        // 3. Fallback to generic
-        "bun".to_string()
-    }
-}
 
 #[async_trait]
 impl RefactorDriver for TypeScriptDriver {
@@ -43,7 +21,7 @@ impl RefactorDriver for TypeScriptDriver {
             return Ok(false);
         }
 
-        let bun_cmd = self.get_bun_command();
+        let bun_cmd = dependencies::bun_command();
         // Check if bun is available
         match tokio::process::Command::new(&bun_cmd)
             .arg("--version")
@@ -77,35 +55,18 @@ impl RefactorDriver for TypeScriptDriver {
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
         let script_path = super::resolve_resource_path("scripts/ts_refactor.ts")?;
-        let bun_cmd = self.get_bun_command();
+        let bun_cmd = dependencies::bun_command();
 
         // Install the locked parser/resolver dependencies when this checkout is new.
         let script_dir = script_path
             .parent()
             .ok_or_else(|| anyhow::anyhow!("Could not determine scripts directory"))?;
-        let dependencies = ["oxc-parser", "oxc-resolver", "typescript"];
-        if dependencies
-            .iter()
-            .any(|name| !script_dir.join("node_modules").join(name).exists())
-        {
-            tracing::info!(
-                "TypeScript dependencies missing in {:?}, running bun install...",
-                script_dir
-            );
-            let install = tokio::process::Command::new(&bun_cmd)
-                .arg("install")
-                .arg("--frozen-lockfile")
-                .current_dir(script_dir)
-                .output()
-                .await?;
-            if !install.status.success() {
-                anyhow::bail!(
-                    "bun install failed in {:?}: {}",
-                    script_dir,
-                    String::from_utf8_lossy(&install.stderr)
-                );
-            }
-        }
+        dependencies::ensure_installed(
+            &bun_cmd,
+            script_dir,
+            &["oxc-parser", "oxc-resolver", "typescript"],
+        )
+        .await?;
 
         let payload = serde_json::to_string(&file_map)?;
 

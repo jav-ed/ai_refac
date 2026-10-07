@@ -1,6 +1,8 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
+use crate::drivers::typescript::rename::RenameRequest;
+use crate::logic::rename::handle_rename;
 use crate::logic::{RefactorRequest, handle_refactor};
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueHint};
@@ -17,6 +19,7 @@ Move or rename source or Markdown files and update all references across the pro
 
 Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart.
 Use `move-module` for semantic Rust module-subtree moves.
+Use `rename` to rename a TypeScript/JavaScript symbol (variable, function, class, member) and update every reference.
 Paths may be absolute or relative to --project-path.
 
 EXAMPLES:
@@ -31,7 +34,11 @@ EXAMPLES:
 
   # Move a complete Rust module subtree
   refac move-module --project-path /my/cargo-workspace \\
-    crate::engine::matching crate::domain::matching",
+    crate::engine::matching crate::domain::matching
+
+  # Rename a TypeScript symbol and all of its references
+  refac rename --project-path /my/package --file src/lib/util.ts \\
+    --symbol total --new-name grandTotal",
     version
 )]
 pub struct Cli {
@@ -45,6 +52,8 @@ enum Commands {
     Move(MoveArgs),
     /// Move a complete Rust module subtree and rewrite its semantic references.
     MoveModule(MoveModuleArgs),
+    /// Rename a TypeScript/JavaScript symbol and update every reference.
+    Rename(RenameArgs),
     /// Generate shell completions to stdout.
     Completions(CompletionsArgs),
     /// Generate a manpage for the CLI to stdout.
@@ -88,6 +97,41 @@ struct MoveModuleArgs {
 }
 
 #[derive(Debug, Args)]
+struct RenameArgs {
+    /// Package root containing the authoritative tsconfig.json. Defaults to the current directory. Also settable via REFAC_PROJECT_PATH env var.
+    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    project_path: Option<std::path::PathBuf>,
+
+    /// File containing the symbol (relative to project_path or absolute).
+    #[arg(long, value_hint = ValueHint::FilePath)]
+    file: std::path::PathBuf,
+
+    /// Current name of the symbol, as written in that file.
+    #[arg(long)]
+    symbol: String,
+
+    /// New identifier for the symbol.
+    #[arg(long)]
+    new_name: String,
+
+    /// 1-based line that picks the occurrence when the name refers to several symbols in the file.
+    #[arg(long)]
+    line: Option<u32>,
+
+    /// 1-based byte column on --line, like `rg --column`.
+    #[arg(long, requires = "line")]
+    column: Option<u32>,
+
+    /// Plan and verify the rename, report the edits, and change no files.
+    #[arg(long)]
+    dry_run: bool,
+
+    /// Emit machine-readable JSON instead of human text.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
 struct CompletionsArgs {
     #[arg(value_enum)]
     shell: Shell,
@@ -121,6 +165,26 @@ struct MoveModuleSuccessOutput<'a> {
 }
 
 #[derive(Debug, Serialize)]
+struct RenameSuccessOutput<'a> {
+    status: &'static str,
+    operation: &'static str,
+    project_path: &'a str,
+    file: &'a str,
+    symbol: &'a str,
+    new_name: &'a str,
+    dry_run: bool,
+    edits: usize,
+    edited_files: usize,
+    files: Vec<RenamedFile>,
+}
+
+#[derive(Debug, Serialize)]
+struct RenamedFile {
+    path: String,
+    edits: usize,
+}
+
+#[derive(Debug, Serialize)]
 struct ErrorOutput<'a> {
     status: &'static str,
     error: &'a str,
@@ -142,6 +206,7 @@ async fn execute(cli: Cli) -> Result<(), CliError> {
     match cli.command {
         Commands::Move(args) => execute_move(args).await,
         Commands::MoveModule(args) => execute_move_module(args),
+        Commands::Rename(args) => execute_rename(args).await,
         Commands::Completions(args) => execute_completions(args),
         Commands::Man => execute_man(),
     }
@@ -231,6 +296,75 @@ fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {
         println!(
             "// Alhamdulillah Rust module moved semantically:\n{} -> {}\n// {} filesystem path(s) moved; {} source file(s) updated.",
             args.source_module, args.target_module, report.moved_paths, report.edited_files
+        );
+    }
+
+    Ok(())
+}
+
+async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
+    let json = args.json;
+    let project_path = args
+        .project_path
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(std::env::current_dir)
+        .map_err(|error| CliError {
+            json,
+            error: error.into(),
+        })?;
+    let request = RenameRequest {
+        project_path: project_path.clone(),
+        file: args.file.clone(),
+        symbol: args.symbol.clone(),
+        new_name: args.new_name.clone(),
+        line: args.line,
+        column: args.column,
+        dry_run: args.dry_run,
+    };
+    let report = handle_rename(request)
+        .await
+        .map_err(|error| CliError { json, error })?;
+
+    if json {
+        let payload = RenameSuccessOutput {
+            status: "ok",
+            operation: "rename",
+            project_path: &project_path.to_string_lossy(),
+            file: &args.file.to_string_lossy(),
+            symbol: &args.symbol,
+            new_name: &args.new_name,
+            dry_run: report.dry_run,
+            edits: report.edits,
+            edited_files: report.files.len(),
+            files: report
+                .files
+                .iter()
+                .map(|(path, edits)| RenamedFile {
+                    path: path.to_string_lossy().into_owned(),
+                    edits: *edits,
+                })
+                .collect(),
+        };
+        write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })?;
+    } else {
+        let headline = if report.dry_run {
+            "// Dry run: nothing was changed. Planned and verified rename:"
+        } else {
+            "// Alhamdulillah symbol renamed:"
+        };
+        println!("{headline}\n{} -> {}", args.symbol, args.new_name);
+        for (path, edits) in &report.files {
+            println!(
+                "// {} ({edits} edit{})",
+                path.display(),
+                if *edits == 1 { "" } else { "s" }
+            );
+        }
+        println!(
+            "// {} edit(s) in {} file(s).",
+            report.edits,
+            report.files.len()
         );
     }
 
