@@ -23,6 +23,7 @@ which = "8.0.0"
 pathdiff = "0.2"
 walkdir = "2.5"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+tempfile = "3.8"
 ra_ap_hir = "=0.0.350"
 ra_ap_ide = "=0.0.350"
 ra_ap_load-cargo = "=0.0.350"
@@ -30,5 +31,3 @@ ra_ap_project_model = "=0.0.350"
 ra_ap_syntax = "=0.0.350"
 ra_ap_vfs = "=0.0.350"
 
-[dev-dependencies]
-tempfile = "3.8"

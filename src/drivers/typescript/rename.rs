@@ -142,7 +142,7 @@ pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
     let executable = engine::locate().await?;
     engine::preflight(&executable, &project, &file, limits.timeout).await?;
 
-    let mut session = session::Session::start(&executable, &project).await?;
+    let mut session = session::start(&executable, &project).await?;
     let pid = session.pid().context("TypeScript engine has no PID")?;
     // Planning and verification only read; a limit failure here leaves the
     // working tree untouched. Writing happens after this block, uninterrupted.
