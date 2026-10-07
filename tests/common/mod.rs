@@ -70,12 +70,4 @@ pub fn read_file(root: &Path, rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()))
 }
 
-/// The Kotlin language server for the real-server tests. Those tests are
-/// `#[ignore]`d; running them without the server is a setup mistake, so this
-/// panics instead of skipping.
-pub fn require_kotlin_server() {
-    assert!(
-        std::env::var_os("REFAC_KOTLIN_SERVER").is_some(),
-        "REFAC_KOTLIN_SERVER is not set. Install the Kotlin language server first (see Project_Manag/Docs/Setup/kotlin_Server.md) and point REFAC_KOTLIN_SERVER at it."
-    );
-}
+pub mod kotlin;

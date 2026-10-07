@@ -27,8 +27,14 @@ pub fn apply_text_edits(content: &str, edits: Vec<TextEdit>) -> Result<String> {
     edits_with_offsets.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
 
     let mut updated = content.to_string();
+    let mut previous_start = None;
     for (start, end, new_text) in edits_with_offsets {
+        // Overlapping edits are invalid in LSP; applying them would corrupt the text.
+        if previous_start.is_some_and(|previous| end > previous) {
+            anyhow::bail!("Overlapping text edits around byte {start}");
+        }
         updated.replace_range(start..end, &new_text);
+        previous_start = Some(start);
     }
 
     Ok(updated)
@@ -143,5 +149,19 @@ mod tests {
         let updated = apply_text_edits(content, edits)?;
         assert_eq!(updated, "🙂name\n");
         Ok(())
+    }
+
+    #[test]
+    fn test_apply_text_edits_rejects_overlapping_edits() {
+        let edit = |start: u32, end: u32| TextEdit {
+            range: Range {
+                start: Position::new(0, start),
+                end: Position::new(0, end),
+            },
+            new_text: "x".to_string(),
+        };
+        let error = apply_text_edits("abcdef", vec![edit(1, 4), edit(3, 5)]).unwrap_err();
+        assert!(error.to_string().contains("Overlapping"), "{error}");
+        assert!(apply_text_edits("abcdef", vec![edit(1, 3), edit(3, 5)]).is_ok());
     }
 }

@@ -4,9 +4,15 @@
 //! Android parts the server does not touch.
 
 use super::RefactorDriver;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use async_trait::async_trait;
 
+pub mod checks;
+pub mod declarations;
+pub mod edits;
+pub mod journal;
+pub mod moves;
+pub mod plan;
 pub mod project;
 pub mod server;
 
@@ -27,9 +33,13 @@ impl RefactorDriver for KotlinDriver {
 
     async fn move_files(
         &self,
-        _file_map: Vec<(String, String)>,
-        _root_path: Option<&std::path::Path>,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        bail!("Kotlin moves are not implemented yet")
+        let report = moves::move_files(&file_map, root_path).await?;
+        for note in &report.notes {
+            tracing::info!("{note}");
+        }
+        Ok(())
     }
 }

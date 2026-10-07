@@ -5,33 +5,21 @@
 //! while we wait, so a server request that reuses one of our request ids is
 //! never mistaken for an answer.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::io::{AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use url::Url;
 
-/// A JSON-RPC error answer, kept typed so a refused request (an expected
-/// outcome) is distinguishable from a broken server.
-#[derive(Debug)]
-pub struct RpcError {
-    pub code: i64,
-    pub message: String,
-}
+mod protocol;
 
-impl fmt::Display for RpcError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (LSP error {})", self.message, self.code)
-    }
-}
-
-impl std::error::Error for RpcError {}
+pub use protocol::RpcError;
+use protocol::read_message;
 
 pub struct SessionConfig<'a> {
     /// Name used in error messages, for example "TypeScript native engine".
@@ -281,6 +269,29 @@ impl LspSession {
         }
     }
 
+    /// Close every open document at or below `path`, for files that were
+    /// moved or deleted. A document the session never opened is ignored.
+    pub async fn close_under(&mut self, path: &Path) -> Result<()> {
+        let open: Vec<PathBuf> = self
+            .versions
+            .keys()
+            .filter(|opened| opened.starts_with(path))
+            .cloned()
+            .collect();
+        for opened in open {
+            self.versions.remove(&opened);
+            let uri = Url::from_file_path(&opened)
+                .map_err(|_| anyhow::anyhow!("Invalid document path {}", opened.display()))?
+                .to_string();
+            self.notify(
+                "textDocument/didClose",
+                json!({ "textDocument": { "uri": uri } }),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     pub async fn shutdown(mut self) {
         let _ = tokio::time::timeout(
             Duration::from_secs(3),
@@ -290,26 +301,4 @@ impl LspSession {
         let _ = self.notify("exit", Value::Null).await;
         let _ = tokio::time::timeout(Duration::from_secs(2), self.child.wait()).await;
     }
-}
-
-async fn read_message(reader: &mut BufReader<ChildStdout>) -> Result<Value> {
-    let mut length = None;
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).await? == 0 {
-            bail!("Server closed its output");
-        }
-        let line = line.trim_end();
-        if line.is_empty() {
-            break;
-        }
-        if let Some((name, value)) = line.split_once(':')
-            && name.eq_ignore_ascii_case("content-length")
-        {
-            length = Some(value.trim().parse::<usize>()?);
-        }
-    }
-    let mut body = vec![0; length.context("Message without Content-Length")?];
-    reader.read_exact(&mut body).await?;
-    Ok(serde_json::from_slice(&body)?)
 }

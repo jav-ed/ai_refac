@@ -12,7 +12,7 @@ use url::Url;
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn the_server_imports_the_project_and_answers_requests() {
-    common::require_kotlin_server();
+    common::kotlin::require_server();
     let project = common::setup_fixture("kotlin/jvm_project");
     let root = project.path().canonicalize().unwrap();
     let install = server::locate().unwrap();
@@ -37,7 +37,7 @@ async fn the_server_imports_the_project_and_answers_requests() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_broken_gradle_build_fails_loudly_with_the_import_log() {
-    common::require_kotlin_server();
+    common::kotlin::require_server();
     let project = common::setup_fixture("kotlin/jvm_project");
     let root = project.path().canonicalize().unwrap();
     std::fs::write(
