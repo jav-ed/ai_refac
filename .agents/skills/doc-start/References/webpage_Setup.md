@@ -28,7 +28,7 @@ The file must cover four things, in this order:
 
 3. **Common commands.** At minimum, `playwright-cli open <url>` and `playwright-cli screenshot --filename=Scratch/Screenshots/<page>.png`. Always route output to `Scratch/Screenshots/`, never to anywhere tracked by git. Point to the `playwright-cli` skill itself for resize, multi-tab, tracing, and the long tail.
 
-4. **`Scratch/` subfolder usage.** Restate the three-subfolder layout (`Screenshots/`, `Design/`, `Audit/`) so agents working on visual tasks do not have to look it up elsewhere. Note that the whole `Scratch/` folder is gitignored.
+4. **`Scratch/` subfolder usage.** State the four standard folders (`Agent_Tasks/`, `Audit/`, `Design/`, `Screenshots/`). The whole folder is gitignored and disposable; `just scratch-clean` deletes its contents and recreates these folders empty. Link to the repository's cleanup guide for the operating details.
 
 ## Skill-check intent
 

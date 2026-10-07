@@ -1,6 +1,6 @@
 ---
 name: doc-start
-description: Write or reorganize repository documentation using a navigation-first structure. `Project_Manag/Docs/doc_Start.md` is the docs entry point. Large topic areas get their own `linker_Topic.md` file. Every file opens with a summary, then routes through clearly-labeled links.
+description: Write or reorganize repository documentation around doc_Start.md, topic linkers, and concise summaries. Use when scaffolding or maintaining the documentation map and its disposable Scratch tooling.
 ---
 
 # doc-start
@@ -27,7 +27,8 @@ repo-root/
 ├── Scratch/                              # throwaway outputs, fully gitignored
 │   ├── Screenshots/                      # playwright screenshots
 │   ├── Design/                           # design references, mockups
-│   └── Audit/                            # audit reports, snapshots
+│   ├── Audit/                            # audit reports, snapshots
+│   └── Agent_Tasks/                      # temporary agent checklists
 └── Project_Manag/
     ├── Docs/
     │   ├── doc_Start.md                  # docs entry point: summary + routing
@@ -53,11 +54,11 @@ repo-root/
 
 Repo references are split by ownership. First-party repos use stable shortcut names in prose, with host-scoped full checkout paths recorded in `Project_Manag/Docs/Setup/internal_Repo_Paths.md`. External or third-party reference repos are shallow clones under gitignored `Repos/`, with clone commands recorded in `Project_Manag/Docs/Setup/repos_List.md`. For the full convention, see [Repos convention](References/repos_Convention.md).
 
-`Scratch/` also lives at the repo root and is the standard location for throwaway, agent-generated outputs (screenshots, design references, audit snapshots). It always has three subfolders — `Screenshots/`, `Design/`, `Audit/` — and is fully gitignored end-to-end. Nothing inside is ever committed; if a file in `Scratch/` matters, copy it elsewhere first.
+`Scratch/` lives at the repo root and is fully disposable and gitignored. Its four standard folders are `Agent_Tasks/`, `Audit/`, `Design/`, and `Screenshots/`. Every scaffold includes `just scratch-clean`: a manual command that deletes all Scratch contents and recreates those four empty folders. Application code, deployment artifacts, persistent state, and durable docs must not depend on retained Scratch files. Promote lasting material to its proper owner before cleanup. See [Scratch cleanup](References/scratch_Cleanup.md) for the portable helper, existing-project integration, and deletion boundaries.
 
 For **webpage projects only**, `Project_Manag/Docs/Setup/visual_Testing.md` documents how the agent runs visual tests against the project's dev server (playwright commands, dev server check, scratch folder usage). Non-webpage projects do not create this file. For the convention, see [Webpage setup](References/webpage_Setup.md).
 
-When starting a new repo, the required folders (`Architecture`, `Decisions`, `Descr`, `Research`, `Setup`), `Project_Manag/Docs/doc_Start.md`, `Project_Manag/Docs/Setup/internal_Repo_Paths.md`, `Project_Manag/Docs/Setup/repos_List.md`, and `Live_Working/open_Issues.md` need to be present. The user can run `Code/bootstrap.sh` to create the full scaffold (folders + linker stubs + `doc_Start.md` + `internal_Repo_Paths.md` + `repos_List.md` + `Repos/` + `Scratch/` + three Scratch subfolders + `.gitignore` entries + `open_Issues.md`); the agent can also create missing pieces by hand, but should only run the script when explicitly asked. `Brand/` and `Investigation/` are added only when the project actually has material in those categories. `visual_Testing.md` is added only on webpage projects. For what each folder is for, see [Folder guidance](References/folder_Guidance.md).
+When starting a new repo, the required folders (`Architecture`, `Decisions`, `Descr`, `Research`, `Setup`), `Project_Manag/Docs/doc_Start.md`, `Project_Manag/Docs/Setup/internal_Repo_Paths.md`, `Project_Manag/Docs/Setup/repos_List.md`, and `Live_Working/open_Issues.md` need to be present. The user can run `Code/bootstrap.sh` to create the full scaffold, including the four Scratch folders, the cleanup helper and Just recipe, and `Setup/scratch.md`; the agent can also create missing pieces by hand, but should only run the bootstrap script when explicitly asked. Setup never invokes cleanup, and existing Just recipes are retained. `Brand/` and `Investigation/` are added only when the project actually has material in those categories. `visual_Testing.md` is added only on webpage projects. For what each folder is for, see [Folder guidance](References/folder_Guidance.md).
 
 ## Writing rules (common case)
 

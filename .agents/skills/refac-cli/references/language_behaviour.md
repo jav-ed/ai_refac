@@ -45,6 +45,19 @@ The helper is terminated and reaped after 5 minutes or sampled RSS above 4 GiB (
 
 Declared aliases are rewritten and verified. Project references, symlink moves, overlapping requests, and ambiguous locally bound `require` calls fail explicitly. Computed imports, arbitrary path strings, comments, and package/config metadata need manual audit. Search old paths and run the project build. See [TypeScript backend](../../../../Project_Manag/Docs/Features/TypeScript/linker_TypeScript.md) for supported forms and exact limits.
 
+## TypeScript / JavaScript — symbol rename
+
+`refac rename` uses the TypeScript 7 native language server (installed from the locked `typescript-native` dependency by the first run's `bun install --frozen-lockfile`). It is a separate engine from file moves.
+
+- Pick the symbol with `--file` and `--symbol`. If the name refers to several symbols in that file, the command lists the candidates; repeat it with `--line` (1-based) and, if one line has several, `--column` (1-based byte column).
+- Nothing is written until the rename is planned and verified in memory. A new name that clashes with or shadows another symbol is refused, even when the result would still compile.
+- TypeScript keeps public names: `{ total }` becomes `{ total: renamed }` and `export { total } from "./x"` becomes `export { renamed as total } from "./x"`. Strings, comments, JSON, and Markdown are never edited.
+- A tsconfig that uses options TypeScript 7 removed (`baseUrl`, `moduleResolution: node10`) is rejected with the engine's diagnostic, because the engine would otherwise miss files silently. File moves are unaffected.
+- Only usages in projects the engine loads are renamed. Put every caller in the package's tsconfig, then search for the old name and run the project's typecheck. Edits that would land outside `--project-path` (for example a referencing project) stop the rename.
+- Use `--dry-run --json` first to see which files change and how many edits each gets.
+
+Details, the safety sequence, and the evidence behind the engine choice: [TypeScript symbol rename](../../../../Project_Manag/Docs/Features/TypeScript/symbol_Rename.md).
+
 ## Python — re-export limits
 
 Rope cannot trace imports that go through `__init__.py` re-exports. If a package re-exports a symbol and callers import via that re-export, those callers are not updated.

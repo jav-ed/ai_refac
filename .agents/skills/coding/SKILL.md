@@ -13,7 +13,6 @@ These rules apply to every language and every coding task. They are not optional
 - **Single responsibility**: one file, one clear purpose. If a function does not clearly belong anywhere, place it in a `helpers` file within the relevant feature folder.
 - **No deep nesting**: use early returns and guard clauses to keep logic flat.
 - **Maximum 300 lines of code per file**: comments do not count toward this limit. Comments must never be removed merely to reduce the line count.
-- **Maximum 9 files per folder**: if a folder has more than 9 files, group them into subfolders by responsibility. Both the parent folder and each child folder must meet this limit. Do not create arbitrary groups or merge unrelated responsibilities into fewer files just to satisfy the limit.
 - **Never remove comments**: preserve comments unless the behavior they describe has changed or their removal was explicitly requested. When behavior changes, update the relevant comment.
 - **No fallbacks**: hard breaks only. Missing, malformed, unsupported, or contradictory data must cause an explicit failure. Do not silently substitute defaults or conceal broken contracts. If things crash, we need to experience those crashes.
 
@@ -52,42 +51,7 @@ second_code
 
 ## File and Folder Structure
 
-The file tree is part of the codebase's interface. A clear tree lets developers understand the system, locate behavior quickly, and extend it without searching through unrelated files.
-
-Organize primarily by **feature**, not by technical type. Each feature folder should expose one clear entry file, with narrowly focused supporting files beside it. You should be able to read the entry file to understand what the feature does, then follow its imports for implementation details.
-
-Every path segment must add useful information. A child name must not repeat context already supplied by its parent folder.
-
-```text
-Profile/
-  Editor.tsx             ← feature entry
-  validation.ts          ← supporting file
-  helpers.ts             ← supporting file
-  types.ts               ← supporting file
-
-Imgs/
-  hero.webp
-  optimization_Guide.md
-```
-
-Do not write redundant paths such as:
-
-```text
-Imgs/
-  Img_Hero.webp
-  Img_File_New.md
-```
-
-The `Imgs/` parent already provides the image context. Repeating `Img` makes the tree noisier without adding meaning.
-
-- Name files according to their local responsibility, not their entire ancestry.
-- A folder should represent one cohesive domain, feature, or meaningful subdivision.
-- One file has one clear purpose. If a file owns two distinct responsibilities, split it.
-- Keep tests beside their implementation.
-- Keep every file within the 300-line code limit and preserve its comments.
-- Do not create layers or folders that contain only one trivial forwarding file.
-- Shared or cross-cutting code gets its own clearly named folder, such as `shared/`, `utils/`, or `core/`.
-- A dedicated `helpers` file may contain small functions that do not clearly belong elsewhere within the feature. Do not create a separate folder for every small helper.
+Group related work by purpose so developers can easily find and understand it. For more, read the [file-tree optimization skill](../file-tree-optimization/SKILL.md): grouping rules, ownership, naming, inspection commands, and verified refactoring.
 
 ## Naming Conventions
 

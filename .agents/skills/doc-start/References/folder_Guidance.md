@@ -43,12 +43,15 @@ Before relying on a full path from this file, use the repo's host-detection conv
 
 ## Scratch/ at the repo root
 
-`/Scratch/` lives at the repo root (sibling of `Project_Manag/`) and is the standard location for throwaway, agent-generated outputs. It always has three subfolders, used for the categories below:
+`/Scratch/` lives at the repo root (sibling of `Project_Manag/`) and contains disposable, agent-generated outputs. Its four standard subfolders are recreated empty by `just scratch-clean`:
 
 | Subfolder | Use for |
 |---|---|
+| `Scratch/Agent_Tasks/` | Temporary agent checklists |
 | `Scratch/Screenshots/` | Playwright (or other) screenshots of the running app |
 | `Scratch/Design/` | Design references and mockups pulled in for visual comparison |
 | `Scratch/Audit/` | Audit reports and snapshots (accessibility, performance, etc.) |
 
-The whole folder is gitignored end-to-end. Nothing inside is ever committed; if a file in `Scratch/` matters, copy it elsewhere first. `bootstrap.sh` creates the folder and its three subfolders unconditionally — projects that do not use them simply leave them empty.
+The whole folder is gitignored. Cleanup removes everything inside, including all Markdown, logs, images, JSON, hidden files, copied source trees, and extra folders. Keep reusable code, CI artifacts, persistent data, and durable documentation outside Scratch. Documents may identify temporary output locations but must explain their conclusions without relying on those files remaining available.
+
+`bootstrap.sh` creates the folders and installs the manual cleanup command without running it. See [Scratch cleanup](scratch_Cleanup.md): installation, existing commands, safe path handling, and verification.

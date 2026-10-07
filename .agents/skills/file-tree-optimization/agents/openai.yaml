@@ -1,0 +1,3 @@
+interface:
+  display_name: "File-tree optimization"
+  short_description: "Inspect file trees and organize by responsibility"

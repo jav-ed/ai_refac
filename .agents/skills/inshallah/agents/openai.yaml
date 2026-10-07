@@ -1,0 +1,4 @@
+interface:
+  display_name: "inshallah"
+  short_description: "Write inshallah naturally across languages"
+  default_prompt: "Use $inshallah to review this draft for natural inshallah usage across the relevant language."

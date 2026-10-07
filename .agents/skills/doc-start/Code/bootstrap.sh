@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bootstrap a new repo with the canonical doc-start structure.
-# Safe to re-run: existing files and folders are never overwritten.
+# Safe to re-run: existing docs and folders are retained; a missing Just recipe is appended.
 #
 # Usage:
 #   bootstrap.sh            # run in current directory
@@ -8,6 +8,7 @@
 
 set -euo pipefail
 
+BOOTSTRAP_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="${1:-.}"
 cd "$ROOT"
 
@@ -103,6 +104,18 @@ Local setup, environment bootstrap, install steps, first-party repo shortcuts, a
 
 - [Internal repo paths](internal_Repo_Paths.md): maps first-party repo shortcut names to host-scoped checkout paths. Docs should use the shortcut name in prose and link here when the absolute path matters.
 - [External reference repos](repos_List.md): manifest of third-party or external repos cloned into `/Repos/` (gitignored at repo root). Lists what should be present and gives the `git clone --depth 1` command for each, so the folder can be repopulated on a fresh machine.
+- [Scratch cleanup](scratch.md): manual full reset of disposable files and the four empty folders it recreates.
+EOF
+)"
+
+create_file "Project_Manag/Docs/Setup/scratch.md" "$(cat <<'EOF'
+# Scratch
+
+`Scratch/` holds disposable task notes, screenshots, design previews, logs, generated fixtures, and copied source trees. Reusable code, deployment artifacts, persistent data, and durable documentation belong outside it.
+
+Run `just scratch-clean` when work using these files has finished. It deletes every entry, including hidden files and all Markdown, then recreates empty `Agent_Tasks/`, `Audit/`, `Design/`, and `Screenshots/` folders. There are no age filters or file-type exceptions.
+
+The command targets this repository's Scratch directory. It refuses a symlinked root and removes nested links without following their targets. It is never run automatically during setup, builds, or ordinary development. Preserve lasting findings in their owning docs before cleanup.
 EOF
 )"
 
@@ -156,13 +169,16 @@ EOF
 )"
 ensure_gitignore_line "Repos/"
 
-# Scratch folder at repo root (fully gitignored) + three standard subfolders.
+# Scratch folder at repo root (fully gitignored) + four standard subfolders.
 # Created unconditionally; if a project does not use them, the empty folders
 # cost nothing.
 create_dir "Scratch"
+create_dir "Scratch/Agent_Tasks"
 create_dir "Scratch/Screenshots"
 create_dir "Scratch/Design"
 create_dir "Scratch/Audit"
 ensure_gitignore_line "Scratch/"
+
+bash "$BOOTSTRAP_SCRIPT_DIR/install_Scratch.sh" "$PWD"
 
 echo "done."
