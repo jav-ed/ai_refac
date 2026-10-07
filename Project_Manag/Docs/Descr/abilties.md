@@ -8,6 +8,7 @@
 * **Batch Operations**: Execute multiple move operations in one CLI invocation by repeating `--source-path` and `--target-path`.
 * **Cross-Language Orchestration**: Routes each move to the correct backend for the target language.
 * **Safety First**: Uses language-aware tooling instead of raw filesystem renames whenever possible.
+* **Symbol Rename (TypeScript / JavaScript)**: `refac rename` renames a variable, function, class, interface, enum, or member and updates every reference. It plans and verifies the whole rename in memory, supports `--dry-run`, and refuses name clashes. Details in [Symbol Rename](../Features/TypeScript/symbol_Rename.md).
 * **Human or JSON Output**: Supports human-readable output and machine-readable `--json` responses.
 
 ## 2. Currently Supported Languages
@@ -17,7 +18,7 @@ The tool integrates with the following language toolchains:
 | Language | Driver Engine | Required Tooling |
 | :--- | :--- | :--- |
 | **Python** | `Rope` (primary) / `Pyrefly` (fallback) | `rope` package in `.venv` or `python3`; `pyrefly` only needed as fallback |
-| **TypeScript / JS** | Oxc parser + TypeScript resolver | `bun` |
+| **TypeScript / JS** | Oxc parser + TypeScript resolver (moves); TypeScript 7 native language server (rename) | `bun` |
 | **Markdown** | Native Rust backend | none |
 | **Rust** | `rust-analyzer` LSP plus embedded HIR | `rust-analyzer` binary for ordinary file renames |
 | **Go** | `gopls` | `gopls` in PATH or `~/go/bin` |
@@ -29,7 +30,7 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 
 | Language | Limit |
 | :--- | :--- |
-| **TypeScript / JS** | Complete caller updates require an authoritative `tsconfig.json` that includes all local TS/JS sources. Batches are limited to 30 contained source files. Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
+| **TypeScript / JS** | Complete caller updates require an authoritative `tsconfig.json` that includes all local TS/JS sources. Batches are limited to 30 contained source files. Rename additionally needs a tsconfig that TypeScript 7 accepts (no `baseUrl`, no `node10` resolution). Details in [TypeScript Feature Docs](../Features/TypeScript/linker_TypeScript.md). |
 | **Python** | Rope cannot trace imports that go through `__init__.py` re-exports (indirect imports). Rope is tried first; Pyrefly is the fallback. Details in [Python Feature Docs](../Features/Python/linker_Python.md). |
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
 | **Rust** | Same-dir file renames use LSP symbol rename. Structural moves use `move-module`, move the complete conventional module subtree, rewrite resolved workspace references, never add `#[path]` shims, and roll back source changes when validation fails. Strict v1 rejects ambiguous or unsupported layouts. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |

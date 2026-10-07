@@ -1,25 +1,36 @@
 # Doc Start
 
-This repo is a CLI-first refactoring tool. Its job is to move files and update affected references so projects stay consistent after structural changes. The current runtime surface is the `refac` CLI, and the implementation uses language-specific backends for TypeScript/JavaScript, Python, Markdown, Rust, Go, and Dart.
+*This `doc_Start.md` is the docs entry point, structured so an agent can quickly decide what to read and what to skip. It opens with a short summary of the repo and key entry-point files, then routes to each topic area through labeled links. Open a linker only when the task calls for it; the labels are written to make that decision possible without clicking.*
 
-Use this file as the top-level handoff. Do not paste large doc contents into agent context by default. Read only the linked files that are relevant to the task at hand.
+This repo is a CLI-first refactoring tool. Its job is to move files and update affected references so projects stay consistent after structural changes, and to rename TypeScript/JavaScript symbols with every reference. The current runtime surface is the `refac` CLI, and the implementation uses language-specific backends for TypeScript/JavaScript, Python, Markdown, Rust, Go, and Dart.
 
 Operational decision: after building `refac`, the binary is made available via `~/.local/bin/refac`. During active development, the preferred setup is a symlink from `~/.local/bin/refac` to the release binary. That keeps the command stable while letting rebuilt binaries take effect without any reinstall step.
 
-**Keep the global install current:** every source change requires a `cargo build --release` so the symlinked binary stays in sync with the latest code. If `~/.local/bin/refac` is missing or stale, the globally available command does not reflect recent changes. See [Install & Build](./Guides/dev_guide.md) § 6 for the full workflow.
+**Keep the global install current:** every source change requires a `cargo build --release` so the symlinked binary stays in sync with the latest code. If `~/.local/bin/refac` is missing or stale, the globally available command does not reflect recent changes. See [Install & Build](Guides/dev_guide.md) § 6 for the full workflow.
 
-## Navigation
+Entry points: `src/bin/refac.rs` and `src/cli.rs` (commands `move`, `move-module`, `rename`), `src/logic/mod.rs` (move dispatch by language), `src/drivers/` (one backend per language), `scripts/ts_refactor.ts` (TypeScript move helper run by Bun).
 
-- **[Capabilities & Language Support](./Descr/abilties.md)** — supported languages and engines, limits per backend, directory moves (TypeScript only), Dart package URI behaviour, JSON output schema
-- **[TypeScript / JS](./Features/TypeScript/linker_TypeScript.md)** — Oxc parsing, TypeScript resolution, rollback, memory limits, aliases, directory moves
-- **[Python](./Features/Python/linker_Python.md)** — Rope/Pyrefly backends, re-export limits, namespace packages
-- **[Go](./Features/Go/linker_Go.md)** — whole-package moves, batch session architecture, go.mod requirement
-- **[Rust](./Features/Rust/linker_Rust.md)** — LSP file renames, semantic module-subtree moves, workspace reference migration, strict v1 limits
-- **[Markdown](./Features/Markdown/linker_Markdown.md)** — relative link rewriting, limits (no code blocks, no absolute URLs)
-- **[Install & Build](./Guides/dev_guide.md)** — build from source, symlink to `~/.local/bin/`, cargo install, PATH setup
-- **[Testing & Debugging](./Guides/Testing_and_Debugging.md)** — test suite structure, fixture projects, batch move tests, debugging failures
-- **[Agent Skill](../../.agents/skills/refac-cli/SKILL.md)** — using `refac` via AI agent, Claude Code integration, language constraints summary
-- **[Public Docs Repository](../Setup/internal_Repo_Paths.md)** — how the sibling `Refac_Docs` repository relates to this CLI source of truth
-- **[Project Goal](./Descr/goal.md)** — scope, direction, and intended use
-- **[Tool Research](./Research/tool_Research_Report.md)** — why each backend was chosen over alternatives
-- **[ty / Python Refactoring Notes](./Research/ty_python_refactoring.md)** — why ty is not used for Python moves
+## Docs
+
+- [Capabilities & Language Support](Descr/abilties.md): supported languages and engines, the limits of each backend, directory moves (TypeScript only), symbol rename (TypeScript only), Dart package URI behaviour, and the JSON output schema.
+- [TypeScript / JS](Features/TypeScript/linker_TypeScript.md): file and directory moves (Oxc parsing, TypeScript resolution, rollback, memory limits, aliases) and `refac rename` for symbols (TypeScript 7 native engine, in-memory verification, hard-fail rules, the legacy `baseUrl` limit).
+- [Python](Features/Python/linker_Python.md): Rope and Pyrefly backends, re-export limits, namespace packages.
+- [Go](Features/Go/linker_Go.md): whole-package moves, batch session architecture, the `go.mod` requirement.
+- [Rust](Features/Rust/linker_Rust.md): LSP file renames, semantic module-subtree moves, workspace reference migration, strict v1 limits.
+- [Markdown](Features/Markdown/linker_Markdown.md): relative link rewriting and its limits (no code blocks, no absolute URLs).
+- [Install & Build](Guides/dev_guide.md): build from source, symlink to `~/.local/bin/`, cargo install, PATH setup.
+- [Testing & Debugging](Guides/Testing_and_Debugging.md): test suite structure, fixture projects, batch move tests, rename tests, debugging failures.
+- [Agent Skill](../../.agents/skills/refac-cli/SKILL.md): using `refac` through an AI agent, Claude Code integration, language constraints summary.
+- [Project Goal](Descr/goal.md): scope, direction, and intended use.
+- [Investigations](Investigation/linker_Investigation.md): evidence behind engine choices, currently the TypeScript symbol-rename engine comparison with test cases, speed, memory, and the silent failures found.
+- [Tool Research](Research/tool_Research_Report.md): why each file-move backend was chosen over alternatives.
+- [ty / Python Refactoring Notes](Research/ty_python_refactoring.md): why ty is not used for Python moves.
+- [Open issues](../Live_Working/open_Issues.md): active items such as the logo, docs publishing, and the skill-file onboarding idea.
+
+## Repo References
+
+- [Internal repo paths](Setup/internal_Repo_Paths.md): the sibling `Refac_Docs` repository (public Fumadocs site) and how it relates to this CLI source of truth.
+- [External reference repos](Setup/repos_List.md): upstream source clones kept under the gitignored `Repos/` folder, with the commands to restore them.
+- [Handoff](Setup/handoff_Continuation.md): where the work stopped on 2026-10-07 (TypeScript rename done, Kotlin backend not started), what is not in git, and the first commands to run.
+
+Note: this file lives at `Project_Manag/Docs/doc_Start.md`, so all link paths above are relative to `Project_Manag/Docs/`.

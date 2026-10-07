@@ -1,6 +1,6 @@
 # refac
 
-A CLI tool that moves source files and updates affected import paths, module references, and links across a project. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
+A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames TypeScript/JavaScript symbols with every reference. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
 
 > Built for personal use. If it's useful to you, go ahead — no guarantees.
 
@@ -29,6 +29,7 @@ Every subcommand is documented at the CLI level. No hunting through READMEs.
 refac --help
 refac move --help
 refac move-module --help
+refac rename --help
 ```
 
 ---
@@ -77,12 +78,14 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 | Language | Files | Directories | Logical modules | Engine |
 |---|---|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ | — | Oxc parser + TypeScript resolver via Bun |
+| TypeScript / JavaScript | ✅ | ✅ | — | Oxc parser + TypeScript resolver via Bun; symbol rename via the TypeScript 7 native language server |
 | Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly) |
 | Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR |
 | Go | ✅ | ❌ | — | gopls (LSP) |
 | Dart | ✅ | ❌ | — | Dart analysis server (LSP) |
 | Markdown | ✅ | ❌ | — | Native (no external tooling) |
+
+Symbol rename (`refac rename`) is available for TypeScript / JavaScript only.
 
 Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.md`). Directory sources are routed to the TypeScript driver; all other languages require individual files.
 
@@ -165,6 +168,18 @@ refac move-module \
 
 `--project-path` may be a Cargo package or workspace root. Refac resolves the source module semantically, moves its complete conventional file/`mod.rs` subtree, rewrites resolved references in the workspace, adjusts affected `super::` paths, creates missing parent modules, and validates the result with `cargo check --workspace --all-targets`.
 
+### Rename a TypeScript / JavaScript symbol
+
+```bash
+refac rename \
+  --project-path /path/to/package \
+  --file src/lib/util.ts \
+  --symbol total \
+  --new-name grandTotal
+```
+
+`--project-path` is the package root whose `tsconfig.json` includes every caller. Refac finds every reference with the TypeScript 7 native language server (imports, aliases, re-exports, namespace access, class members, JSX, `.js` files), plans all edits, proves in memory that the new name neither clashes with nor shadows another symbol, and only then writes. Use `--dry-run` to preview the edits. If the name refers to several symbols in the file, the command lists them; pass `--line` (and `--column`) to choose one. Strings and comments are never edited. See [Symbol rename](Project_Manag/Docs/Features/TypeScript/symbol_Rename.md) for the safety rules and limits.
+
 ### JSON output
 
 ```bash
@@ -227,8 +242,13 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
 - Links inside fenced code blocks and inline code spans are not rewritten.
 
+**TypeScript symbol rename**
+- Only usages in projects the engine loads are renamed: keep every caller in the package's tsconfig and search for the old name afterwards.
+- The tsconfig must be accepted by TypeScript 7. `baseUrl` and `moduleResolution: node10` are rejected with the engine's diagnostic. File moves are not affected.
+- A name that clashes with or shadows another symbol is refused, and an ambiguous name asks for `--line`.
+
 **General**
-- No dry-run mode. Changes are applied to disk immediately.
+- File moves have no dry-run mode: changes are applied to disk immediately. `rename` supports `--dry-run`.
 - Ordinary file-move backends may overwrite a target path. Rust `move-module` rejects existing targets during preflight.
 - The tool does not walk into `node_modules/`, `target/`, `.git/`, or similar build/vendor directories when scanning for references.
 
@@ -257,6 +277,8 @@ The approach depends on the language:
 **LSP-backed file moves (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current.
 
 **Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
+
+**TypeScript 7 native server (TypeScript / JavaScript symbol rename):** `rename` starts `tsc --lsp --stdio` from the locked `typescript-native` dependency, asks it for the rename edits, applies them in memory only, and asks for the references of the renamed declaration to prove that no clash or shadowing changed any meaning. Files are written only after that check, with rollback on a failed write. See [Symbol rename](Project_Manag/Docs/Features/TypeScript/symbol_Rename.md).
 
 **Oxc (TypeScript / JavaScript):** A Bun helper parses configured sources with Oxc and resolves code imports with TypeScript, without a compiler Program or type checker. It plans the complete batch, edits module literals precisely, and verifies resolution after movement. Ordinary apply/verification failures roll back. Assets use Oxc Resolver; the supervisor enforces time and memory limits. See [TypeScript details](Project_Manag/Docs/Features/TypeScript/linker_TypeScript.md).
 

@@ -40,6 +40,7 @@ Each language has a fixture directory and a test file:
 | Language   | Fixture                              | Test file                    | Move under test                                          |
 |------------|--------------------------------------|------------------------------|----------------------------------------------------------|
 | TypeScript | `tests/fixtures/typescript/project/` | `tests/typescript_move.rs`   | `src/models/User.ts` → `src/core/User.ts`               |
+| TypeScript rename | `tests/fixtures/typescript/rename_project/` | `tests/typescript_rename.rs` | symbol renames, clash and shadow refusals, UTF-8/BOM/CRLF, config rejection |
 | Python     | `tests/fixtures/python/project/`     | `tests/python_move.rs`       | `myapp/utils/formatters.py` → `myapp/core/formatters.py`|
 | Rust       | `tests/fixtures/rust/project/`       | `tests/rust_move.rs`         | `src/types.rs` → `src/shared/types.rs`                  |
 | Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`           | `pkg/utils/format.go` → `pkg/helpers/format.go`         |

@@ -1,6 +1,6 @@
 # Comprehensive Refactoring Tools Research Report
 
-Historical backend evaluation. The TypeScript recommendation was superseded by the [Oxc parser and TypeScript resolver backend](../Features/TypeScript/linker_TypeScript.md) on 2026-09-23.
+Historical backend evaluation. The TypeScript recommendation was superseded by the [Oxc parser and TypeScript resolver backend](../Features/TypeScript/linker_TypeScript.md) on 2026-09-23. The symbol-rename engine was chosen separately on 2026-10-07: see [TypeScript rename engines](../Investigation/typescript_Rename_Engines.md).
 
 ## Objective
 
