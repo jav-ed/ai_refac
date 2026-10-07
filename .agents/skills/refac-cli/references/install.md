@@ -2,7 +2,7 @@
 
 ## Build from source
 
-Requires **Rust 1.98+ (edition 2024)**. This checkout pins Rust 1.98.1 and the rustfmt/rust-analyzer components in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.
+Requires **Rust 1.99+ (edition 2024)**. This checkout pins Rust 1.99.0 and the rustfmt/rust-analyzer components in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.
 
 ```bash
 git clone https://github.com/jav-ed/ai_refac.git

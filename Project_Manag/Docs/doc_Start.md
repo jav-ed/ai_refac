@@ -32,6 +32,7 @@ Entry points: `src/bin/refac.rs` and `src/cli.rs` (commands `move`, `move-module
 
 - [Internal repo paths](Setup/internal_Repo_Paths.md): the sibling `Refac_Docs` repository (public Fumadocs site) and how it relates to this CLI source of truth.
 - [External reference repos](Setup/repos_List.md): upstream source clones kept under the gitignored `Repos/` folder, with the commands to restore them.
+- [Tool versions](Setup/tool_Versions.md): every tool and library refac builds on or drives (Rust toolchain, `ra_ap_*` pins, Bun and npm packages, language servers, Gradle/AGP/Kotlin fixtures), the version verified, where it is pinned, and what constrains a bump. Open it before updating anything.
 - [Kotlin server setup](Setup/kotlin_Server.md): downloading and verifying the JetBrains Kotlin language server, `REFAC_KOTLIN_SERVER`, the timeout variable, measured startup time and memory, and how to run the real-server tests.
 - [Handoff](Setup/handoff_Continuation.md): where the work stands (TypeScript rename and the Kotlin backend done), what is not in git, what is untested, and the first commands to run.
 

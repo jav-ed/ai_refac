@@ -2,13 +2,13 @@
 name = "refac"
 version = "0.1.4"
 edition = "2024"
-rust-version = "1.98"
+rust-version = "1.99"
 default-run = "refac"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive", "env"] }
 clap_complete = "4.5"
-clap_mangen = "0.2"
+clap_mangen = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
@@ -19,15 +19,18 @@ async-trait = "0.1"
 schemars = { version = "1.2", features = ["derive"] }
 lsp-types = "0.97.0"
 url = "2.5.7"
+# CommonMark parser for the Markdown backend: decides what is a link (code blocks,
+# comments, and HTML are not) while refac reads the destination ranges itself.
+pulldown-cmark = { version = "0.13", default-features = false }
 which = "8.0.0"
 pathdiff = "0.2"
 walkdir = "2.5"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
 tempfile = "3.8"
-ra_ap_hir = "=0.0.350"
-ra_ap_ide = "=0.0.350"
-ra_ap_load-cargo = "=0.0.350"
-ra_ap_project_model = "=0.0.350"
-ra_ap_syntax = "=0.0.350"
-ra_ap_vfs = "=0.0.350"
+ra_ap_hir = "=0.0.357"
+ra_ap_ide = "=0.0.357"
+ra_ap_load-cargo = "=0.0.357"
+ra_ap_project_model = "=0.0.357"
+ra_ap_syntax = "=0.0.357"
+ra_ap_vfs = "=0.0.357"
 

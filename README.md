@@ -94,7 +94,7 @@ Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.
 
 ## Install
 
-**Requires Rust 1.98+ (edition 2024).** The repository pins Rust 1.98.1, rustfmt, and rust-analyzer in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.
+**Requires Rust 1.99+ (edition 2024).** The repository pins Rust 1.99.0, rustfmt, and rust-analyzer in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.
 
 ```bash
 git clone https://github.com/jav-ed/ai_refac.git
@@ -262,7 +262,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 
 **Markdown**
 - Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
-- Links inside fenced code blocks and inline code spans are not rewritten.
+- The file is read as CommonMark, so links inside code (fenced blocks, indented blocks, inline spans), HTML comments, raw HTML, and front matter are not rewritten. HTML `<a href>` and `<img src>` are not links to refac and keep their text.
 
 **TypeScript symbol rename**
 - Only usages in projects the engine loads are renamed: keep every caller in the package's tsconfig and search for the old name afterwards.
@@ -289,7 +289,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`), JDK 17+, a Gradle project; `ANDROID_HOME` for Android | [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) |
 | Markdown | none | — |
 
-No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.98.1 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
+No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.99.0 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
 
 ---
 

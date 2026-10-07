@@ -2,7 +2,7 @@
 
 This repo is a Rust CLI tool. The main binary is `refac`, and the supporting utility binary is `create_testbed`.
 
-The crate requires Rust 1.98 or newer. `rust-toolchain.toml` pins development to Rust 1.98.1 with rustfmt and rust-analyzer.
+The crate requires Rust 1.99 or newer. `rust-toolchain.toml` pins development to Rust 1.99.0 with rustfmt and rust-analyzer.
 
 ## 1. Build
 
