@@ -1,21 +1,8 @@
 use super::edits::LineIndex;
-use anyhow::{Result, bail};
+use crate::drivers::symbol_scan;
+use anyhow::Result;
 
-/// More textual matches than this need an explicit `--line`: guessing among
-/// hundreds of candidates would hide which symbol is renamed.
-const MAX_OCCURRENCES: usize = 200;
-
-/// A whole-word textual match of the symbol name. The engine, not this scan,
-/// decides whether it is a renameable identifier: matches inside strings and
-/// comments are rejected later by `prepareRename`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Occurrence {
-    pub offset: usize,
-    /// Zero-based line.
-    pub line: u32,
-    /// Zero-based byte column within the line.
-    pub column: u32,
-}
+pub use crate::drivers::symbol_scan::Occurrence;
 
 pub fn is_identifier_char(character: char) -> bool {
     matches!(character, '$' | '_' | '\u{200c}' | '\u{200d}') || character.is_alphanumeric()
@@ -29,40 +16,9 @@ pub fn occurrences(
     column: Option<u32>,
 ) -> Result<Vec<Occurrence>> {
     let index = LineIndex::new(text);
-    let mut found = Vec::new();
-    for (offset, _) in text.match_indices(symbol) {
-        let before = text[..offset].chars().next_back();
-        let after = text[offset + symbol.len()..].chars().next();
-        if before.is_some_and(is_identifier_char) || after.is_some_and(is_identifier_char) {
-            continue;
-        }
-        let (zero_line, zero_column) = index.position(offset);
-        if line.is_some_and(|wanted| wanted != zero_line + 1)
-            || column.is_some_and(|wanted| wanted != zero_column + 1)
-        {
-            continue;
-        }
-        found.push(Occurrence {
-            offset,
-            line: zero_line,
-            column: zero_column,
-        });
-    }
-    if found.is_empty() {
-        let place = match (line, column) {
-            (Some(line), Some(column)) => format!(" at {line}:{column}"),
-            (Some(line), None) => format!(" on line {line}"),
-            _ => String::new(),
-        };
-        bail!("`{symbol}` does not appear as an identifier{place} in the file");
-    }
-    if found.len() > MAX_OCCURRENCES && line.is_none() {
-        bail!(
-            "`{symbol}` appears {} times in the file; pass --line to choose the declaration or usage to rename",
-            found.len()
-        );
-    }
-    Ok(found)
+    symbol_scan::occurrences(text, symbol, line, column, is_identifier_char, |offset| {
+        index.position(offset)
+    })
 }
 
 #[cfg(test)]

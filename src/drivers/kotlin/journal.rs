@@ -11,6 +11,15 @@ enum Undo {
     RemoveDir(PathBuf),
 }
 
+/// A file to overwrite with new content.
+#[derive(Debug, Clone)]
+pub struct FileWrite {
+    pub path: PathBuf,
+    pub bytes: Vec<u8>,
+    /// How many separate changes the new content holds, for reports.
+    pub changes: usize,
+}
+
 #[derive(Default)]
 pub struct Journal {
     undo: Vec<Undo>,
@@ -26,6 +35,13 @@ impl Journal {
             path: path.to_path_buf(),
             original,
         });
+        Ok(())
+    }
+
+    pub fn write_all(&mut self, writes: &[FileWrite]) -> Result<()> {
+        for write in writes {
+            self.write_file(&write.path, &write.bytes)?;
+        }
         Ok(())
     }
 

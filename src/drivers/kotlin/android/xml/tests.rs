@@ -14,7 +14,7 @@ fn apply(text: &str, pairs: &[(&str, &str)], is_manifest: bool) -> Option<String
         renames: &renames,
         is_manifest,
     };
-    rewrite(text, &names).unwrap()
+    rewrite(text, &names).unwrap().map(|(updated, _)| updated)
 }
 
 const MANIFEST: &str = r#"<?xml version="1.0" encoding="utf-8"?>

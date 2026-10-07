@@ -37,6 +37,7 @@ Each language requires its own external tooling. Only install what you need.
 | Rust | `rust-analyzer` for ordinary file renames; semantic module support is embedded | [rust-analyzer.github.io](https://rust-analyzer.github.io) |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
+| Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`), JDK 17+, Gradle project; `ANDROID_HOME` for Android | download and verify steps in [Kotlin server setup](../../../../Project_Manag/Docs/Setup/kotlin_Server.md) |
 | Markdown | none | — |
 
 Use recent external tools. The embedded rust-analyzer crates are locked with Cargo; ordinary Rust file renames use the pinned rust-analyzer component when rustup honors this checkout's toolchain file.

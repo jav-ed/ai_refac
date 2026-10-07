@@ -26,6 +26,18 @@ pub trait RefactorDriver: Send + Sync {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()>;
+
+    /// Like `move_files`, and returns what the caller should be told besides
+    /// success: a rename that rode along, names left behind in files the driver
+    /// does not edit. Drivers with nothing to add keep this default.
+    async fn move_files_with_notes(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<Vec<String>> {
+        self.move_files(file_map, root_path).await?;
+        Ok(Vec::new())
+    }
 }
 
 // Submodules for specific drivers (to be implemented)
@@ -38,6 +50,8 @@ pub mod lsp_text;
 pub mod markdown;
 pub mod python;
 pub mod rust;
+pub mod symbol_rename;
+pub mod symbol_scan;
 pub mod typescript;
 
 pub async fn complete_filesystem_moves(

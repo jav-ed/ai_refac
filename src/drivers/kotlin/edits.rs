@@ -17,21 +17,39 @@ pub struct FileEdits {
     pub edits: Vec<TextEdit>,
 }
 
-/// The content a file gets once the edits are applied.
+/// The content a file gets once the edits are applied. `before` and `text`
+/// are without the byte order mark, which `bytes` restores.
 pub struct PlannedFile {
     pub path: PathBuf,
     pub bytes: Vec<u8>,
+    pub before: String,
     pub text: String,
 }
 
-/// Read text edits out of a `WorkspaceEdit`. Only text edits are accepted:
-/// a file move answers with edits and the client moves the files itself, so a
-/// create, rename or delete operation is a protocol surprise worth stopping on.
-pub fn parse_workspace_edit(edit: &Value) -> Result<Vec<FileEdits>> {
-    let mut per_file: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
-    if let Some(changes) = edit.get("changes").and_then(Value::as_object) {
-        for (uri, edits) in changes {
+/// One step of a `WorkspaceEdit`, in the order the server sent them.
+pub enum Change {
+    Edit(FileEdits),
+    /// A file the server wants moved, for example the file of a renamed class.
+    Rename {
+        from: PathBuf,
+        to: PathBuf,
+    },
+}
+
+/// Read the steps of a `WorkspaceEdit`. Creating and deleting files is never
+/// part of a Kotlin move or rename, so it is a protocol surprise worth
+/// stopping on.
+pub fn parse_changes(edit: &Value) -> Result<Vec<Change>> {
+    let mut changes = Vec::new();
+    if let Some(by_uri) = edit.get("changes").and_then(Value::as_object) {
+        for (uri, edits) in by_uri {
+            let mut per_file = BTreeMap::new();
             collect(&mut per_file, uri, edits)?;
+            changes.extend(
+                per_file
+                    .into_iter()
+                    .map(|(path, edits)| Change::Edit(FileEdits { path, edits })),
+            );
         }
     }
     for change in edit
@@ -40,15 +58,53 @@ pub fn parse_workspace_edit(edit: &Value) -> Result<Vec<FileEdits>> {
         .into_iter()
         .flatten()
     {
-        if let Some(kind) = change.get("kind") {
-            bail!(
+        match change.get("kind").and_then(Value::as_str) {
+            Some("rename") => changes.push(Change::Rename {
+                from: file_path(
+                    change["oldUri"]
+                        .as_str()
+                        .context("A rename without oldUri")?,
+                )?,
+                to: file_path(
+                    change["newUri"]
+                        .as_str()
+                        .context("A rename without newUri")?,
+                )?,
+            }),
+            Some(kind) => bail!(
                 "The Kotlin language server asked for a {kind} file operation, which refac does not apply"
-            );
+            ),
+            None => {
+                let uri = change["textDocument"]["uri"]
+                    .as_str()
+                    .context("A text document edit without a uri")?;
+                let mut per_file = BTreeMap::new();
+                collect(&mut per_file, uri, &change["edits"])?;
+                changes.extend(
+                    per_file
+                        .into_iter()
+                        .map(|(path, edits)| Change::Edit(FileEdits { path, edits })),
+                );
+            }
         }
-        let uri = change["textDocument"]["uri"]
-            .as_str()
-            .context("A text document edit without a uri")?;
-        collect(&mut per_file, uri, &change["edits"])?;
+    }
+    Ok(changes)
+}
+
+/// Read the text edits of a `WorkspaceEdit` that must not move files (the
+/// answer to `willRenameFiles`: the client moves the files itself), merged
+/// per file.
+pub fn parse_workspace_edit(edit: &Value) -> Result<Vec<FileEdits>> {
+    let mut per_file: BTreeMap<PathBuf, Vec<TextEdit>> = BTreeMap::new();
+    for change in parse_changes(edit)? {
+        match change {
+            Change::Edit(file) => per_file.entry(file.path).or_default().extend(file.edits),
+            Change::Rename { from, to } => bail!(
+                "The Kotlin language server asked for a rename file operation ({} to {}), which refac does not apply here",
+                from.display(),
+                to.display()
+            ),
+        }
     }
     Ok(per_file
         .into_iter()
@@ -56,15 +112,19 @@ pub fn parse_workspace_edit(edit: &Value) -> Result<Vec<FileEdits>> {
         .collect())
 }
 
+fn file_path(uri: &str) -> Result<PathBuf> {
+    Url::parse(uri)
+        .ok()
+        .and_then(|url| url.to_file_path().ok())
+        .with_context(|| format!("The server addressed a file that is not a local path: {uri}"))
+}
+
 fn collect(
     per_file: &mut BTreeMap<PathBuf, Vec<TextEdit>>,
     uri: &str,
     edits: &Value,
 ) -> Result<()> {
-    let path = Url::parse(uri)
-        .ok()
-        .and_then(|url| url.to_file_path().ok())
-        .with_context(|| format!("The server addressed a file that is not a local path: {uri}"))?;
+    let path = file_path(uri)?;
     let edits: Vec<TextEdit> = serde_json::from_value(edits.clone())
         .with_context(|| format!("Cannot read the text edits for {}", path.display()))?;
     per_file.entry(path).or_default().extend(edits);
@@ -99,6 +159,7 @@ pub fn plan_files(
         planned.push(PlannedFile {
             path,
             bytes,
+            before: content.to_string(),
             text: updated,
         });
     }
@@ -140,6 +201,37 @@ mod tests {
         let answer = json!({ "documentChanges": [{ "kind": "rename", "oldUri": "file:///a", "newUri": "file:///b" }] });
         let error = parse_workspace_edit(&answer).err().unwrap().to_string();
         assert!(error.contains("rename"), "{error}");
+    }
+
+    #[test]
+    fn parse_changes_keeps_the_order_of_edits_and_file_renames() {
+        let (a, b) = (Path::new("/p/A.kt"), Path::new("/p/B.kt"));
+        let answer = json!({
+            "documentChanges": [
+                { "textDocument": { "uri": uri(a), "version": null }, "edits": [edit(0, 0, 1, "x")] },
+                { "kind": "rename", "oldUri": uri(a), "newUri": uri(b) },
+            ],
+        });
+        let changes = parse_changes(&answer).unwrap();
+        assert_eq!(changes.len(), 2);
+        assert!(matches!(&changes[0], Change::Edit(file) if file.path == a));
+        assert!(matches!(&changes[1], Change::Rename { from, to } if from == a && to == b));
+    }
+
+    #[test]
+    fn parse_changes_refuses_creating_and_deleting_files() {
+        for kind in ["create", "delete"] {
+            let answer = json!({ "documentChanges": [{ "kind": kind, "uri": "file:///p/A.kt" }] });
+            let error = parse_changes(&answer).err().unwrap().to_string();
+            assert!(error.contains(kind), "{error}");
+        }
+    }
+
+    #[test]
+    fn a_rename_without_both_uris_is_an_error() {
+        let answer =
+            json!({ "documentChanges": [{ "kind": "rename", "oldUri": "file:///p/A.kt" }] });
+        assert!(parse_changes(&answer).is_err());
     }
 
     #[test]

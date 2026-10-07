@@ -4,11 +4,11 @@
 //! server is done. Projects without Android modules pass through untouched.
 
 use super::declarations::declared_package;
-use super::journal::Journal;
+use super::journal::FileWrite;
 use super::moved::MovedFile;
 use super::survey::Survey;
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 mod imports;
 mod namespace;
@@ -16,19 +16,14 @@ mod xml;
 
 use namespace::Module;
 
-#[derive(Debug, Default)]
-pub struct AndroidReport {
-    pub edited: Vec<PathBuf>,
-}
-
-/// Update XML and imports for the classes in `renames`. Every write goes
-/// through the journal.
-pub fn update(
+/// The file changes Android needs for the classes in `renames`, planned
+/// without writing anything, so a dry run can show them and a real run can
+/// journal them.
+pub fn plan(
     survey: &Survey,
     moved: &[MovedFile],
     renames: &[(String, String)],
-    journal: &mut Journal,
-) -> Result<AndroidReport> {
+) -> Result<Vec<FileWrite>> {
     let mut modules = Vec::new();
     for build_file in &survey.build_files {
         let dir = build_file.parent().unwrap_or(Path::new(""));
@@ -37,21 +32,20 @@ pub fn update(
             has_manifest(survey, dir),
         )?);
     }
-    let mut report = AndroidReport::default();
+    let mut writes = Vec::new();
     if modules.is_empty() {
-        return Ok(report);
+        return Ok(writes);
     }
-    rewrite_xml(survey, &modules, renames, journal, &mut report)?;
-    add_imports(&modules, moved, journal, &mut report)?;
-    Ok(report)
+    rewrite_xml(survey, &modules, renames, &mut writes)?;
+    add_imports(&modules, moved, &mut writes)?;
+    Ok(writes)
 }
 
 fn rewrite_xml(
     survey: &Survey,
     modules: &[Module],
     renames: &[(String, String)],
-    journal: &mut Journal,
-    report: &mut AndroidReport,
+    writes: &mut Vec<FileWrite>,
 ) -> Result<()> {
     if renames.is_empty() {
         return Ok(());
@@ -70,9 +64,12 @@ fn rewrite_xml(
         };
         let updated = xml::rewrite(&text, &names)
             .with_context(|| format!("Cannot update the class names in {}", path.display()))?;
-        if let Some(updated) = updated {
-            journal.write_file(path, updated.as_bytes())?;
-            report.edited.push(path.clone());
+        if let Some((updated, changes)) = updated {
+            writes.push(FileWrite {
+                path: path.clone(),
+                bytes: updated.into_bytes(),
+                changes,
+            });
         }
     }
     Ok(())
@@ -80,12 +77,7 @@ fn rewrite_xml(
 
 /// A file that left its module's namespace package no longer sees `R` and
 /// `BuildConfig` without an import.
-fn add_imports(
-    modules: &[Module],
-    moved: &[MovedFile],
-    journal: &mut Journal,
-    report: &mut AndroidReport,
-) -> Result<()> {
+fn add_imports(modules: &[Module], moved: &[MovedFile], writes: &mut Vec<FileWrite>) -> Result<()> {
     for file in moved {
         let Some(module) = owner(modules, &file.to) else {
             continue;
@@ -98,8 +90,11 @@ fn add_imports(
             continue;
         }
         if let Some(updated) = imports::add_generated_imports(&file.after, &module.namespace) {
-            journal.write_file(&file.to, updated.as_bytes())?;
-            report.edited.push(file.to.clone());
+            writes.push(FileWrite {
+                path: file.to.clone(),
+                bytes: updated.into_bytes(),
+                changes: 1,
+            });
         }
     }
     Ok(())

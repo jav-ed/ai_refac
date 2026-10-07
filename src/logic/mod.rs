@@ -3,6 +3,7 @@ use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
 
 pub mod rename;
+mod route;
 mod typescript;
 
 /// Parameters for a refactoring request.
@@ -52,50 +53,14 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     let mut skipped_files = Vec::new();
 
     for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
-        let path = std::path::Path::new(src);
-
-        // Resolve the path so we can check whether it's a directory.
-        let resolved = if path.is_absolute() {
-            path.to_path_buf()
-        } else if let Some(root) = req.project_path.as_deref() {
-            std::path::Path::new(root).join(path)
-        } else {
-            path.to_path_buf()
-        };
-
-        if resolved.is_dir() {
-            if !dir_looks_like_typescript(&resolved) {
-                bail!(
-                    "Directory moves are only supported for TypeScript/JavaScript projects. \
-                     '{}' does not appear to contain TypeScript or JavaScript files.",
-                    src
-                );
-            }
-            batch_map
-                .entry("typescript".to_string())
-                .or_default()
-                .push((src.clone(), tgt.clone()));
+        let root = req.project_path.as_deref().map(std::path::Path::new);
+        let Some(lang) = route::language_of(src, root)? else {
+            tracing::warn!("Skipping file with unsupported extension: {}", src);
+            skipped_files.push(src.clone());
             continue;
-        }
-
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-
-        let lang = match ext {
-            "md" => "markdown".to_string(),
-            "py" => "python".to_string(),
-            "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs" => "typescript".to_string(),
-            "rs" => "rust".to_string(),
-            "go" => "go".to_string(),
-            "dart" => "dart".to_string(),
-            _ => {
-                tracing::warn!("Skipping file with unsupported extension: {}", src);
-                skipped_files.push(src.clone());
-                continue;
-            }
         };
-
         batch_map
-            .entry(lang)
+            .entry(lang.to_string())
             .or_default()
             .push((src.clone(), tgt.clone()));
     }
@@ -103,6 +68,9 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // 3. Dispatch Batches — sorted for deterministic output order
     let root = req.project_path.as_ref().map(std::path::Path::new);
     let mut successful_files: std::collections::HashMap<String, Vec<(String, String)>> =
+        std::collections::HashMap::new();
+    // What each driver reports beyond success, by language.
+    let mut notes: std::collections::HashMap<String, Vec<String>> =
         std::collections::HashMap::new();
     // (lang, attempted files, error message)
     let mut failed_batches: Vec<(String, Vec<(String, String)>, String)> = Vec::new();
@@ -132,8 +100,9 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             bail!("Driver for '{}' is not available.", lang);
         }
 
-        match driver.move_files(files.clone(), root).await {
-            Ok(_) => {
+        match driver.move_files_with_notes(files.clone(), root).await {
+            Ok(driver_notes) => {
+                notes.insert(lang.clone(), driver_notes);
                 successful_files.insert(lang, files);
             }
             Err(e) => failed_batches.push((lang, files, e.to_string())),
@@ -190,6 +159,10 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
             ));
         }
 
+        for note in notes.get(&lang).into_iter().flatten() {
+            response.push_str(&format!("\n// Note: {note}  \n"));
+        }
+
         // For Go: report any files gopls moved collaterally beyond what was requested.
         if lang == "go" {
             let collaterals = detect_go_collaterals(files, root);
@@ -199,7 +172,10 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
                      The following files were also relocated as part of the package rename:  \n\n",
                 );
                 for path in collaterals {
-                    response.push_str(&format!("{}  \n", rel_display(&path.display().to_string(), root)));
+                    response.push_str(&format!(
+                        "{}  \n",
+                        rel_display(&path.display().to_string(), root)
+                    ));
                 }
             }
         }
@@ -302,23 +278,8 @@ fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriv
         "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
         "go" => Box::new(crate::drivers::go::GoDriver::new()),
         "dart" => Box::new(crate::drivers::dart::DartDriver::new()),
+        "kotlin" => Box::new(crate::drivers::kotlin::KotlinDriver),
         _ => bail!("Unsupported language: {}", lang),
     };
     Ok(driver)
-}
-
-fn dir_looks_like_typescript(dir: &std::path::Path) -> bool {
-    std::fs::read_dir(dir)
-        .ok()
-        .map(|entries| {
-            entries.flatten().any(|entry| {
-                entry
-                    .path()
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .map(|e| matches!(e, "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs"))
-                    .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false)
 }

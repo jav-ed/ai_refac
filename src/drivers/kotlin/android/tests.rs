@@ -1,5 +1,7 @@
 use super::*;
+use crate::drivers::kotlin::journal::Journal;
 use crate::drivers::kotlin::survey::survey;
+use std::path::PathBuf;
 
 fn write(root: &Path, relative: &str, text: &str) -> PathBuf {
     let path = root.join(relative);
@@ -68,7 +70,14 @@ fn xml_names_and_the_implicit_r_follow_a_moved_class() {
     let files = survey(root).unwrap();
     let mut journal = Journal::default();
 
-    let report = update(&files, &project.moved, &renames(), &mut journal).unwrap();
+    let writes = plan(&files, &project.moved, &renames()).unwrap();
+    // Planning alone changes nothing.
+    let manifest = std::fs::read_to_string(root.join("app/src/main/AndroidManifest.xml")).unwrap();
+    assert!(
+        manifest.contains("android:name=\".MainActivity\""),
+        "{manifest}"
+    );
+    journal.write_all(&writes).unwrap();
 
     let manifest = std::fs::read_to_string(root.join("app/src/main/AndroidManifest.xml")).unwrap();
     assert!(
@@ -82,7 +91,7 @@ fn xml_names_and_the_implicit_r_follow_a_moved_class() {
     );
     let moved = std::fs::read_to_string(&project.moved[0].to).unwrap();
     assert!(moved.contains("import com.example.droid.R\n"), "{moved}");
-    assert_eq!(report.edited.len(), 3);
+    assert_eq!(writes.len(), 3);
 
     // Everything the layer wrote can be undone.
     journal.rollback().unwrap();
@@ -103,9 +112,9 @@ fn a_project_without_android_modules_is_left_alone() {
     );
     let files = survey(dir.path()).unwrap();
 
-    let report = update(&files, &[], &renames(), &mut Journal::default()).unwrap();
+    let writes = plan(&files, &[], &renames()).unwrap();
 
-    assert!(report.edited.is_empty());
+    assert!(writes.is_empty());
 }
 
 #[test]
@@ -119,7 +128,7 @@ fn a_manifest_without_a_namespace_in_its_module_is_an_error() {
     );
     let files = survey(root).unwrap();
 
-    let error = update(&files, &project.moved, &renames(), &mut Journal::default()).unwrap_err();
+    let error = plan(&files, &project.moved, &renames()).unwrap_err();
 
     assert!(error.to_string().contains("namespace"), "{error}");
 }
@@ -135,7 +144,7 @@ fn a_malformed_layout_stops_the_update_with_its_path() {
     );
     let files = survey(root).unwrap();
 
-    let error = update(&files, &project.moved, &renames(), &mut Journal::default()).unwrap_err();
+    let error = plan(&files, &project.moved, &renames()).unwrap_err();
 
     assert!(format!("{error:#}").contains("broken.xml"), "{error:#}");
 }

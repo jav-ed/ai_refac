@@ -40,6 +40,35 @@ pub fn apply_text_edits(content: &str, edits: Vec<TextEdit>) -> Result<String> {
     Ok(updated)
 }
 
+/// Converts between byte offsets and LSP positions of one document. Columns
+/// count UTF-16 code units, the protocol default.
+pub struct TextIndex<'a> {
+    content: &'a str,
+    line_offsets: Vec<usize>,
+}
+
+impl<'a> TextIndex<'a> {
+    pub fn new(content: &'a str) -> Self {
+        Self {
+            content,
+            line_offsets: line_start_offsets(content),
+        }
+    }
+
+    pub fn offset(&self, position: Position) -> Result<usize> {
+        position_to_byte_offset(self.content, &self.line_offsets, position)
+    }
+
+    pub fn position(&self, offset: usize) -> Position {
+        let line = self.line_offsets.partition_point(|start| *start <= offset) - 1;
+        let column: usize = self.content[self.line_offsets[line]..offset]
+            .chars()
+            .map(char::len_utf16)
+            .sum();
+        Position::new(line as u32, column as u32)
+    }
+}
+
 fn line_start_offsets(content: &str) -> Vec<usize> {
     let mut offsets = vec![0];
     for (index, byte) in content.bytes().enumerate() {
@@ -149,6 +178,17 @@ mod tests {
         let updated = apply_text_edits(content, edits)?;
         assert_eq!(updated, "🙂name\n");
         Ok(())
+    }
+
+    #[test]
+    fn text_index_round_trips_utf16_positions() {
+        let content = "ab\n🙂value\n";
+        let index = TextIndex::new(content);
+        let offset = index.offset(Position::new(1, 2)).unwrap();
+        assert_eq!(&content[offset..], "value\n");
+        assert_eq!(index.position(offset), Position::new(1, 2));
+        assert_eq!(index.position(0), Position::new(0, 0));
+        assert!(index.offset(Position::new(9, 0)).is_err());
     }
 
     #[test]

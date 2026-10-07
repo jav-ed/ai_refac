@@ -1,6 +1,6 @@
 ---
 name: refac-cli
-description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates, move TypeScript/JavaScript directories, move a complete Rust module subtree semantically, or rename a TypeScript/JavaScript symbol (variable, function, class, member) with all its references. For TypeScript/JavaScript, use the package root with its authoritative tsconfig so local callers and aliases can be updated completely. This skill is for using the tool, not changing its implementation.
+description: Use when a developer wants to run the `refac` CLI to move or rename files with reference updates, move TypeScript/JavaScript or Kotlin directories, move a complete Rust module subtree semantically, or rename a TypeScript/JavaScript or Kotlin symbol (variable, function, class, member) with all its references. For TypeScript/JavaScript, use the package root with its authoritative tsconfig so local callers and aliases can be updated completely. For Kotlin and Android, use the Gradle root. This skill is for using the tool, not changing its implementation.
 ---
 
 # Use Refac CLI
@@ -12,13 +12,14 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 | Language | Files | Directories | Logical modules | Symbols (`rename`) |
 |---|---|---|---|---|
 | TypeScript / JavaScript | ✅ | ✅ | — | ✅ |
+| Kotlin / Android | ✅ | ✅ | — | ✅ |
 | Python | ✅ | ❌ | — | ❌ |
 | Rust | ✅ | ❌ | ✅ | ❌ |
 | Go | ✅ | ❌ | — | ❌ |
 | Dart | ✅ | ❌ | — | ❌ |
 | Markdown | ✅ | ❌ | — | ❌ |
 
-Passing a directory for any non-TS/JS language will fail with a clear error.
+Passing a directory for any language other than TypeScript/JavaScript and Kotlin will fail with a clear error.
 
 ## Hard constraints
 
@@ -29,7 +30,8 @@ Passing a directory for any non-TS/JS language will fail with a clear error.
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.
 - TypeScript/JavaScript invocations are limited to 30 contained source files. Directory contents count toward the limit, and the CLI reports the measured count.
-- `rename` renames one symbol per call in one TypeScript/JavaScript package. `--project-path` is the package root whose `tsconfig.json` includes every caller. The tsconfig must be accepted by TypeScript 7 (no `baseUrl`, no `moduleResolution: node10`).
+- `rename` renames one symbol per call in one TypeScript/JavaScript package or one Kotlin Gradle project. For TypeScript, `--project-path` is the package root whose `tsconfig.json` includes every caller, and the tsconfig must be accepted by TypeScript 7 (no `baseUrl`, no `moduleResolution: node10`). For Kotlin it is the Gradle root (the folder with `settings.gradle.kts`).
+- Kotlin and Android need the JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`). Each call imports the Gradle build first and takes about 30 seconds, so put several moves into one `move` call. `.java` files, directories with Java sources, and moves between modules or source sets are refused. Read the `// Note:` lines of the output: they list old class names in ProGuard rules, build scripts, and strings that refac does not edit.
 
 ## Usage
 
@@ -62,6 +64,15 @@ refac move-module --project-path /path/to/cargo-workspace \
 refac rename --project-path /path/to/package \
   --file src/lib/util.ts --symbol total --new-name grandTotal
 
+# Kotlin: move a file to another package (package line, imports, Android XML follow)
+refac move --project-path /path/to/gradle/root \
+  --source-path app/src/main/kotlin/com/example/ui/Home.kt \
+  --target-path app/src/main/kotlin/com/example/home/Home.kt
+
+# Kotlin: rename a symbol and every reference
+refac rename --project-path /path/to/gradle/root \
+  --file app/src/main/kotlin/com/example/util/Helper.kt --symbol shout --new-name yell
+
 # preview: plan and verify, change nothing
 refac rename --project-path /path/to/package \
   --file src/lib/util.ts --symbol total --new-name grandTotal --dry-run --json
@@ -77,6 +88,6 @@ Exit codes: `0` = all succeeded, `1` = one or more failed.
 
 ## References
 
-- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, semantic Rust module moves, Dart package config, TS batch memory/watcher behaviour and reference gaps, TS symbol-rename safety rules and limits, Python re-export limits
+- [Language-specific behaviour](references/language_behaviour.md) — Go whole-package moves, semantic Rust module moves, Dart package config, TS batch memory/watcher behaviour and reference gaps, TS symbol-rename safety rules and limits, Kotlin and Android moves, rename, and refusals, Python re-export limits
 - [Install & prerequisites](references/install.md) — build from source, PATH setup, required tooling per language
 - [Agent integration](references/agent_integration.md) — how to wire this skill into Claude Code or other agent harnesses via symlink

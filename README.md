@@ -84,10 +84,11 @@ Other agent tools that support a skills or prompts directory can be wired up the
 | Go | ✅ | ❌ | — | gopls (LSP) |
 | Dart | ✅ | ❌ | — | Dart analysis server (LSP) |
 | Markdown | ✅ | ❌ | — | Native (no external tooling) |
+| Kotlin / Android | ✅ | ✅ | — | JetBrains Kotlin language server, plus refac's own Android XML layer |
 
-Symbol rename (`refac rename`) is available for TypeScript / JavaScript only.
+Symbol rename (`refac rename`) is available for TypeScript / JavaScript and Kotlin.
 
-Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.md`). Directory sources are routed to the TypeScript driver; all other languages require individual files.
+Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.kt`, `.md`). A directory source is routed by what it contains: TypeScript/JavaScript files, or Kotlin files anywhere below it; all other languages require individual files.
 
 ---
 
@@ -180,6 +181,22 @@ refac rename \
 
 `--project-path` is the package root whose `tsconfig.json` includes every caller. Refac finds every reference with the TypeScript 7 native language server (imports, aliases, re-exports, namespace access, class members, JSX, `.js` files), plans all edits, proves in memory that the new name neither clashes with nor shadows another symbol, and only then writes. Use `--dry-run` to preview the edits. If the name refers to several symbols in the file, the command lists them; pass `--line` (and `--column`) to choose one. Strings and comments are never edited. See [Symbol rename](Project_Manag/Docs/Features/TypeScript/symbol_Rename.md) for the safety rules and limits.
 
+### Move or rename in Kotlin and Android
+
+```bash
+refac move \
+  --project-path /path/to/gradle/root \
+  --source-path app/src/main/kotlin/com/example/ui/Home.kt \
+  --target-path app/src/main/kotlin/com/example/home/Home.kt
+
+refac rename \
+  --project-path /path/to/gradle/root \
+  --file app/src/main/kotlin/com/example/util/Helper.kt \
+  --symbol shout --new-name yell
+```
+
+`--project-path` is the Gradle root (the folder with `settings.gradle.kts`). The JetBrains Kotlin language server rewrites the `package` line, imports, and usages, including Java callers, and renames symbols with every reference. For Android, refac adds what the server never touches: class names in the manifest, layouts, and navigation graphs, and the `R` / `BuildConfig` imports a file loses when it leaves its namespace package. A rename that would clash with or shadow another declaration is refused, and every failure restores the project. Old names in ProGuard rules, build scripts, and strings are reported, not edited. The server is installed once by you; see [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) and [Kotlin and Android](Project_Manag/Docs/Features/Kotlin/linker_Kotlin.md).
+
 ### JSON output
 
 ```bash
@@ -238,6 +255,11 @@ These are not edge cases. Read them before deciding whether this tool is right f
 **Dart**
 - `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Run `dart pub get` to generate it. Without it, only relative imports are updated.
 
+**Kotlin / Android**
+- Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call.
+- `.java` files, directories containing Java sources, and moves between modules or source sets are refused. Kotlin Multiplatform is not supported.
+- Old class names in ProGuard rules, build scripts, service lists, and string literals are reported, not rewritten.
+
 **Markdown**
 - Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
 - Links inside fenced code blocks and inline code spans are not rewritten.
@@ -264,6 +286,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | Rust | `rust-analyzer` for ordinary file renames; semantic module support is embedded | [rust-analyzer.github.io](https://rust-analyzer.github.io) |
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
+| Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`), JDK 17+, a Gradle project; `ANDROID_HOME` for Android | [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) |
 | Markdown | none | — |
 
 No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.98.1 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.

@@ -12,26 +12,10 @@ mod session;
 mod verify;
 
 use super::process::{self, Limits};
+pub use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use sysinfo::Pid;
-
-pub struct RenameRequest {
-    pub project_path: PathBuf,
-    pub file: PathBuf,
-    pub symbol: String,
-    pub new_name: String,
-    pub line: Option<u32>,
-    pub column: Option<u32>,
-    pub dry_run: bool,
-}
-
-pub struct RenameReport {
-    /// Edited files relative to the project, with their edit counts.
-    pub files: Vec<(PathBuf, usize)>,
-    pub edits: usize,
-    pub dry_run: bool,
-}
 
 const RESERVED_WORDS: &[&str] = &[
     "await",
@@ -179,6 +163,7 @@ pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
         files,
         edits: plan.edit_count(),
         dry_run: request.dry_run,
+        notes: Vec::new(),
     })
 }
 

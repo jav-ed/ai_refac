@@ -29,6 +29,7 @@ The current test suite covers:
 - Go move flow, including whole-package rename cascade
 - Dart move flow
 - Markdown move flow
+- Kotlin and Android: pure planning, XML rewriting, import insertion, and verification logic in the normal suite; the scenarios against the real Kotlin server are `#[ignore]`d (section 2, Kotlin tests)
 - Batch moves across all languages, including partial failure and cross-package Go batches
 
 ## 2. Integration Test Architecture
@@ -46,6 +47,8 @@ Each language has a fixture directory and a test file:
 | Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`           | `pkg/utils/format.go` → `pkg/helpers/format.go`         |
 | Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`         | `lib/src/formatter.dart` → `lib/src/core/formatter.dart`|
 | Markdown   | `tests/fixtures/markdown/`           | `tests/markdown_move.rs`     | various `.md` link rewrites                             |
+| Kotlin (JVM) | `tests/fixtures/kotlin/jvm_project/` | `tests/kotlin_moves.rs`, `tests/kotlin_rename.rs`, `tests/kotlin_server.rs`, `tests/kotlin_dispatch.rs` | package moves, directory moves, rollback, symbol renames, clash and shadowing refusals, dispatch through the CLI entry points |
+| Kotlin (Android) | `tests/fixtures/kotlin/android_project/` | `tests/kotlin_android.rs` | class moves and renames with manifest, layout and navigation XML, `R` and `BuildConfig` imports, compiled with a real Android Gradle Plugin |
 
 ### Batch tests
 
@@ -64,6 +67,18 @@ Each language has a fixture directory and a test file:
 | Mixed language (TS + Markdown) | Two languages dispatched independently in one CLI call |
 | Partial failure | One language succeeds, one fails — response reports both |
 | All fail | Exit non-zero with structured error message |
+
+### Kotlin tests
+
+The Kotlin scenarios start the real JetBrains Kotlin language server and a Gradle import, which costs about 30 seconds each, so they are `#[ignore]`d and a plain `cargo test` skips them. Run them after installing the server ([setup](../Setup/kotlin_Server.md)):
+
+```bash
+export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
+export ANDROID_HOME=~/Android/Sdk   # Android tests only
+cargo test --test kotlin_server --test kotlin_moves --test kotlin_rename --test kotlin_dispatch --test kotlin_android -- --ignored --test-threads=2
+```
+
+Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these tests panic with an explanation instead of passing. Every successful scenario ends with a Gradle compile of the result, because a Kotlin refactor is right when the project still builds. A full run takes a few minutes; run one file or one test name while debugging.
 
 **Fixtures are never modified by running tests.** `common::setup_fixture` copies the fixture into a temp dir before each test. The tool operates on the temp copy; the originals stay pristine and the temp dir is cleaned up automatically when the test ends. No reset step is needed.
 
@@ -116,6 +131,7 @@ After a move, validate the affected project with its native toolchain when possi
 - Python: import the affected modules or run project tests
 - TypeScript: run the package typecheck/build if available
 - Dart: run the package analyzer/build if available
+- Kotlin: `./gradlew compileKotlin compileJava` (or the project's usual build); read the `// Note:` lines of the output for old names refac does not edit
 
 ## 5. Debugging Notes
 
@@ -139,3 +155,4 @@ Each language backend depends on external tooling:
 - Rust: `rust-analyzer`
 - Go: `gopls`
 - Dart: `dart`
+- Kotlin: the JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`) and a JDK 17+; Android projects also need `ANDROID_HOME`. See [Kotlin server setup](../Setup/kotlin_Server.md).

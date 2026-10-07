@@ -16,6 +16,7 @@ pub mod moved;
 pub mod moves;
 pub mod plan;
 pub mod project;
+pub mod rename;
 pub mod renames;
 pub mod server;
 pub mod stale;
@@ -41,10 +42,17 @@ impl RefactorDriver for KotlinDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        let report = moves::move_files(&file_map, root_path).await?;
-        for note in &report.notes {
-            tracing::info!("{note}");
-        }
+        self.move_files_with_notes(file_map, root_path).await?;
         Ok(())
+    }
+
+    /// The notes carry what only the caller can act on: names the server did
+    /// not rewrite (build scripts, string literals) and steps it had to split.
+    async fn move_files_with_notes(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<Vec<String>> {
+        Ok(moves::move_files(&file_map, root_path).await?.notes)
     }
 }

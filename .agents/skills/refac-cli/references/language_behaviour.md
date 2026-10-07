@@ -69,3 +69,15 @@ Namespace packages (directories with no `__init__.py`) may also see incomplete u
 Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
 
 Links inside fenced code blocks and inline code spans are not rewritten.
+
+## Kotlin and Android
+
+`move` and `rename` on `.kt` files use the JetBrains Kotlin language server; `--project-path` is the **Gradle root** (the folder with `settings.gradle(.kts)`), not a module folder. Install steps and `REFAC_KOTLIN_SERVER`: [Kotlin server setup](../../../../Project_Manag/Docs/Setup/kotlin_Server.md). Without the server every Kotlin call fails with those steps; refac never downloads it.
+
+- **Moves:** a `.kt` file or a directory containing `.kt` files, inside `src/<set>/kotlin` or `src/<set>/java`. The `package` line, imports, and usages that relied on sharing a package are updated, Java callers too. A new directory plus a new name is done as move then rename; renaming a file also renames its class. All moves of one call share one server session, so batch them: every call costs about 30 seconds of Gradle import.
+- **Refused before anything starts:** `.java` files, directories that contain Java, moves between modules or source sets, a target that exists, a target outside a source root. Everything else that fails rolls back to the original state and the error says so.
+- **Rename:** pick the symbol with `--file` and `--symbol`; an ambiguous name lists candidates for `--line`/`--column`. A rename that would clash with or shadow another declaration is refused because the usage sets before and after differ. Renaming a class that names its file renames the file too. `--dry-run` writes nothing.
+- **Android:** class names in the manifest, layouts, and navigation graphs follow moved and renamed classes, and `import <namespace>.R` / `BuildConfig` is added where a moved file needs it. A module with a manifest but no `namespace` in its build script is an error.
+- **Reported, not edited:** old class names in ProGuard rules, build scripts (`mainClass`), service lists, configuration, and string literals appear as `// Note:` lines. Search for them and run `./gradlew compileKotlin`.
+
+Details: [Kotlin and Android](../../../../Project_Manag/Docs/Features/Kotlin/linker_Kotlin.md).

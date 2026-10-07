@@ -39,8 +39,9 @@ struct Token<'a> {
     spot: Spot<'a>,
 }
 
-/// The text with every renamed class replaced, `None` when nothing changed.
-pub fn rewrite(text: &str, names: &Names) -> Result<Option<String>> {
+/// The text with every renamed class replaced and how many names that was,
+/// `None` when nothing changed.
+pub fn rewrite(text: &str, names: &Names) -> Result<Option<(String, usize)>> {
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     for token in scan(text)? {
         let value = &text[token.start..token.end];
@@ -55,11 +56,12 @@ pub fn rewrite(text: &str, names: &Names) -> Result<Option<String>> {
     if edits.is_empty() {
         return Ok(None);
     }
+    let count = edits.len();
     let mut updated = text.to_string();
     for (start, end, replacement) in edits.into_iter().rev() {
         updated.replace_range(start..end, &replacement);
     }
-    Ok(Some(updated))
+    Ok(Some((updated, count)))
 }
 
 fn full_rename<'a>(value: &str, names: &'a Names) -> Option<&'a str> {

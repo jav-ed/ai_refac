@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use crate::drivers::typescript::rename::RenameRequest;
+use crate::drivers::symbol_rename::RenameRequest;
 use crate::logic::rename::handle_rename;
 use crate::logic::{RefactorRequest, handle_refactor};
 use anyhow::Result;
@@ -17,9 +17,10 @@ use serde::Serialize;
     long_about = "\
 Move or rename source or Markdown files and update all references across the project.
 
-Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart.
+Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart, Kotlin (Android and JVM).
 Use `move-module` for semantic Rust module-subtree moves.
-Use `rename` to rename a TypeScript/JavaScript symbol (variable, function, class, member) and update every reference.
+Use `rename` to rename a TypeScript/JavaScript or Kotlin symbol (variable, function, class, member) and update every reference.
+Kotlin needs the JetBrains Kotlin language server; set REFAC_KOTLIN_SERVER to its install folder. For Kotlin, --project-path is the Gradle project root.
 Paths may be absolute or relative to --project-path.
 
 EXAMPLES:
@@ -38,7 +39,17 @@ EXAMPLES:
 
   # Rename a TypeScript symbol and all of its references
   refac rename --project-path /my/package --file src/lib/util.ts \\
-    --symbol total --new-name grandTotal",
+    --symbol total --new-name grandTotal
+
+  # Move a Kotlin file to another package; package line, imports, Android XML follow
+  refac move --project-path /my/gradle/project \\
+    --source-path app/src/main/kotlin/com/example/ui/Home.kt \\
+    --target-path app/src/main/kotlin/com/example/home/Home.kt
+
+  # Rename a Kotlin symbol and all of its references
+  refac rename --project-path /my/gradle/project \\
+    --file app/src/main/kotlin/com/example/util/Helper.kt \\
+    --symbol shout --new-name yell",
     version
 )]
 pub struct Cli {
@@ -48,11 +59,11 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Move or rename files and update imports/references. Only files are supported, not directories.
+    /// Move or rename files and update imports/references. Directories are supported for TypeScript/JavaScript and Kotlin.
     Move(MoveArgs),
     /// Move a complete Rust module subtree and rewrite its semantic references.
     MoveModule(MoveModuleArgs),
-    /// Rename a TypeScript/JavaScript symbol and update every reference.
+    /// Rename a TypeScript/JavaScript or Kotlin symbol and update every reference.
     Rename(RenameArgs),
     /// Generate shell completions to stdout.
     Completions(CompletionsArgs),
@@ -62,7 +73,7 @@ enum Commands {
 
 #[derive(Debug, Args)]
 struct MoveArgs {
-    /// Absolute path to the package root (the folder containing tsconfig.json / pyproject.toml / Cargo.toml etc.). Also settable via REFAC_PROJECT_PATH env var.
+    /// Absolute path to the package root (the folder containing tsconfig.json / pyproject.toml / Cargo.toml / settings.gradle.kts etc.). Also settable via REFAC_PROJECT_PATH env var.
     #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     project_path: Option<std::path::PathBuf>,
 
@@ -98,7 +109,7 @@ struct MoveModuleArgs {
 
 #[derive(Debug, Args)]
 struct RenameArgs {
-    /// Package root containing the authoritative tsconfig.json. Defaults to the current directory. Also settable via REFAC_PROJECT_PATH env var.
+    /// Package root containing the authoritative tsconfig.json, or the Gradle project root for Kotlin. Defaults to the current directory. Also settable via REFAC_PROJECT_PATH env var.
     #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     project_path: Option<std::path::PathBuf>,
 
@@ -176,6 +187,7 @@ struct RenameSuccessOutput<'a> {
     edits: usize,
     edited_files: usize,
     files: Vec<RenamedFile>,
+    notes: &'a [String],
 }
 
 #[derive(Debug, Serialize)]
@@ -345,6 +357,7 @@ async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
                     edits: *edits,
                 })
                 .collect(),
+            notes: &report.notes,
         };
         write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })?;
     } else {
@@ -366,6 +379,9 @@ async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
             report.edits,
             report.files.len()
         );
+        for note in &report.notes {
+            println!("// Note: {note}");
+        }
     }
 
     Ok(())

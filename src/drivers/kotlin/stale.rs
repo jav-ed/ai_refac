@@ -3,12 +3,20 @@
 //! configuration, XML it could not rewrite, and string literals (reflection).
 //! Nothing is changed; each hit is reported so the user can fix it.
 
+use super::journal::FileWrite;
 use super::renames::Renames;
 use super::survey::Survey;
 use anyhow::{Context, Result};
 use std::path::Path;
 
-pub fn scan(root: &Path, survey: &Survey, renames: &Renames) -> Result<Vec<String>> {
+/// `planned` holds changes that are decided but not written yet; a file in it
+/// is read as it will be, not as it is on disk.
+pub fn scan(
+    root: &Path,
+    survey: &Survey,
+    renames: &Renames,
+    planned: &[FileWrite],
+) -> Result<Vec<String>> {
     let names: Vec<&(String, String)> = renames.classes.iter().chain(&renames.facades).collect();
     if names.is_empty() {
         return Ok(Vec::new());
@@ -20,8 +28,11 @@ pub fn scan(root: &Path, survey: &Survey, renames: &Renames) -> Result<Vec<Strin
         (survey.sources.iter().collect(), true),
     ] {
         for path in files {
-            let text = std::fs::read_to_string(path)
-                .with_context(|| format!("Cannot read {}", path.display()))?;
+            let text = match planned.iter().find(|write| write.path == *path) {
+                Some(write) => String::from_utf8_lossy(&write.bytes).into_owned(),
+                None => std::fs::read_to_string(path)
+                    .with_context(|| format!("Cannot read {}", path.display()))?,
+            };
             for (old, new) in &names {
                 if mentions(&text, old, only_in_quotes) {
                     let shown = path.strip_prefix(root).unwrap_or(path).display();
@@ -102,8 +113,20 @@ mod tests {
             ..Renames::default()
         };
 
-        let notes = scan(dir.path(), &survey, &renames).unwrap();
+        let notes = scan(dir.path(), &survey, &renames, &[]).unwrap();
         assert_eq!(notes.len(), 1);
         assert!(notes[0].starts_with("build.gradle.kts still mentions com.example.app.MainKt (now com.example.cli.MainKt)"), "{}", notes[0]);
+
+        // The same file, already planned to say the new name, is not stale.
+        let fixed = FileWrite {
+            path: dir.path().join("build.gradle.kts"),
+            bytes: b"application { mainClass.set(\"com.example.cli.MainKt\") }\n".to_vec(),
+            changes: 1,
+        };
+        assert!(
+            scan(dir.path(), &survey, &renames, &[fixed])
+                .unwrap()
+                .is_empty()
+        );
     }
 }

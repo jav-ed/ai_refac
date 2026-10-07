@@ -69,9 +69,14 @@ async fn run(
     let moved = snapshot.finish(plan)?;
     let renames = renames::collect(&moved)?;
     let files = survey(root)?;
-    let android = android::update(&files, &moved, &renames.classes, journal)?;
-    report.edited.extend(android.edited);
-    report.notes.extend(stale::scan(root, &files, &renames)?);
+    let writes = android::plan(&files, &moved, &renames.classes)?;
+    report
+        .notes
+        .extend(stale::scan(root, &files, &renames, &writes)?);
+    journal.write_all(&writes)?;
+    report
+        .edited
+        .extend(writes.into_iter().map(|write| write.path));
     Ok(report)
 }
 
