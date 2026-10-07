@@ -203,6 +203,16 @@ impl LspSession {
         }
     }
 
+    /// Route every message that has already arrived, without waiting for more.
+    /// Lets a caller see whether the server has said something since its last
+    /// look at the kept notifications.
+    pub async fn poll(&mut self) -> Result<()> {
+        while let Ok(message) = self.incoming.try_recv() {
+            self.route(message).await?;
+        }
+        Ok(())
+    }
+
     /// Kept notifications seen so far, oldest first, for error diagnostics.
     pub fn notifications(&self) -> &[Value] {
         &self.inbox

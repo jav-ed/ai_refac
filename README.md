@@ -253,7 +253,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - Requires `go.mod` at the project root for cross-directory moves.
 
 **Dart**
-- `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Run `dart pub get` to generate it. Without it, only relative imports are updated.
+- `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Run `dart pub get` to generate it. Without it, a move that would leave a `package:` import pointing at a file that no longer exists is refused before anything is written, and the error lists the imports.
 
 **Kotlin / Android**
 - Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call.
@@ -297,7 +297,7 @@ No specific minimum version is enforced for external language tools, but use rec
 
 The approach depends on the language:
 
-**LSP-backed file moves (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current.
+**LSP-backed file moves (Rust, Go, Dart):** The tool starts a language server process, issues a rename request (`textDocument/rename` or `workspace/willRenameFiles`), applies the workspace edit the server returns, then moves the file on the filesystem. For batch operations, multiple renames are sent within a single server session with `textDocument/didChange` notifications between them to keep the server's view current. The tool never waits a fixed time: it sends the project's documents and waits for the server's own readiness signal (Dart `$/analyzerStatus`, gopls `$/progress` end, rust-analyzer `experimental/serverStatus`, pyrefly diagnostics). A server that never signals is an error after `REFAC_LSP_TIMEOUT_SECS` (default 300). For Dart the plan is checked before writing: if it would leave an import pointing at a missing file, nothing is changed.
 
 **Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
 

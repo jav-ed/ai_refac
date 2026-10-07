@@ -37,7 +37,7 @@ Markdown-specific behavior, limits, and examples live in [Markdown Feature Docs]
 | **Markdown** | Details in [Markdown Feature Docs](../Features/Markdown/linker_Markdown.md). |
 | **Rust** | Same-dir file renames use LSP symbol rename. Structural moves use `move-module`, move the complete conventional module subtree, rewrite resolved workspace references, never add `#[path]` shims, and roll back source changes when validation fails. Strict v1 rejects ambiguous or unsupported layouts. Details in [Rust Feature Docs](../Features/Rust/linker_Rust.md). |
 | **Go** | Moving any file in a package renames the **entire package** (all `.go` files in that directory move together). Partial-package moves are not supported. A batch across N packages uses one gopls session total. Details in [Go Feature Docs](../Features/Go/linker_Go.md). |
-| **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, only relative imports are updated. |
+| **Dart** | `.dart_tool/package_config.json` must exist in the project root for `package:` URI imports to be rewritten. Without it, a move that would leave a `package:` import dangling is refused before anything is written, with the imports listed. |
 | **Kotlin / Android** | `--project-path` is the Gradle root. Every call imports the Gradle build first (about 30 seconds, about 1.6 GiB for the server on a tiny project), so batch moves into one call. Directory moves work; `.java` files, directories containing Java, and moves between modules or source sets are refused. Old class names in ProGuard rules, build scripts, and string literals are reported, not rewritten. Details in [Kotlin Feature Docs](../Features/Kotlin/linker_Kotlin.md). |
 
 ## 4. JSON Output

@@ -29,7 +29,7 @@ Use ordinary `refac move` for same-directory `.rs` filename renames; rust-analyz
 
 ## Dart — package URI rewriting requires package config
 
-`package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Without it, only relative imports are updated.
+`package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Without it, a move that would leave a `package:` import pointing at a missing file is refused before anything is written, and the error lists the imports.
 
 Run `dart pub get` in the project root to generate it before calling `refac`.
 

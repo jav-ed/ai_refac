@@ -1,8 +1,14 @@
 use super::RefactorDriver;
 use super::complete_filesystem_moves;
-use super::lsp_client::LspClient;
-use anyhow::{Ok, Result};
+use super::lsp_client::{
+    LspClient, PendingChange, apply_pending_changes, collect_workspace_documents,
+};
+use anyhow::{Ok, Result, bail};
 use async_trait::async_trait;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+mod directives;
 
 pub struct DartDriver {
     client: LspClient,
@@ -38,21 +44,73 @@ impl RefactorDriver for DartDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
+        let root = match root_path {
+            Some(root) => std::path::absolute(root)?,
+            None => std::env::current_dir()?,
+        };
+
         // The command to start LSP is `dart language-server`
-        self.client
-            .initialize_and_rename_files(
+        let changes = self
+            .client
+            .plan_file_renames(
                 &["language-server"],
                 file_map.clone(),
-                root_path,
-                Some("dart"),
+                Some(root.as_path()),
+                "dart",
                 &["dart"],
             )
             .await?;
 
-        complete_filesystem_moves(&file_map, root_path).await?;
+        // Nothing has been written yet: a plan that leaves imports pointing at
+        // files that will not exist is refused here, not discovered later.
+        let dangling = dangling_imports(&root, &file_map, &changes)?;
+        if !dangling.is_empty() {
+            bail!(
+                "The Dart server's plan would leave {} import(s) pointing at files that do not exist after the move. Nothing was changed. The server answers with a partial plan when it has not finished analysing (run the move again), and rewrites `package:` imports only when `.dart_tool/package_config.json` exists (run `dart pub get`).\n  {}",
+                dangling.len(),
+                dangling.join("\n  ")
+            );
+        }
+        apply_pending_changes(changes).await?;
+
+        complete_filesystem_moves(&file_map, Some(root.as_path())).await?;
 
         Ok(())
     }
+}
+
+/// The imports the plan would break, for the whole project as it will be.
+fn dangling_imports(
+    root: &Path,
+    file_map: &[(String, String)],
+    changes: &[PendingChange],
+) -> Result<Vec<String>> {
+    let absolute = |path: &str| root.join(path);
+    let moves: Vec<(PathBuf, PathBuf)> = file_map
+        .iter()
+        .map(|(from, to)| (absolute(from), absolute(to)))
+        .collect();
+    let mut edits = HashMap::new();
+    for change in changes {
+        match change {
+            PendingChange::TextEdit {
+                path,
+                edits: file_edits,
+            } => {
+                edits
+                    .entry(path.clone())
+                    .or_insert_with(Vec::new)
+                    .extend(file_edits.iter().cloned());
+            }
+            PendingChange::ResourceOp(operation) => {
+                bail!(
+                    "The Dart server asked for a file operation that refac does not expect: {operation:?}"
+                )
+            }
+        }
+    }
+    let files = collect_workspace_documents(root, &["dart"])?;
+    directives::dangling_after(root, &files, &moves, &edits)
 }
 
 #[cfg(test)]

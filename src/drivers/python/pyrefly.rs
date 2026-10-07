@@ -56,13 +56,7 @@ impl RefactorDriver for PyreflyDriver {
 
         // Use generic client with batch support
         self.client
-            .initialize_and_rename_files(
-                &["lsp"],
-                file_map.clone(),
-                root_path,
-                Some("python"),
-                &["py"],
-            )
+            .initialize_and_rename_files(&["lsp"], file_map.clone(), root_path, "python", &["py"])
             .await?;
 
         complete_filesystem_moves(&file_map, root_path).await?;
@@ -82,6 +76,47 @@ mod tests {
         let driver = PyreflyDriver::new();
         let avail = driver.check_availability().await?;
         assert!(avail, "pyrefly not found in .venv or PATH");
+        Ok(())
+    }
+
+    // Real-server check of the Pyrefly path (the dispatcher normally prefers Rope):
+    // run with `cargo test -- --ignored` where pyrefly is installed. A missing
+    // server is a loud failure here, never a skip.
+    #[tokio::test]
+    #[ignore]
+    async fn test_pyrefly_move_rewrites_importer() -> Result<()> {
+        let driver = PyreflyDriver::new();
+        assert!(
+            driver.check_availability().await?,
+            "pyrefly not found in .venv or PATH"
+        );
+        let dir = tempfile::tempdir()?;
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("pkg"))?;
+        std::fs::write(root.join("pkg/__init__.py"), "")?;
+        std::fs::write(root.join("pkg/util.py"), "def helper():\n    return 1\n")?;
+        std::fs::write(
+            root.join("main.py"),
+            "from pkg.util import helper\n\nprint(helper())\n",
+        )?;
+
+        driver
+            .move_files(
+                vec![(
+                    root.join("pkg/util.py").to_string_lossy().into_owned(),
+                    root.join("pkg/tools.py").to_string_lossy().into_owned(),
+                )],
+                Some(root),
+            )
+            .await?;
+
+        assert!(root.join("pkg/tools.py").exists());
+        assert!(!root.join("pkg/util.py").exists());
+        let main = std::fs::read_to_string(root.join("main.py"))?;
+        assert!(
+            main.contains("from pkg.tools import helper"),
+            "importer was not rewritten:\n{main}"
+        );
         Ok(())
     }
 }

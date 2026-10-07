@@ -71,7 +71,7 @@ impl RefactorDriver for RustDriver {
                     &[],
                     vec![(source.clone(), target.clone())],
                     Some(root_dir.as_path()),
-                    Some("rust"),
+                    "rust",
                     &["rs"],
                 )
                 .await?;

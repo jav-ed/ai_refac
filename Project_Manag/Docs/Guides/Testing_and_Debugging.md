@@ -27,7 +27,7 @@ The current test suite covers:
 - Python move flow (Rope backend)
 - Rust same-dir and cross-dir move flow
 - Go move flow, including whole-package rename cascade
-- Dart move flow
+- Dart move flow, including the refusal of a plan that would leave `package:` imports dangling
 - Markdown move flow
 - Kotlin and Android: pure planning, XML rewriting, import insertion, and verification logic in the normal suite; the scenarios against the real Kotlin server are `#[ignore]`d (section 2, Kotlin tests)
 - Batch moves across all languages, including partial failure and cross-package Go batches
@@ -45,7 +45,7 @@ Each language has a fixture directory and a test file:
 | Python     | `tests/fixtures/python/project/`     | `tests/python_move.rs`       | `myapp/utils/formatters.py` → `myapp/core/formatters.py`|
 | Rust       | `tests/fixtures/rust/project/`       | `tests/rust_move.rs`         | `src/types.rs` → `src/shared/types.rs`                  |
 | Go         | `tests/fixtures/go/project/`         | `tests/go_move.rs`           | `pkg/utils/format.go` → `pkg/helpers/format.go`         |
-| Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`         | `lib/src/formatter.dart` → `lib/src/core/formatter.dart`|
+| Dart       | `tests/fixtures/dart/project/`       | `tests/dart_move.rs`, `tests/dart_package_config.rs` | `lib/src/formatter.dart` → `lib/src/core/formatter.dart`, and the refusal without `package_config.json` |
 | Markdown   | `tests/fixtures/markdown/`           | `tests/markdown_move.rs`     | various `.md` link rewrites                             |
 | Kotlin (JVM) | `tests/fixtures/kotlin/jvm_project/` | `tests/kotlin_moves.rs`, `tests/kotlin_rename.rs`, `tests/kotlin_server.rs`, `tests/kotlin_dispatch.rs` | package moves, directory moves, rollback, symbol renames, clash and shadowing refusals, dispatch through the CLI entry points |
 | Kotlin (Android) | `tests/fixtures/kotlin/android_project/` | `tests/kotlin_android.rs` | class moves and renames with manifest, layout and navigation XML, `R` and `BuildConfig` imports, compiled with a real Android Gradle Plugin |
@@ -84,7 +84,11 @@ Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these te
 
 **Temp dir naming matters for Go.** `setup_fixture` uses the prefix `refac-test-` (visible, non-hidden directory). gopls skips workspace roots whose directory name starts with `.`, so hidden temp dirs (the `tempfile` crate's default `.tmp` prefix) prevent import cascade. Always use a visible prefix when testing Go moves.
 
-**Dart tests are serialised.** The Dart analysis server is sensitive to concurrent starts. `dart_move.rs` acquires a global `Mutex` before each test so at most one analysis server runs at a time within that binary.
+**Dart tests are serialised.** The Dart analysis server is sensitive to concurrent starts. `dart_move.rs` acquires a global `Mutex` before each test so at most one analysis server runs at a time within that binary. `dart_package_config.rs` holds the single test for a project without `.dart_tool/package_config.json` (the move must be refused and every file left byte-identical); it is its own binary so it needs no lock.
+
+**No test waits a fixed time for a language server.** The Dart, Go, Rust and Pyrefly drivers wait for the server's own readiness signal (see the shared client in `src/drivers/lsp_client.rs`), so the suites pass on a busy machine too: the Dart, Go, batch, Rust and Python suites were run under 40 busy processes on 4 cores and passed. A server that never becomes ready fails after `REFAC_LSP_TIMEOUT_SECS` (default 300); set it lower when debugging a hang.
+
+**Pyrefly is a fallback behind Rope**, so `python_move` normally never starts it. `cargo test --lib pyrefly -- --ignored` runs the real server (it needs `.venv/bin/pyrefly` or `pyrefly` on `PATH` and panics when it is missing).
 
 Run a single language's tests:
 

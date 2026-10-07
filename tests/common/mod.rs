@@ -70,4 +70,5 @@ pub fn read_file(root: &Path, rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()))
 }
 
+#[allow(dead_code)]
 pub mod kotlin;
