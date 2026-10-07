@@ -83,8 +83,8 @@ fn rewrite_markdown_links(
     final_path: &Path,
     move_lookup: &HashMap<PathBuf, PathBuf>,
 ) -> Result<String> {
-    let parsed = parse_markdown_links(content);
-    if parsed.targets.is_empty() {
+    let targets = parse_markdown_links(content)?;
+    if targets.is_empty() {
         return Ok(content.to_string());
     }
 
@@ -95,7 +95,7 @@ fn rewrite_markdown_links(
     let mut rewritten = content.to_string();
     let mut replacements = Vec::new();
 
-    for link in parsed.targets {
+    for link in targets {
         let Some(target) = classify_link_target(original_path, &link.href)? else {
             continue;
         };

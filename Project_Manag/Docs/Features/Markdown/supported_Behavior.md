@@ -6,6 +6,7 @@ This file owns the description of what the current Markdown implementation does.
 
 - The backend is native Rust. It does not depend on an external Markdown toolchain.
 - It only handles `.md` files.
+- `--project-path` may be relative (`.`); it is resolved against the working directory.
 - It only handles file moves. It does not support directory moves.
 - It scans Markdown files recursively under the relevant workspace root and rewrites Markdown path destinations where needed.
 

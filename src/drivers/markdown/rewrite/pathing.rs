@@ -119,10 +119,12 @@ fn resolve_project_path(path: &str, root_path: Option<&Path>) -> Result<PathBuf>
         return Ok(normalize_path(candidate.to_path_buf()));
     }
 
-    let base = if let Some(root) = root_path {
-        root.to_path_buf()
-    } else {
-        std::env::current_dir().context("Failed to read current directory")?
+    // A relative project path (`--project-path .`) must become absolute here:
+    // the files found under the workspace root are absolute, and a move that
+    // stays relative never matches them, so no link would be updated.
+    let base = match root_path {
+        Some(root) => normalize_absolute_path(root)?,
+        None => std::env::current_dir().context("Failed to read current directory")?,
     };
 
     Ok(normalize_path(base.join(candidate)))

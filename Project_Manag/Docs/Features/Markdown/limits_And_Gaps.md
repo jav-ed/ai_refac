@@ -13,13 +13,13 @@ This file owns the current boundaries of Markdown support.
 - Wiki-links such as `[[Page]]`
 - HTML links such as `<a href="...">`
 - HTML images such as `<img src="...">`
-- Autolinks such as `<https://example.com/doc>`
-- Multiline reference definitions
-- Multiline reference titles
+- Autolinks such as `<https://example.com/doc>` (they are URLs, not project paths)
 
 ## Parsing Model
 
-- The implementation is path-oriented and pragmatic. It is not a full CommonMark AST refactoring engine.
+- A CommonMark parser (`pulldown-cmark`, GFM tables and footnotes on) decides what is a link, an image, or a reference definition. Links inside fenced and indented code blocks, inline code spans, HTML comments, raw HTML, and YAML or TOML front matter are therefore left alone, and a reference definition may continue on the next line.
+- refac itself only reads the destination: the parser reports where a link or definition sits, and `src/drivers/markdown/parser/destination.rs` narrows that to the destination text, so the rewrite replaces those bytes and nothing else. Any structure it does not expect is an error.
+- It is not a Markdown refactoring engine beyond destinations.
 - It updates destination paths. It does not rename labels, link text, headings, or anchors.
 - Reference-style usage forms keep working because the definition destination is updated, not because the usage text is transformed.
 

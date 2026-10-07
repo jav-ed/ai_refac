@@ -68,7 +68,7 @@ Namespace packages (directories with no `__init__.py`) may also see incomplete u
 
 Only relative links are rewritten. Absolute URLs and `http://` / `https://` links are left unchanged.
 
-Links inside fenced code blocks and inline code spans are not rewritten.
+The file is read as CommonMark: links inside code (fenced blocks, indented blocks, inline spans), HTML comments, raw HTML, and front matter are not rewritten, and HTML `<a href>` and `<img src>` are not treated as links.
 
 ## Kotlin and Android
 
