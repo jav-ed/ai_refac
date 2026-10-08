@@ -1,10 +1,16 @@
 use super::{
-    apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
-    declarations::{insert_module_declaration, visibility_prefix},
-    layout, macro_paths,
-    module_graph::{self, ResolvedModule},
-    references, super_paths, validation,
-    workspace::SemanticWorkspace,
+    analysis::{
+        module_graph::{self, ResolvedModule},
+        workspace::SemanticWorkspace,
+    },
+    edits::{
+        declarations::{insert_module_declaration, visibility_prefix},
+        macro_paths, references, super_paths,
+    },
+    transaction::{
+        apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
+        layout, validation,
+    },
 };
 use anyhow::{Context, Result, bail};
 use std::{

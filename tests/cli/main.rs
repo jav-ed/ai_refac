@@ -7,5 +7,6 @@ mod common;
 mod batch_rename;
 mod doctor;
 mod help;
+mod layout;
 mod move_outcome;
 mod usage;

@@ -3,19 +3,11 @@ use anyhow::{Result, bail};
 use async_trait::async_trait;
 use std::path::Path;
 
-mod apply;
-mod declarations;
-mod imports;
-mod layout;
-mod macro_paths;
-mod module_graph;
+mod analysis;
+mod edits;
 mod planner;
-mod references;
 mod rename;
-mod super_paths;
-mod use_split;
-mod validation;
-mod workspace;
+mod transaction;
 
 pub use planner::move_module;
 

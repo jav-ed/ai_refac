@@ -29,7 +29,7 @@ Before mutation, Refac:
 1. loads the Cargo package or workspace with embedded rust-analyzer crates;
 2. resolves the source as an out-of-line HIR module and confirms that the target does not exist;
 3. discovers its conventional physical representation: `name.rs` plus an optional `name/` companion, or the complete `name/mod.rs` directory;
-4. finds resolved references across workspace crates and plans their new paths;
+4. finds resolved references across workspace crates, including code behind `#[cfg(test)]` and the arguments of macro calls, and plans their new paths;
 5. plans declaration removal/insertion, missing conventional parent modules, and `super::` rewrites inside moved files;
 6. rejects target collisions, overlapping edits, and unsupported source layouts.
 
@@ -48,7 +48,8 @@ The semantic command moves the module's complete representation:
 - `src/engine/matching.rs` moves as one module file; `src/engine/matching/`, when present, moves with it.
 - `src/engine/matching/mod.rs` moves with the entire `src/engine/matching/` directory.
 - Missing target parents are represented conventionally with `mod.rs` and a matching `mod <name>;` declaration.
-- Existing source visibility is preserved for the moved declaration and generated parent declarations.
+- The visibility of the declaration keeps its reach. `pub` and `pub(crate)` are copied; a private `mod` (and `pub(self)`, `pub(super)`) that lands in a deeper parent is written `pub(super)` or `pub(in crate::…)` so that everything that named the module before still can. The same holds for generated parent declarations.
+- The new `mod` line joins the first block of declarations at the top of its parent file, in alphabetical order when that block is sorted, not after a `mod tests;` at the end.
 
 No `#[path]` attribute or old-path re-export is introduced. Callers migrate to the new path.
 
@@ -56,17 +57,27 @@ No `#[path]` attribute or old-path re-export is introduced. Callers migrate to t
 
 References in the selected crate and dependent workspace crates are rewritten from rust-analyzer's resolved reference graph. For example, moving `crate::matching` to `crate::domain::matching` in package `core_lib` also changes `core_lib::matching::value` in a dependent workspace package to `core_lib::domain::matching::value`.
 
+## What the rewrite covers
+
+Every reference is rewritten from rust-analyzer's resolved graph, so the form in the source decides what is written:
+
+- `crate::old::path` and `super::` paths become the new absolute path; a leading `super::` inside the moved file that leaves the moved module becomes `crate::…` (and `pub(super)` becomes `pub(in crate::parent)`), while a `super::` that stays inside the module is left alone.
+- A name imported with `use` stays short: with `use super::matching;` in place, `matching::value()` keeps its form and only the import is rewritten. A local variable, constant or function that merely carries the module's name is not a reference and is not touched.
+- A module that leaves the group of an import (`use super::{helper, matching};`) is taken out of the group and imported on the next line, with its alias or nested list; a pair loses its braces, a group of one becomes a plain import.
+- A path in the arguments of a macro call (`vec![crate::old::Item { .. }]`, `assert_eq!(crate::old::value(), 7)`) is a token, not a path; the ones spelled `crate::…` are rewritten, the others are left for the Cargo check to report.
+- A path inside generic arguments (`Vec<old::Item>`) is a path of its own.
+
 ## Strict v1 limits
 
 Refac stops before mutation when it encounters a layout it cannot preserve confidently. Current hard errors include:
 
 - inline source modules;
 - `#[path]` modules;
-- attributed module declarations, including `#[cfg]`;
-- visibility other than private, `pub`, or `pub(crate)`;
+- module declarations with an attribute other than a condition or a lint (`cfg`, `allow`, `warn`, `deny`, `forbid`, `expect`, `doc`, `deprecated`); `#[path]` and `#[macro_use]` are refused by name;
+- `pub(in …)` visibility other than the absolute `pub(in crate::…)`;
 - an inline descendant that declares an out-of-line child;
 - Rust syntax errors in a file that must be rewritten;
-- complex path syntax or a grouped import that would require structural rewriting;
+- complex path syntax in a reference (a module path with generic arguments of its own, for instance), and an import with attributes that would have to leave its group;
 - a target that already exists or a target inside the source subtree;
 - resolved source references outside the selected Cargo workspace.
 
@@ -77,3 +88,7 @@ Proc-macro expansion and build-script output loading are disabled for v1. The fi
 Same-directory file renames use one rust-analyzer LSP session for the batch and rename the module symbol before the filesystem move. A cross-directory `.rs` path passed to ordinary `refac move` fails with guidance to use `move-module`; Refac does not silently create a shim.
 
 The external `rust-analyzer` binary is therefore required for ordinary file renames. `move-module` uses the embedded rust-analyzer libraries locked in `Cargo.lock`.
+
+## Evidence: moving this repository's own modules
+
+The `src/drivers/` tree of this repository was reorganised with `refac move-module` itself (`lsp_client`, `lsp_session`, `lsp_rename` and its stages, `symbol_*`, the Kotlin Android modules, the Rust driver's own helpers); each move took about 4.5 minutes, most of it the final `cargo check --workspace --all-targets`. Every case where the tool first failed became a regression test in `tests/moves/rust_module/` (and unit tests under `src/drivers/rust/`): generic type paths, code behind `#[cfg(test)]`, a `super::*` inside the moved module, a `cfg` declaration and a `cfg(test)` child, short references through an import, `crate::` paths inside macro arguments, module paths inside generic arguments, a local variable with the module's name, `pub(super)`, a private module moved deeper, and a module leaving a grouped import.

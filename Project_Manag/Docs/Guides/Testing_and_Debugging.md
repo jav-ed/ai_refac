@@ -44,7 +44,7 @@ Every file directly in `tests/` would be its own program linking the whole libra
 
 | Group (`--test`) | Holds | Real server needed |
 |---|---|---|
-| `cli` | usage errors, `--help`, `refac guide`, `doctor`, `rename --batch` refusals, the answer and exit code of a partly failed `move` | no |
+| `cli` | usage errors, `--help`, `refac guide`, `doctor`, `rename --batch` refusals, the answer and exit code of a partly failed `move`, and `layout` (the shape of the code: see below) | no |
 | `moves` | `move` per language (Go, Rust, Python, Dart), `move-module`, multi-language batches | partly (`go`, `dart`, `python` find their tools or skip) |
 | `rename` | symbol rename in Go, Rust, Python, Dart, encoding, batch | yes, `#[ignore]`d |
 | `typescript` | moves, rename, limits, the 3,005-file stress test | no (the TypeScript engine is installed by refac) |
@@ -52,6 +52,17 @@ Every file directly in `tests/` would be its own program linking the whole libra
 | `kotlin` | server, moves, rename, dispatch, Android | yes, `#[ignore]`d |
 
 Run one group with `cargo test --test <group>`, a part of it with a module filter (`cargo test --test rename go::`), the real-server ones with `-- --ignored`. A header comment in each file says the same.
+
+### Layout: the shape of the code is a test
+
+`tests/cli/layout.rs` fails the run when the code drifts from the rules of the file-tree and coding skills:
+
+- no `.rs` file directly in `tests/` (each one is a 90 MB program);
+- every code file is declared by its parent module (a file nobody declares is never compiled, so its tests never run);
+- at most 300 lines of code per file (blank lines and comments do not count), so a long test file becomes a file of helpers plus one child module per subject (`tests/moves/rust_module.rs` with `rust_module/{basic,paths,imports,declarations}.rs` is the pattern);
+- at most 9 code files directly in one folder, so related files get a folder (`src/drivers/rust/` has `analysis/`, `edits/` and `transaction/`).
+
+The reorganisation of `src/drivers/` was done with `refac move-module` itself; see the evidence section of [Rust](../Features/Rust/linker_Rust.md).
 
 ### Per-language tests
 

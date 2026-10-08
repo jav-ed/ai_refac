@@ -4,7 +4,7 @@
 //! a block at its top, usually in alphabetical order, and the new one joins
 //! that block.
 
-use super::apply::{TextReplacement, append_replacement};
+use crate::drivers::rust::transaction::apply::{TextReplacement, append_replacement};
 use ra_ap_syntax::{
     AstNode, Edition, SourceFile,
     ast::{self, HasModuleItem, HasName},

@@ -3,7 +3,7 @@
 //! as a path below `super` once the module lives somewhere else, so it leaves
 //! the group and gets a `use` line of its own right after it.
 
-use super::apply::TextReplacement;
+use crate::drivers::rust::transaction::apply::TextReplacement;
 use anyhow::{Result, bail};
 use ra_ap_syntax::{
     AstNode,

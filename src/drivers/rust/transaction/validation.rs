@@ -1,4 +1,5 @@
-use super::{module_graph, workspace::SemanticWorkspace};
+use crate::drivers::rust::analysis::module_graph;
+use crate::drivers::rust::analysis::workspace::SemanticWorkspace;
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 

@@ -278,7 +278,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 **Rust**
 - Use `move-module` for cross-directory or otherwise structural moves. Ordinary `move` rejects cross-directory `.rs` paths instead of guessing the logical module change.
 - Source and target must be logical `crate::...` paths in the same crate. Workspace dependants are updated, but a source path that resolves in multiple workspace crates is rejected as ambiguous.
-- v1 rejects inline source modules, `#[path]`, attributed declarations such as `#[cfg]`, nonstandard visibility, syntax errors, complex paths it cannot preserve, and grouped imports that would require restructuring.
+- v1 rejects inline source modules, `#[path]` and `#[macro_use]` declarations (other attributes must be conditions or lints such as `#[cfg]`), `pub(in …)` visibility that is not an absolute `crate::` path, syntax errors, and complex paths it cannot preserve. It handles code behind `#[cfg(test)]`, `crate::` paths in macro arguments, short references through `use`, `pub(super)`, and a module that leaves a grouped import (details and limits: [Rust](Project_Manag/Docs/Features/Rust/linker_Rust.md)).
 - The semantic command never adds `#[path]` or compatibility re-export shims. It validates after applying and rolls planned source changes back on failure.
 
 **Go**

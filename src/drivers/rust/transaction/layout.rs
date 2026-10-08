@@ -1,4 +1,5 @@
-use super::{apply::PlannedMove, module_graph::ResolvedModule};
+use crate::drivers::rust::analysis::module_graph::ResolvedModule;
+use crate::drivers::rust::transaction::apply::PlannedMove;
 use anyhow::{Context, Result, bail};
 use std::{
     collections::BTreeSet,

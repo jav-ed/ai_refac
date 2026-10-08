@@ -6,7 +6,7 @@
 //! the form that starts with `crate` is recognised: a path through an import,
 //! `super` or another crate's name cannot be told from other tokens.
 
-use super::apply::TextReplacement;
+use crate::drivers::rust::transaction::apply::TextReplacement;
 use ra_ap_syntax::{
     AstNode, Edition, NodeOrToken, SourceFile, SyntaxKind, SyntaxToken, TextRange, ast,
 };

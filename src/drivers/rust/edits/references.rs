@@ -1,7 +1,8 @@
-use super::{
-    apply::TextReplacement, module_graph::ResolvedModule, use_split::split_leaf_from_group,
-    workspace::SemanticWorkspace,
-};
+use super::imports::imports_module_by_name;
+use super::use_split::split_leaf_from_group;
+use crate::drivers::rust::analysis::module_graph::{self, ResolvedModule};
+use crate::drivers::rust::analysis::workspace::SemanticWorkspace;
+use crate::drivers::rust::transaction::apply::TextReplacement;
 use anyhow::{Context, Result, bail};
 use ra_ap_ide::{FileId, FilePosition, FindAllRefsConfig, RaFixtureConfig, TextRange};
 use ra_ap_syntax::{AstNode, Edition, SourceFile, ast};
@@ -15,7 +16,7 @@ pub fn module_reference_edits(
     source: &ResolvedModule,
     target_segments: &[String],
 ) -> Result<Vec<TextReplacement>> {
-    let file_id = super::module_graph::declaration_file_id(workspace, source)?;
+    let file_id = module_graph::declaration_file_id(workspace, source)?;
     let config = FindAllRefsConfig {
         search_scope: None,
         ra_fixture: RaFixtureConfig::default(),
@@ -168,7 +169,7 @@ fn reference_edit(
         && inherited.is_empty()
         && leaf.len() == 1
         && source.last() == leaf.first()
-        && super::imports::imports_module_by_name(&parse.tree(), &leaf[0])
+        && imports_module_by_name(&parse.tree(), &leaf[0])
     {
         let new_name = target.last().context("Target module has no name")?;
         if *new_name == leaf[0] {

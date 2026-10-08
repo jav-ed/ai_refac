@@ -1,7 +1,7 @@
 //! The `super::` paths of a module that moves: they are position dependent,
 //! so the ones that leave the moved module are written out as `crate::` paths.
 
-use super::apply::TextReplacement;
+use crate::drivers::rust::transaction::apply::TextReplacement;
 use anyhow::{Result, bail};
 use ra_ap_ide::TextRange;
 use ra_ap_syntax::{
