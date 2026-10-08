@@ -1,0 +1,41 @@
+SERVERS: which language servers refac starts, where it finds them, how to fix a missing one
+
+refac does not bundle language servers (except the TypeScript engine, which it installs on first use). A
+server is started for the command and stopped when it ends: nothing is resident, so there is nothing to
+stop and no memory held between commands.
+
+  Language    Server                     Environment variable
+  Go          gopls                      REFAC_GOPLS
+  Rust        rust-analyzer              REFAC_RUST_ANALYZER
+  Python      basedpyright               REFAC_PYTHON_SERVER
+  Dart        the Dart SDK's analysis    REFAC_DART
+  Kotlin      JetBrains Kotlin server    REFAC_KOTLIN_SERVER   (the folder with bin/intellij-server)
+  TypeScript  the TypeScript 7 engine    (installed by refac)
+
+WHERE IT LOOKS, IN THIS ORDER
+  1. The environment variable. If it is set it is the ONLY place looked at; a wrong value is reported as
+     wrong instead of being replaced by something else.
+  2. The PATH.
+  3. The folders installers use (the language's own toolchain folders).
+  A place counts only when the program there runs: a stand-in that exists but fails (rustup's
+  rust-analyzer without the component) is reported as broken.
+
+WHEN ONE IS MISSING
+  The failing command lists every place it looked and stops. Then:
+    refac doctor              one line per language, no server started
+    refac doctor <language>   the steps to install it, and a start check that proves it works
+  After installing, run the original command again. For Kotlin the server is a large download
+  (about 1.2 GB unpacked) and REFAC_KOTLIN_SERVER names its folder.
+
+LIMITS AND SWITCHES
+  REFAC_PROJECT_PATH           default for --project-path
+  REFAC_LSP_TIMEOUT_SECS       how long a server may take to load or answer (default 300)
+  REFAC_KOTLIN_TIMEOUT_SECS    the same for the Kotlin Gradle import (default 600)
+  REFAC_TYPESCRIPT_MAX_RSS_MB  RAM limit of the TypeScript helper in MiB (default 4096)
+  REFAC_LSP_TRACE=1            print every message exchanged with a server (debugging)
+  RUST_LOG=debug               more of refac's own log on stderr
+
+WHAT REFAC KEEPS ON YOUR MACHINE
+  Nothing. The Kotlin server gets a throwaway system folder (about 250 MB of caches) that is deleted
+  afterwards, and its Gradle daemon is told to stop itself seconds after the import instead of the three
+  hours Gradle defaults to.

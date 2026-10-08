@@ -21,6 +21,7 @@ pub async fn start(executable: &Path, root: &Path) -> Result<Session> {
         }),
         keep_notifications: &[],
         language_id,
+        env: Vec::new(),
     })
     .await?;
     let capabilities = &init["capabilities"];

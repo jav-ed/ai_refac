@@ -1,5 +1,6 @@
 //! Choosing the language driver for each requested path.
 
+use crate::drivers::RefactorDriver;
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -24,6 +25,21 @@ const CODE_EXTENSIONS: &[&str] = &[
     "kts", "java", "scala", "c", "h", "cc", "cpp", "hpp", "cs", "rb", "php", "swift", "sh", "bash",
     "lua", "vue", "svelte", "gradle", "m", "mm",
 ];
+
+/// The driver that moves the files of `lang` (a name `language_of` returns).
+pub fn driver_for(lang: &str) -> Result<Box<dyn RefactorDriver>> {
+    let driver: Box<dyn RefactorDriver> = match lang {
+        "markdown" => Box::new(crate::drivers::markdown::MarkdownDriver::new()),
+        "python" => Box::new(crate::drivers::python::PythonDriver::new()),
+        "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
+        "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
+        "go" => Box::new(crate::drivers::go::GoDriver::new()),
+        "dart" => Box::new(crate::drivers::dart::DartDriver::new()),
+        "kotlin" => Box::new(crate::drivers::kotlin::KotlinDriver),
+        _ => bail!("Unsupported language: {}", lang),
+    };
+    Ok(driver)
+}
 
 /// The language that handles `source`, or `None` for a file refac does not
 /// support (it is reported as skipped). A directory is routed by its content

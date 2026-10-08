@@ -1,9 +1,12 @@
-use crate::drivers::RefactorDriver;
 use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
+use report::{FailedGroup, MoveOutcome, Pairs};
+use std::collections::{BTreeMap, HashMap};
 
+mod go_collaterals;
 mod markdown_links;
 pub mod rename;
+mod report;
 mod route;
 mod typescript;
 mod unavailable;
@@ -71,15 +74,12 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     let root = req.project_path.as_ref().map(std::path::Path::new);
     // Folders are gone once moved, so ask now for the Markdown link pass later.
     let directories = markdown_links::directories(&req.source_path, root);
-    let mut successful_files: std::collections::HashMap<String, Vec<(String, String)>> =
-        std::collections::HashMap::new();
+    let mut moved: BTreeMap<String, Pairs> = BTreeMap::new();
     // What each driver reports beyond success, by language.
-    let mut notes: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-    // (lang, attempted files, error message)
-    let mut failed_batches: Vec<(String, Vec<(String, String)>, String)> = Vec::new();
+    let mut notes: HashMap<String, Vec<String>> = HashMap::new();
+    let mut failed: Vec<FailedGroup> = Vec::new();
 
-    let mut dispatch_order: Vec<(String, Vec<(String, String)>)> = batch_map.into_iter().collect();
+    let mut dispatch_order: Vec<(String, Pairs)> = batch_map.into_iter().collect();
     dispatch_order.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Enforce the documented limit before any language batch mutates the project.
@@ -97,207 +97,53 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         );
     }
 
+    // Every language server and tool a group needs must be there before the
+    // first group moves, or a missing one would stop the command half way.
+    let mut drivers = Vec::new();
     for (lang, files) in dispatch_order {
-        let driver = get_driver_by_lang(&lang)?;
-
+        let driver = route::driver_for(&lang)?;
         if !driver.check_availability().await? {
             bail!("{}", unavailable::message(&lang, root));
         }
+        drivers.push((lang, files, driver));
+    }
 
+    for (lang, files, driver) in drivers {
         match driver.move_files_with_notes(files.clone(), root).await {
             Ok(driver_notes) => {
                 notes.insert(lang.clone(), driver_notes);
-                successful_files.insert(lang, files);
+                moved.insert(lang, files);
             }
-            Err(e) => failed_batches.push((lang, files, e.to_string())),
+            Err(error) => failed.push(FailedGroup {
+                lang,
+                files,
+                error: error.to_string(),
+            }),
         }
-    }
-
-    // If everything failed, bail with a structured error rather than a blank response.
-    if !failed_batches.is_empty() && successful_files.is_empty() && skipped_files.is_empty() {
-        let lines: Vec<String> = failed_batches
-            .iter()
-            .map(|(lang, files, err)| {
-                let file_list = files
-                    .iter()
-                    .map(|(s, t)| format!("  {} -> {}", rel_display(s, root), rel_display(t, root)))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                format!("{}: {}\n{}", capitalize(lang), err, file_list)
-            })
-            .collect();
-        bail!("{}", lines.join("\n\n"));
     }
 
     // Markdown links to what the other languages moved.
-    let link_notes = if successful_files.is_empty() {
+    let link_notes = if moved.is_empty() {
         None
     } else {
-        markdown_links::update(&successful_files, &directories, root).await?
+        markdown_links::update(&moved, &directories, root).await?
     };
 
-    // 4. Build response
-    let total_files: usize = successful_files.values().map(|v| v.len()).sum();
-    let mut response = format!(
-        "// Alhamdulillah {} requested path{} successfully refactored:\n",
-        total_files,
-        if total_files == 1 { " was" } else { "s were" }
-    );
-
-    let mut success_langs: Vec<_> = successful_files.keys().cloned().collect();
-    success_langs.sort();
-
-    for lang in success_langs {
-        let files = &successful_files[&lang];
-        response.push_str(&format!("\n// {} results:\n\n", capitalize(&lang)));
-        if lang == "typescript" {
-            response.push_str(&format!(
-                "// {} TypeScript/JavaScript source file{} moved (limit: {}).\n\n",
-                typescript_source_count,
-                if typescript_source_count == 1 {
-                    ""
-                } else {
-                    "s"
-                },
-                typescript::MAX_FILES_PER_MOVE
-            ));
-        }
-        for (src, tgt) in files {
-            response.push_str(&format!(
-                "{} -> {}  \n",
-                rel_display(src, root),
-                rel_display(tgt, root)
-            ));
-        }
-
-        for note in notes.get(&lang).into_iter().flatten() {
-            response.push_str(&format!("\n// Note: {note}  \n"));
-        }
-
-        // For Go: report any files gopls moved collaterally beyond what was requested.
-        if lang == "go" {
-            let collaterals = detect_go_collaterals(files, root);
-            if !collaterals.is_empty() {
-                response.push_str(
-                    "\n// Note — Go moves entire packages. \
-                     The following files were also relocated as part of the package rename:  \n\n",
-                );
-                for path in collaterals {
-                    response.push_str(&format!(
-                        "{}  \n",
-                        rel_display(&path.display().to_string(), root)
-                    ));
-                }
-            }
-        }
-    }
-
-    if let Some(link_notes) = link_notes {
-        response.push_str("\n// Markdown links to the moved files:\n");
-        for note in link_notes {
-            response.push_str(&format!("\n// Note: {note}  \n"));
-        }
-    }
-
-    if !failed_batches.is_empty() {
-        response.push_str("\n// Failed:\n");
-        for (lang, files, err) in &failed_batches {
-            response.push_str(&format!("\n// {} — {}\n\n", capitalize(lang), err));
-            for (src, tgt) in files {
-                response.push_str(&format!(
-                    "{} -> {}  \n",
-                    rel_display(src, root),
-                    rel_display(tgt, root)
-                ));
-            }
-        }
-    }
-
-    if !skipped_files.is_empty() {
-        response.push_str("\n// Skipped (unsupported extension):  \n\n");
-        for file in &skipped_files {
-            response.push_str(&format!("{}  \n", rel_display(file, root)));
-        }
-    }
-
-    Ok(response)
-}
-
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
-}
-
-fn rel_display(path: &str, root: Option<&std::path::Path>) -> String {
-    if let Some(r) = root {
-        std::path::Path::new(path)
-            .strip_prefix(r)
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| path.to_string())
+    // 4. Build response. A request that was not carried out in full is an
+    // error with the whole report as its text, so the exit code says so.
+    let outcome = MoveOutcome {
+        root,
+        moved,
+        notes,
+        link_notes,
+        failed,
+        skipped: skipped_files,
+        typescript_source_count,
+    };
+    let report = outcome.render();
+    if outcome.is_complete() {
+        Ok(report)
     } else {
-        path.to_string()
+        bail!("{report}")
     }
-}
-
-/// After a successful Go batch move, scan the target directories for .go files
-/// that were not in the requested file map — these are collateral moves performed
-/// by gopls as part of its package-level rename.
-fn detect_go_collaterals(
-    file_map: &[(String, String)],
-    root: Option<&std::path::Path>,
-) -> Vec<std::path::PathBuf> {
-    // Build the set of requested target absolute paths.
-    let requested: std::collections::HashSet<std::path::PathBuf> = file_map
-        .iter()
-        .map(|(_, tgt)| {
-            let p = std::path::Path::new(tgt);
-            if p.is_absolute() {
-                p.to_path_buf()
-            } else if let Some(r) = root {
-                r.join(p)
-            } else {
-                p.to_path_buf()
-            }
-        })
-        .collect();
-
-    // Collect the unique target directories.
-    let target_dirs: std::collections::HashSet<std::path::PathBuf> = requested
-        .iter()
-        .filter_map(|p| p.parent().map(|d| d.to_path_buf()))
-        .collect();
-
-    // Any .go file in those directories that was not explicitly requested is collateral.
-    let mut collaterals = Vec::new();
-    for dir in &target_dirs {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("go")
-                    && !requested.contains(&path)
-                {
-                    collaterals.push(path);
-                }
-            }
-        }
-    }
-    collaterals.sort();
-    collaterals
-}
-
-fn get_driver_by_lang(lang: &str) -> Result<Box<dyn crate::drivers::RefactorDriver>> {
-    let driver: Box<dyn RefactorDriver> = match lang {
-        "markdown" => Box::new(crate::drivers::markdown::MarkdownDriver::new()),
-        "python" => Box::new(crate::drivers::python::PythonDriver::new()),
-        "typescript" => Box::new(crate::drivers::typescript::TypeScriptDriver),
-        "rust" => Box::new(crate::drivers::rust::RustDriver::new()),
-        "go" => Box::new(crate::drivers::go::GoDriver::new()),
-        "dart" => Box::new(crate::drivers::dart::DartDriver::new()),
-        "kotlin" => Box::new(crate::drivers::kotlin::KotlinDriver),
-        _ => bail!("Unsupported language: {}", lang),
-    };
-    Ok(driver)
 }

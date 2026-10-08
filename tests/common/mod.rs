@@ -3,6 +3,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use tempfile::TempDir;
 
+/// The Dart analysis server does not like several runs over copies of the same
+/// package at once, so every test that moves Dart files holds this lock. It is
+/// shared because the moves, the batch and the package-config tests run in one
+/// test program.
+pub static DART_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn cli_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_refac"))
 }

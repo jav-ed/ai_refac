@@ -33,9 +33,9 @@ This file owns the current boundaries of Markdown support.
 ## Coverage
 
 - Unit tests per module (`moves`, `href`, `workspace`, `rewrite`, `apply`, the HTML scanner, the parser).
-- `tests/markdown_site.rs` and `tests/markdown_site_folders.rs`: a documentation site fixture moved as a file, a rename, a folder (also deeper), an image, and a batch, with exact text, an independent link-graph check (`tests/common/links.rs`), and round trips.
-- `tests/markdown_corpus.rs`: the 13 link shapes used to compare other tools, pinned exactly.
-- `tests/markdown_after_code.rs`: links to TypeScript, Python, Go, and Dart files, a TypeScript folder, a mixed request, and a failed Rust move.
-- `tests/markdown_safety.rs`: ignore rules, non-UTF-8 files, line endings, refusals, rollback.
-- `tests/markdown_scale.rs`: 3,000 files, one folder moved in well under a second.
-- `tests/markdown_move.rs`, `tests/markdown_commonmark.rs`, `tests/markdown_external_links.rs`, `tests/batch_move.rs`: the original single-file and batch scenarios.
+- `tests/markdown/site.rs` and `tests/markdown/site_folders.rs`: a documentation site fixture moved as a file, a rename, a folder (also deeper), an image, and a batch, with exact text, an independent link-graph check (`tests/common/links.rs`), and round trips.
+- `tests/markdown/corpus.rs`: the 13 link shapes used to compare other tools, pinned exactly.
+- `tests/markdown/after_code.rs`: links to TypeScript, Python, Go, and Dart files, a TypeScript folder, a mixed request, and a failed Rust move.
+- `tests/markdown/safety.rs`: ignore rules, non-UTF-8 files, line endings, refusals, rollback.
+- `tests/markdown/scale.rs`: 3,000 files, one folder moved in well under a second.
+- `tests/markdown/moves.rs`, `tests/markdown/commonmark.rs`, `tests/markdown/external_links.rs`, `tests/moves/batch.rs`: the original single-file and batch scenarios.

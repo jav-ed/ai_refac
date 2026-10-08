@@ -110,7 +110,7 @@ The fixtures are small, so each language was also run on real code (2026-10-07),
 
 The last row is why the proof now treats references outside the project folder as their own failure. The first version reported "leaves 58 of the 104 places unchanged" and named a file in `~/.pub-cache`, which is correct and not obvious. The message now says the symbol is used by other packages, that the server never edits them, and that a symbol other packages use is part of the project's public interface. It is not retried (gopls gets four tries for a different problem; a file outside the project can never be edited).
 
-The shapes of project were checked too: a project below a hidden `.`-folder, a symlinked project path (Go, Python, Rust, Dart), a Cargo workspace of two crates, a Go `go.work` with two modules, and a Python `src/` layout with `pyproject.toml`. All behave. Non-ASCII text before a symbol on the same line (an emoji is two UTF-16 units) and CRLF files are covered by `tests/rename_encoding.rs`, which fails on all four languages when the UTF-16 offset code is deliberately broken.
+The shapes of project were checked too: a project below a hidden `.`-folder, a symlinked project path (Go, Python, Rust, Dart), a Cargo workspace of two crates, a Go `go.work` with two modules, and a Python `src/` layout with `pyproject.toml`. All behave. Non-ASCII text before a symbol on the same line (an emoji is two UTF-16 units) and CRLF files are covered by `tests/rename/encoding.rs`, which fails on all four languages when the UTF-16 offset code is deliberately broken.
 
 ## Server lookup, and what a missing server must say
 

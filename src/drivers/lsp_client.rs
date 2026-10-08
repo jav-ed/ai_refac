@@ -134,6 +134,7 @@ impl LspClient {
             capabilities: server.capabilities(file_operations),
             keep_notifications: server.kept_notifications(),
             language_id: server.language_id(),
+            env: Vec::new(),
         })
         .await?;
         session.initialized().await?;

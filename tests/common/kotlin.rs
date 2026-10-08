@@ -42,10 +42,12 @@ pub fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
 }
 
 /// The judge of a refactor: the project still compiles, Kotlin and Java.
+/// `--no-daemon`: a Gradle daemon would stay in memory (about 0.5 GB) for three
+/// hours after the test, and nothing a test starts may outlive it.
 pub fn assert_compiles(project: &Path, tasks: &[&str]) {
     let output = Command::new("./gradlew")
         .args(tasks)
-        .args(["--console=plain", "-q"])
+        .args(["--console=plain", "-q", "--no-daemon"])
         .current_dir(project)
         .output()
         .expect("failed to run ./gradlew");

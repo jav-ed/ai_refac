@@ -52,6 +52,7 @@ impl ProjectServer {
             capabilities,
             keep_notifications: launch.server.kept_notifications(),
             language_id: launch.server.language_id(),
+            env: Vec::new(),
         })
         .await?;
         let provided = &init["capabilities"];

@@ -1,0 +1,44 @@
+SAFETY: what is checked, what is written, and what happens when something fails
+
+THE ORDER OF EVERY COMMAND
+  1. Check the request. The paths exist, counts match, no duplicates, the new name is a plain
+     identifier and not a keyword, the batch file parses. Nothing is started yet.
+  2. Find every tool the request needs. A language server that is missing stops the command here, before
+     the first file moves, with the places looked at and `refac doctor <language>`.
+  3. Plan. The language server computes every edit; nothing is written.
+  4. Prove (renames). The server is shown the renamed text in memory and asked for the references
+     again. They must be exactly the places that referred to the symbol before, carried through the
+     edits. A name that clashes with or shadows another declaration changes what a call means: refused,
+     with the places named. Edits the server leaves out are caught the same way.
+  5. Write, through an undo journal. If any step fails, every file is put back and the message says
+     "Nothing was changed". In the rare case an undo itself fails, the message lists the files to
+     inspect with `git status`.
+  6. Stop. The language server is shut down (for Kotlin that includes the Gradle daemon its build
+     import starts). Nothing keeps running.
+
+A MOVE WITH SEVERAL LANGUAGES
+  Each language group is all or nothing. Groups are independent: if the Go group fails after the
+  Markdown group moved, the Markdown files stay moved and the Go files are put back. The answer then
+  starts with `// Partly done:`, lists the failed group under `// Failed:` with the reason, and the
+  exit code is 1. A request in which nothing moved at all (for example only unsupported files) also
+  exits 1 and starts with `// Nothing was moved.`. A skipped file next to a moved one is listed under
+  `// Skipped (unsupported extension):` and the command still succeeds.
+
+WHAT IS REFUSED, AND WHY IT IS BETTER THAN GUESSING
+  A rename that would change meaning, a rename of a symbol that also lives in files outside the project
+  (other packages would stop building), a name that means several symbols (you choose with --line), a
+  keyword, a Python dunder, a module name (use `refac move`), a Rust layout move-module does not
+  understand, TypeScript moves of more than 30 files, Kotlin moves across Gradle modules, Dart moves that
+  would break a `package:` import. Every refusal says what it saw and what to do instead.
+
+PREVIEW
+  `refac rename ... --dry-run` runs steps 1 to 4 and prints the edits. It starts the server (so it
+  costs the same time) and writes nothing. A dry run of a batch plans every rename against the files as
+  they are on disk. `move` has no dry run: its plan is the validation above, and the undo journal
+  restores a failed group.
+
+WHAT IS NOT PROTECTED
+  refac changes references a language server can see. Names inside strings and comments, reflection,
+  build scripts, ProGuard rules and generated code are not references; the notes list what is likely
+  to need a hand edit and the `rg -w` command that finds it. Run your tests after a big change.
+  `git diff` shows exactly what refac wrote.

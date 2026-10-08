@@ -38,3 +38,25 @@ ra_ap_project_model = "=0.0.357"
 ra_ap_syntax = "=0.0.357"
 ra_ap_vfs = "=0.0.357"
 
+
+# Build size, in disk. The library embeds rust-analyzer, and every file directly in
+# tests/ is its own program that links all of it. With cargo's default full debug
+# info each such program is about 560 MB, so a full `cargo test` build wrote ~19 GB
+# and filled a sandbox's fixed disk allowance (the linker then dies with
+# "Bus error"). Without debug info a test program is about 90 MB.
+# Dependencies never get debug info; this crate keeps line tables, so a panic or
+# RUST_BACKTRACE=1 still names file and line. Need full debugger info for one run?
+#   CARGO_PROFILE_DEV_DEBUG=true cargo test --test <name>
+# (a different debug setting rebuilds everything, so delete target/ afterwards).
+# See Project_Manag/Docs/Setup/resource_Use.md.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.test.package."*"]
+debug = false

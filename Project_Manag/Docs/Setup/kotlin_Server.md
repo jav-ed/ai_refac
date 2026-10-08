@@ -33,7 +33,7 @@ The tests that use the server are `#[ignore]`d so a plain `cargo test` stays fas
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # only the Android tests need it
-cargo test --test kotlin_server --test kotlin_moves --test kotlin_rename --test kotlin_dispatch --test kotlin_android -- --ignored --test-threads=2
+cargo test --test kotlin -- --ignored --test-threads=2
 ```
 
 Without the variable these tests panic with this page's path instead of passing silently. See [Testing & Debugging](../Guides/Testing_and_Debugging.md) for the full test map.

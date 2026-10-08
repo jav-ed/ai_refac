@@ -1,0 +1,44 @@
+OUTPUT: how to read what refac prints
+
+TEXT (the default)
+  Lines that start with `//` are refac's report; the rest are the moved or renamed things.
+
+  Move:
+    // Alhamdulillah N requested paths were successfully refactored:     everything moved
+    // Partly done: N requested paths moved, M failed. ...               exit 1, see `// Failed:`
+    // Nothing was moved.                                                exit 1
+    // <Language> results:       then one `old -> new` per moved path
+    // Note: ...                 something refac did NOT change, or changed beyond the request (Go
+                                 package files). Each note ends with an `rg -w` command that finds the rest.
+    // Markdown links to the moved files:    links in .md files that other languages' moves changed
+    // Failed: / // Skipped (unsupported extension):
+
+  Rename:
+    // Alhamdulillah symbol renamed:          or `// Dry run: nothing was changed. Planned and verified rename:`
+    old -> new
+    // path (N edits)                         one line per changed file
+    // N edit(s) in M file(s).
+    // Note: ...                              places to check by hand
+
+  A batch prints one block per rename and a total line.
+
+JSON (--json, on move, move-module, rename and doctor)
+  One document on stdout.
+    move         {"status":"ok","operation":"move","project_path":...,"source_path":[...],
+                  "target_path":[...],"result":"<the text report>"}
+    move-module  {"status":"ok","operation":"move-module","project_path","source_module",
+                  "target_module","moved_paths","edited_files"}
+    rename       {"status":"ok","operation":"rename","project_path","file","symbol","new_name",
+                  "dry_run","edits","edited_files","files":[{"path","edits"}],"notes":[...]}
+    batch        {"status":"ok","operation":"rename-batch","project_path","dry_run","edits",
+                  "edited_files","renames":[ <the rename objects above> ]}
+    doctor       a list with one object per language (status ready|missing|broken, version, looked,
+                 install steps, start_check)
+  A failure prints {"status":"error","error":"<message>"} on STDERR instead and exits 1. For a move
+  that was only partly done, `error` holds the whole report (what moved, what failed).
+
+EXIT CODES
+  0  the request was carried out (a skipped file next to a moved one does not change this)
+  1  something failed or nothing was moved; stderr says why and whether files were changed
+  2  the command line itself was wrong (the usage is printed)
+  `refac doctor <language>` exits 1 when that server is missing or broken.

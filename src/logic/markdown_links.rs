@@ -8,7 +8,7 @@
 
 use crate::drivers::markdown::{MovedPath, update_links_after_moves};
 use anyhow::{Context, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 /// Languages whose batches already update the Markdown links themselves.
@@ -33,7 +33,7 @@ pub fn directories(sources: &[String], root: Option<&Path>) -> HashSet<String> {
 /// Fix the links to the files `successful` batches moved. The text for the
 /// response, or `None` when no batch needs it.
 pub async fn update(
-    successful: &HashMap<String, Vec<(String, String)>>,
+    successful: &BTreeMap<String, Vec<(String, String)>>,
     directories: &HashSet<String>,
     root: Option<&Path>,
 ) -> Result<Option<Vec<String>>> {

@@ -11,4 +11,4 @@ The Dart SDK (`dart`) and, in the project, `pubspec.yaml` with `dart pub get` ha
 
 ## Tests
 
-`src/drivers/dart.rs` holds the move tests (`test_dart_move_updates_imports` runs when `dart` is available), `tests/dart_package_config.rs` the `package_config.json` refusal, and `tests/dart_rename.rs` the rename scenarios ([Dart symbol rename](../Symbol_Rename/dart.md)).
+`src/drivers/dart.rs` holds the move tests (`test_dart_move_updates_imports` runs when `dart` is available), `tests/moves/dart_package_config.rs` the `package_config.json` refusal, and `tests/rename/dart.rs` the rename scenarios ([Dart symbol rename](../Symbol_Rename/dart.md)).

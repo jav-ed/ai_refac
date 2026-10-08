@@ -9,14 +9,22 @@ use std::io;
 
 #[derive(Debug, Args)]
 pub struct DoctorArgs {
-    /// Language to check and explain: go, rust, python, dart, kotlin, typescript. Without it, one line per language and no server is started.
+    /// The language to check: go, rust, python, dart, kotlin or typescript.
+    ///
+    /// Without it, one line per language is printed and no server is started. With it, the server
+    /// is found, started, asked to answer and stopped, and the install steps are printed if it is
+    /// missing or broken.
+    #[arg(value_name = "LANGUAGE")]
     pub language: Option<String>,
 
-    /// Project the server will work in (rustup picks its toolchain and Python its environment from there). Defaults to the current directory.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    /// The project the server will work in (default: the current directory).
+    ///
+    /// rustup picks the rust-analyzer of the project's toolchain from there, and Python its
+    /// environment.
+    #[arg(long, value_name = "DIR", value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     pub project_path: Option<std::path::PathBuf>,
 
-    /// Emit machine-readable JSON instead of human text.
+    /// Print a JSON list (one object per language) instead of text.
     #[arg(long)]
     pub json: bool,
 }

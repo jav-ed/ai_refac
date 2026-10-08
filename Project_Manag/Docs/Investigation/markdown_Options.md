@@ -87,7 +87,7 @@ Keep the embedded engine. Reasons, in order of weight:
 
 ## Reproduce
 
-The corpus is created by a 46-line script (the 13 shapes above plus a `git init`) and each tool is run as `docmv apply SRC DST`, `markmv move SRC DST`, `mdref mv SRC DST`, and `refac move --project-path . --source-path SRC --target-path DST`. The `refac` result is pinned by `tests/markdown_corpus.rs`, which holds the same corpus and the exact expected text for the three moves.
+The corpus is created by a 46-line script (the 13 shapes above plus a `git init`) and each tool is run as `docmv apply SRC DST`, `markmv move SRC DST`, `mdref mv SRC DST`, and `refac move --project-path . --source-path SRC --target-path DST`. The `refac` result is pinned by `tests/markdown/corpus.rs`, which holds the same corpus and the exact expected text for the three moves.
 
 ## Sources
 

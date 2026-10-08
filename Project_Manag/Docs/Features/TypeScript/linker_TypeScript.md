@@ -18,8 +18,8 @@ Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads c
 - [TypeScript modules](../../../../scripts/TypeScript/): `project.ts` reads config; `imports.ts` collects literal spans; `resolver.ts` resolves and spells paths; `moves.ts` validates requests; `plan.ts` plans and verifies the batch; `apply.ts` owns filesystem changes and rollback.
 - [Rename driver](../../../../src/drivers/typescript/rename.rs): request validation, limits, and orchestration. Its folder holds one file per job: `engine.rs` finds the native binary and runs the config pre-flight, `session.rs` speaks the language-server protocol, `locate.rs` finds candidate occurrences, `plan.rs` resolves them to one symbol and collects edits, `verify.rs` runs the in-memory references check, `edits.rs` converts and applies edits, and `apply.rs` writes with rollback.
 - [Behavior tests](../../../../scripts/Tests/TypeScript/): syntax, paths, batches, safety, and a 3,005-file stress fixture.
-- [Rename tests](../../../../tests/typescript_rename.rs): 19 CLI tests on `tests/fixtures/typescript/rename_project`, including the clash, shadow-capture, UTF-8, BOM, and config-rejection cases.
-- [CLI stress test](../../../../tests/typescript_large_project.rs): five dependent moves and 3,000 callers under a 1 GiB RSS budget.
+- [Rename tests](../../../../tests/typescript/rename.rs): 19 CLI tests on `tests/fixtures/typescript/rename_project`, including the clash, shadow-capture, UTF-8, BOM, and config-rejection cases.
+- [CLI stress test](../../../../tests/typescript/large_project.rs): five dependent moves and 3,000 callers under a 1 GiB RSS budget.
 
 ## Reference updates
 

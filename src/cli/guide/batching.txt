@@ -1,0 +1,40 @@
+BATCHING AND COST: how to do many changes with few server starts
+
+A language server is started for each command and stopped afterwards, so the cost of a command is
+mostly the start. Time to start, and memory held while the command runs (measured on a small project;
+a bigger project holds more, rust-analyzer most of all):
+
+  Go          2 to 8 s         about 165 MB
+  Python      1 to 2 s         about 160 MB
+  Dart        under 1 s        about 125 MB
+  Rust        5 to 35 s        about 640 MB, growing with the project
+  Kotlin      about 40 s       1.3 to 1.8 GB (the Gradle import dominates)
+  TypeScript  (own engine)     its helper is held to 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB)
+
+So: do not run one command per file.
+
+MANY MOVES: one `move` call
+  Repeat the flags; the n-th source goes to the n-th target:
+    refac move --project-path P --source-path a.kt --source-path b.kt \
+      --target-path pkg/a.kt --target-path pkg/b.kt
+  Files of one language are moved with one server session; files of several languages in one call are
+  fine. TypeScript is limited to 30 source files per call (split larger moves into steps).
+
+MANY RENAMES: one `rename --batch`
+  Write the list once:  [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...]
+  Run:                  refac rename --project-path P --batch renames.json     (or --batch - for stdin)
+  One server start, each rename proven and written against the files the one before left, all or
+  nothing. One language per batch. TypeScript renames run one per command.
+
+AN ORDER THAT WORKS FOR A REFACTOR
+  1. `refac doctor` once, to see every server is ready.
+  2. Renames of symbols first (`--dry-run` on the first big one to see the size), because they do not
+     change paths.
+  3. Then moves (a path in a rename entry must exist when the batch runs, so rename before you move a
+     file, or name its new path).
+  4. Run the build and tests. `git diff --stat` shows the size of what refac did.
+
+A SLOW OR STUCK COMMAND
+  A server that does not answer is an error after REFAC_LSP_TIMEOUT_SECS (default 300; Kotlin
+  REFAC_KOTLIN_TIMEOUT_SECS, default 600), never a hang. REFAC_LSP_TRACE=1 prints every message
+  exchanged with the server. Kotlin prints the last Gradle import output when the import fails.

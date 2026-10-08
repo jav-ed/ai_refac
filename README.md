@@ -22,15 +22,17 @@ The repo includes a `.agents/skills/refac-cli/` folder. Drop it into your agent 
 **2. Structured output an agent can actually use.**
 The `--json` flag returns a predictable JSON object with `status`, `operation`, and operation-specific fields, so the agent can parse the result cleanly without scraping terminal output. Errors return `status` and a descriptive `error`.
 
-**3. Built-in `--help` that works for agents and humans alike.**
-Every subcommand is documented at the CLI level. No hunting through READMEs.
+**3. Built-in help in three depths, for agents and humans alike.**
+Everything is inside the binary, so it is there when this repository is not.
 
 ```bash
-refac --help
-refac move --help
-refac move-module --help
-refac rename --help
+refac move -h          # a few lines: what the command is and its flags
+refac move --help      # everything about one command: arguments, rules per language, output, examples
+refac guide            # in-depth topics across commands: languages, safety, batching, output, servers
+refac guide languages  # one topic (refac guide all prints every topic)
 ```
+
+`refac --help` is the whole tool on one page: commands, what each language supports, how a change stays safe, what a command costs, exit codes and environment variables. `refac doctor` checks the language servers and prints the install steps for a missing one.
 
 ---
 
@@ -357,7 +359,9 @@ bun run --cwd scripts test
 bun run --cwd scripts typecheck
 ```
 
-The suite covers unit tests and integration tests for all supported languages. Integration tests copy fixture projects into temp directories and run assertions on the resulting files. Some driver unit tests and two batch tests skip when their tool is missing (they pass without giving coverage). The per-language integration tests (`dart_move`, `go_move`, `python_move`, `rust_move`) run the real tools and fail without them, and the Kotlin real-server tests are `#[ignore]`d and panic with an explanation when `REFAC_KOTLIN_SERVER` or `ANDROID_HOME` is missing.
+The suite covers unit tests and integration tests for all supported languages. Integration tests copy fixture projects into temp directories and run assertions on the resulting files. They live in six groups, one test program each: `cargo test --test cli`, `moves`, `rename`, `typescript`, `markdown`, `kotlin` (a part of a group with a filter, `cargo test --test rename go::`). Some driver unit tests and two batch tests skip when their tool is missing (they pass without giving coverage). The `moves` tests for `dart`, `go`, `python` and `rust` run the real tools and fail without them, and the real-server rename and Kotlin tests are `#[ignore]`d and panic with an explanation when a server or `ANDROID_HOME` is missing.
+
+**Disk and memory.** The repository is 3 MB; a fresh `cargo test` build writes 2.1 GB (`target/`) and peaks at 3.2 GB of RAM, because the Cargo profile drops debug information and the integration tests are grouped. Do not add a `.rs` file directly in `tests/` (it becomes another 90 MB program); see [Resource use](Project_Manag/Docs/Setup/resource_Use.md).
 
 ---
 

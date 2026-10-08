@@ -1,0 +1,64 @@
+LANGUAGES: what refac does in each one, and where it stops
+
+The language of a file comes from its extension. One `move` call may mix languages: refac groups the
+files by language and moves each group with its own tool. Within one group the move is all or
+nothing; across groups it is not (see `refac guide safety`).
+
+TYPESCRIPT / JAVASCRIPT  (.ts .tsx .js .jsx .mts .cts .mjs .cjs)
+  move    Files and folders. At most 30 source files per call; a folder counts the files below it, and
+          the error tells the measured number. The tsconfig.json of --project-path decides which files
+          are callers: a file it does not include is not updated.
+  rename  Variables, parameters, functions, types, members. One rename per command (no --batch).
+  tools   Oxc parser and the TypeScript native language server. The helper process is held to a RAM
+          limit of 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB) and 300 seconds.
+
+KOTLIN / ANDROID  (.kt)
+  move    Files and folders to another package: the package line, imports, usages and the Android XML
+          (manifest, layouts, navigation graphs) follow. A file that used the implicit `R` class gets
+          its import. Refused: .java sources, folders that contain Java, moves between Gradle modules
+          or source sets, a target that does not keep the .kt extension.
+  rename  Any Kotlin symbol; Java callers are updated too. XML class names follow a renamed class.
+  tools   The JetBrains Kotlin language server. Importing the Gradle build takes about 40 s on every
+          call and the server holds 1.3 to 1.8 GB, so put everything into ONE call.
+  --project-path is the Gradle root (settings.gradle.kts).
+
+GO  (.go)
+  move    Moving a file to another folder moves the WHOLE package (gopls renames the package); the
+          answer lists the files that moved along. Moving inside the same folder is a plain rename.
+  rename  Functions, types, fields, methods, locals.
+  tools   gopls. 2 to 8 s to start. --project-path is the folder with go.mod.
+
+RUST  (.rs)
+  move    A file can be renamed inside its folder. A move to another module is refused with the command
+          to use: `refac move-module crate::old::path crate::new::path` moves a module with its
+          children and rewrites every `use`, `crate::`, `super::` and `self::` path (rust-analyzer's
+          semantic model, no #[path] shims). The layout must be conventional; inline modules and
+          #[path] are refused before anything is written, and the workspace is checked after the move.
+  rename  Functions, types, fields, methods, locals, trait items. A `macro_rules!` body is not
+          understood by the server: it is listed as ATTENTION in the notes and the build breaks until
+          you edit it by hand.
+  tools   rust-analyzer, chosen by rustup from the project's toolchain. 5 to 35 s to load, by size.
+  --project-path is the folder with Cargo.toml (package or workspace).
+
+PYTHON  (.py)
+  move    Imports are rewritten by Rope (Pyrefly as a fallback). An import that goes through an
+          `__init__.py` re-export may be missed: search for the old module name afterwards.
+  rename  Functions, classes, methods, variables. Overrides of a renamed method are found through
+          basedpyright and renamed with it. Dunder names (`__init__`) are refused. A call on a
+          receiver whose type is unknown is not found; the notes say so and give an `rg -w` command.
+  tools   basedpyright (plain pyright cannot list overrides). 1 to 2 s to start.
+
+DART  (.dart)
+  move    `dart pub get` must have run (package_config.json). A move that would leave a `package:`
+          import pointing at a missing file is refused before anything is written.
+  rename  Classes, functions, members, locals. A call on a `dynamic` receiver is not found; the notes
+          say so.
+  tools   The Dart SDK's analysis server. Under 1 s to start. --project-path is the package folder
+          with pubspec.yaml.
+
+MARKDOWN  (.md .markdown .mdx, images and other assets, folders of them)
+  move    Files, assets and folders. Links are rewritten: inline, reference, HTML href/src/srcset,
+          %20, ?query, #anchor, and the ones that point at files other languages moved in the same
+          call. Code blocks, comments and files ignored by .gitignore are left alone. A folder that
+          holds code of another language cannot be moved as a document folder.
+  tools   Built in (a CommonMark parser). No server, nothing to install.

@@ -137,6 +137,9 @@ fn print_single(
     };
     println!("{headline}");
     print_rename(request, report);
+    if report.dry_run {
+        println!("// Run the same command without --dry-run to write these edits.");
+    }
     Ok(())
 }
 
@@ -183,6 +186,9 @@ fn print_batch(
         print_rename(request, report);
     }
     println!("// {edits} edit(s) in {} file(s) in total.", files.len());
+    if dry_run {
+        println!("// Run the same command without --dry-run to write these edits.");
+    }
     Ok(())
 }
 

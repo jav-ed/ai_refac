@@ -17,9 +17,13 @@ description: Use when a developer wants to run the `refac` CLI to move or rename
 | Rust | ✅ | ❌ | ✅ | ✅ |
 | Go | ✅ | ❌ | — | ✅ |
 | Dart | ✅ | ❌ | — | ✅ |
-| Markdown | ✅ | ❌ | — | ❌ |
+| Markdown | ✅ | ✅ (folders of Markdown and assets) | — | ❌ |
 
-Passing a directory for any language other than TypeScript/JavaScript and Kotlin will fail with a clear error.
+Passing a directory for any language other than TypeScript/JavaScript, Kotlin and Markdown/asset folders will fail with a clear error.
+
+## Ask the tool
+
+The documentation is inside the binary, in three depths: `refac <command> -h` (a few lines), `refac <command> --help` (everything about one command: rules per language, output, examples) and `refac guide [topic]` (languages, safety, batching, output, servers; `refac guide all` prints every topic). Read `refac guide languages` before the first move or rename in a language you have not used, and `refac guide safety` to know what a failure leaves behind.
 
 ## Hard constraints
 
@@ -31,7 +35,7 @@ Passing a directory for any language other than TypeScript/JavaScript and Kotlin
 - Mixed languages in one call are fine — the tool groups them internally.
 - TypeScript/JavaScript invocations are limited to 30 contained source files. Directory contents count toward the limit, and the CLI reports the measured count.
 - `rename` renames one symbol per call, or several in one call with `--batch` (see below). The language comes from the file extension. `--project-path` is: TypeScript, the package root whose `tsconfig.json` includes every caller (and the tsconfig must be accepted by TypeScript 7: no `baseUrl`, no `moduleResolution: node10`); Kotlin, the Gradle root (`settings.gradle.kts`); Go, the folder with `go.mod` or `go.work`; Rust, the folder with `Cargo.toml`; Python, the folder pyright should treat as the root (it reads `pyrightconfig.json` or `[tool.pyright]` there); Dart, the package folder with `pubspec.yaml` after `dart pub get` (without `.dart_tool/package_config.json` the rename is refused).
-- Language servers are never left running: each `move` or `rename` starts the server it needs and stops it afterwards, so do not start one yourself, and there is no memory to give back afterwards. Starting costs seconds (Go and Python 1-8 s, Rust 5-35 s, Kotlin about 40 s), which is why several renames of one project belong into ONE `rename --batch` call. If a server is not installed, the error lists every place that was looked at and says `Run refac doctor <language>`. Run that command, follow its numbered install steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command. `refac doctor` alone shows all languages.
+- Language servers are never left running: each `move` or `rename` starts the server it needs and stops it afterwards, so do not start one yourself, and there is no memory to give back afterwards. Starting costs seconds (Go and Python 1-8 s, Rust 5-35 s, Kotlin about 40 s and 1.3-1.8 GB of memory while it runs), which is why several renames of one project belong into ONE `rename --batch` call. If a server is not installed, the error lists every place that was looked at and says `Run refac doctor <language>`. Run that command, follow its numbered install steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command. `refac doctor` alone shows all languages.
 - Kotlin and Android need the JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`). Each call imports the Gradle build first and takes about 30 seconds, so put several moves into one `move` call. `.java` files, directories with Java sources, and moves between modules or source sets are refused. Read the `// Note:` lines of the output: they list old class names in ProGuard rules, build scripts, and strings that refac does not edit.
 
 ## Usage

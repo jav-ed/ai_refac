@@ -1,85 +1,125 @@
 //! The command-line arguments of each subcommand: what `clap` parses.
+//!
+//! Every flag has a first line that stands alone (`-h` shows only that) and,
+//! where it helps, a paragraph below it that `--help` adds.
 
 use clap::{Args, ValueHint};
 use clap_complete::Shell;
 
 #[derive(Debug, Args)]
 pub(super) struct MoveArgs {
-    /// Absolute path to the package root (the folder containing tsconfig.json / pyproject.toml / Cargo.toml / settings.gradle.kts etc.). Also settable via REFAC_PROJECT_PATH env var.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    /// Package root of the language (the folder with tsconfig.json, go.mod, Cargo.toml, ...).
+    ///
+    /// TypeScript/JavaScript: the folder with the tsconfig.json that includes every caller.
+    /// Kotlin: the Gradle root (settings.gradle.kts). Go: go.mod. Rust: Cargo.toml.
+    /// Dart: pubspec.yaml. Python and Markdown: the project folder. Not the monorepo root.
+    /// Without it, relative paths are taken from the current directory.
+    #[arg(long, value_name = "DIR", value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     pub(super) project_path: Option<std::path::PathBuf>,
 
-    /// Source file path (relative to project_path or absolute). Repeat for multiple files.
-    #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
+    /// File or folder to move (absolute, or relative to --project-path). Repeat for several.
+    ///
+    /// The n-th --source-path goes to the n-th --target-path, so both flags need the same count.
+    #[arg(long, required = true, num_args = 1.., value_name = "PATH", value_hint = ValueHint::AnyPath)]
     pub(super) source_path: Vec<String>,
 
-    /// Target file path (relative to project_path or absolute). Must match source count 1:1. Repeat for multiple files.
-    #[arg(long, required = true, num_args = 1.., value_hint = ValueHint::AnyPath)]
+    /// Where it goes (absolute, or relative to --project-path). Repeat for several.
+    ///
+    /// A folder in the path that does not exist yet is created.
+    #[arg(long, required = true, num_args = 1.., value_name = "PATH", value_hint = ValueHint::AnyPath)]
     pub(super) target_path: Vec<String>,
 
-    /// Emit machine-readable JSON instead of human text.
+    /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,
 }
 
 #[derive(Debug, Args)]
 pub(super) struct MoveModuleArgs {
-    /// Cargo package or workspace root. Defaults to the current directory.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    /// Cargo package or workspace root (default: the current directory).
+    #[arg(long, value_name = "DIR", value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     pub(super) project_path: Option<std::path::PathBuf>,
 
-    /// Existing logical module path in one workspace crate, beginning with `crate::`.
+    /// The module as it is now, e.g. `crate::engine::matching`.
+    ///
+    /// Must start with `crate::` and name a module of one crate of the workspace.
     pub(super) source_module: String,
 
-    /// New logical module path in the same crate, beginning with `crate::`.
+    /// The module as it should be, e.g. `crate::domain::matching`.
+    ///
+    /// Must start with `crate::` and lie in the same crate as the source.
     pub(super) target_module: String,
 
-    /// Emit machine-readable JSON instead of human text.
+    /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,
 }
 
 #[derive(Debug, Args)]
 pub(super) struct RenameArgs {
-    /// Package root containing the authoritative tsconfig.json, the Gradle project root for Kotlin, the folder with go.mod for Go, the Cargo package or workspace root for Rust, the pyright root for Python, or the package folder with pubspec.yaml for Dart. Defaults to the current directory. Also settable via REFAC_PROJECT_PATH env var.
-    #[arg(long, value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
+    /// The root the language server loads (default: the current directory).
+    ///
+    /// TypeScript/JavaScript: the folder with the authoritative tsconfig.json. Kotlin: the Gradle
+    /// root. Go: the folder with go.mod. Rust: the Cargo package or workspace root. Python: the
+    /// pyright root. Dart: the package folder with pubspec.yaml.
+    #[arg(long, value_name = "DIR", value_hint = ValueHint::DirPath, env = "REFAC_PROJECT_PATH")]
     pub(super) project_path: Option<std::path::PathBuf>,
 
-    /// File containing the symbol (relative to project_path or absolute).
-    #[arg(long, value_hint = ValueHint::FilePath, required_unless_present = "batch", conflicts_with = "batch")]
+    /// File that contains the symbol (absolute, or relative to --project-path).
+    ///
+    /// Its extension picks the language: ts tsx js jsx mts cts mjs cjs, kt, go, rs, py, dart.
+    #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath, required_unless_present = "batch", conflicts_with = "batch")]
     pub(super) file: Option<std::path::PathBuf>,
 
-    /// Current name of the symbol, as written in that file.
-    #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+    /// The symbol's current name, written exactly as in that file.
+    #[arg(
+        long,
+        value_name = "NAME",
+        required_unless_present = "batch",
+        conflicts_with = "batch"
+    )]
     pub(super) symbol: Option<String>,
 
-    /// New identifier for the symbol.
-    #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+    /// The new name. It must be a plain identifier and not a keyword of the language.
+    #[arg(
+        long,
+        value_name = "NAME",
+        required_unless_present = "batch",
+        conflicts_with = "batch"
+    )]
     pub(super) new_name: Option<String>,
 
-    /// 1-based line that picks the occurrence when the name refers to several symbols in the file.
-    #[arg(long, conflicts_with = "batch")]
+    /// 1-based line that picks the symbol when the name means several in the file.
+    ///
+    /// Needed only when the command says "The name refers to several different symbols".
+    #[arg(long, value_name = "N", conflicts_with = "batch")]
     pub(super) line: Option<u32>,
 
-    /// 1-based byte column on --line, like `rg --column`.
-    #[arg(long, requires = "line", conflicts_with = "batch")]
+    /// 1-based byte column on --line (like `rg --column`), for a line that holds the name twice.
+    #[arg(long, value_name = "N", requires = "line", conflicts_with = "batch")]
     pub(super) column: Option<u32>,
 
-    /// Several renames of one project in one language-server session, all or nothing: a JSON file (or `-` for stdin) holding a list of {"file", "symbol", "new_name"} objects, each with an optional "line" and "column". The server starts once, each rename is proven and written against the files the one before left, and a failure undoes the earlier renames. One language per batch (not TypeScript).
+    /// Run several renames in one language-server session, all or nothing (JSON file, or `-` for stdin).
+    ///
+    /// The file holds a list: [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...];
+    /// an entry may add "line" and "column". The server starts once, each rename is proven and
+    /// written against the files the one before left, and one failure undoes the earlier ones.
+    /// One language per batch, not TypeScript. Replaces --file, --symbol and --new-name.
     #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath)]
     pub(super) batch: Option<std::path::PathBuf>,
 
-    /// Plan and verify the rename, report the edits, and change no files.
+    /// Plan and prove the rename, print it, and change no file.
     #[arg(long)]
     pub(super) dry_run: bool,
 
-    /// Emit machine-readable JSON instead of human text.
+    /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,
 }
 
 #[derive(Debug, Args)]
 pub(super) struct CompletionsArgs {
+    /// The shell to print completions for.
     #[arg(value_enum)]
     pub(super) shell: Shell,
 }

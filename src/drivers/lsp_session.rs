@@ -35,6 +35,8 @@ pub struct SessionConfig<'a> {
     /// Notification methods to keep for `wait_notification`; others are dropped.
     pub keep_notifications: &'a [&'a str],
     pub language_id: fn(&Path) -> &'static str,
+    /// Environment variables added to the server process.
+    pub env: Vec<(String, String)>,
 }
 
 /// `REFAC_LSP_TRACE=1` prints every message of every session to stderr, cut
@@ -69,6 +71,7 @@ impl LspSession {
         let mut child = Command::new(config.executable)
             .args(&config.args)
             .current_dir(config.cwd)
+            .envs(config.env.iter().map(|(name, value)| (name, value)))
             .kill_on_drop(true)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

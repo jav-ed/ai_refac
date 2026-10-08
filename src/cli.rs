@@ -10,6 +10,8 @@ use serde::Serialize;
 
 mod args;
 mod doctor;
+mod guide;
+mod help;
 mod output;
 mod rename;
 
@@ -19,57 +21,11 @@ use output::{ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput};
 #[derive(Debug, Parser)]
 #[command(
     name = "refac",
-    about = "Move or rename source or Markdown files and update all references across the project.",
-    long_about = "\
-Move or rename source or Markdown files and update all references across the project.
-
-Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart, Kotlin (Android and JVM).
-Markdown files, images and other assets, and folders of them can be moved too; after any move, the Markdown links that point at the moved files are updated.
-Use `move-module` for semantic Rust module-subtree moves.
-Use `rename` to rename a TypeScript/JavaScript, Kotlin, Go, Rust, Python or Dart symbol (variable, parameter, function, type, member) and update every reference.
-Renames use a language server (gopls, rust-analyzer, basedpyright, the Dart SDK's server, the Kotlin server). refac starts it for the command and stops it afterwards, so nothing stays in memory. Starting takes seconds (Kotlin about 40), so put several renames of one project into one `rename --batch` call: one start, all or nothing. When a server is missing the error says where refac looked; `refac doctor <language>` shows how to install it. For Kotlin, --project-path is the Gradle project root.
-Paths may be absolute or relative to --project-path.
-
-EXAMPLES:
-  # Move a single file
-  refac move --project-path /my/project \\
-    --source-path src/old/name.ts --target-path src/new/name.ts
-
-  # Move multiple files in one call (1:1 mapping)
-  refac move --project-path /my/project \\
-    --source-path src/a.ts --source-path src/b.ts \\
-    --target-path src/x.ts --target-path src/y.ts
-
-  # Move a complete Rust module subtree
-  refac move-module --project-path /my/cargo-workspace \\
-    crate::engine::matching crate::domain::matching
-
-  # Rename a TypeScript symbol and all of its references
-  refac rename --project-path /my/package --file src/lib/util.ts \\
-    --symbol total --new-name grandTotal
-
-  # Move a Kotlin file to another package; package line, imports, Android XML follow
-  refac move --project-path /my/gradle/project \\
-    --source-path app/src/main/kotlin/com/example/ui/Home.kt \\
-    --target-path app/src/main/kotlin/com/example/home/Home.kt
-
-  # Rename a Kotlin symbol and all of its references
-  refac rename --project-path /my/gradle/project \\
-    --file app/src/main/kotlin/com/example/util/Helper.kt \\
-    --symbol shout --new-name yell
-
-  # Several renames of one project in one language-server session (JSON list from a file or stdin); all or nothing
-  refac rename --project-path /my/crate --batch renames.json
-  # renames.json: [{\"file\": \"src/a.rs\", \"symbol\": \"old_a\", \"new_name\": \"new_a\"}, ...]; use --batch - to read it from stdin
-
-  # Rename a Go, Rust, Python or Dart symbol the same way (the file extension picks the language)
-  refac rename --project-path /my/module --file shape/shape.go \\
-    --symbol Area --new-name Surface
-
-  # A language server is missing: see what refac looked for and how to install it
-  refac doctor go
-  refac doctor",
-    version
+    about = help::top::ABOUT,
+    long_about = help::top::LONG_ABOUT,
+    after_long_help = help::top::AFTER_LONG_HELP,
+    version,
+    arg_required_else_help = true
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -78,17 +34,42 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Move or rename files and update imports/references. Directories are supported for TypeScript/JavaScript and Kotlin.
+    #[command(
+        about = help::move_files::ABOUT,
+        long_about = help::move_files::LONG_ABOUT,
+        after_long_help = help::move_files::AFTER_LONG_HELP
+    )]
     Move(MoveArgs),
-    /// Move a complete Rust module subtree and rewrite its semantic references.
+    #[command(
+        about = help::move_module::ABOUT,
+        long_about = help::move_module::LONG_ABOUT,
+        after_long_help = help::move_module::AFTER_LONG_HELP
+    )]
     MoveModule(MoveModuleArgs),
-    /// Rename a TypeScript/JavaScript, Kotlin, Go, Rust, Python or Dart symbol and update every reference.
+    #[command(
+        about = help::rename::ABOUT,
+        long_about = help::rename::LONG_ABOUT,
+        after_long_help = help::rename::AFTER_LONG_HELP
+    )]
     Rename(RenameArgs),
-    /// Check the language servers refac starts (gopls, rust-analyzer, ...) and show how to install a missing one.
+    #[command(
+        about = help::doctor::ABOUT,
+        long_about = help::doctor::LONG_ABOUT,
+        after_long_help = help::doctor::AFTER_LONG_HELP
+    )]
     Doctor(doctor::DoctorArgs),
-    /// Generate shell completions to stdout.
+    /// In-depth documentation by topic: languages, safety, batching, output, servers.
+    ///
+    /// `refac guide` lists the topics; `refac guide <topic>` prints one; `refac guide all` prints
+    /// every topic. The texts are inside the binary, so they are there when the repository is not.
+    Guide(guide::GuideArgs),
+    /// Print shell completions (bash, zsh, fish, elvish, powershell) to stdout.
+    ///
+    /// Example: `refac completions bash > ~/.local/share/bash-completion/completions/refac`
     Completions(CompletionsArgs),
-    /// Generate a manpage for the CLI to stdout.
+    /// Print the manual page (roff) to stdout.
+    ///
+    /// Example: `refac man | man -l -`
     Man,
 }
 
@@ -116,6 +97,7 @@ async fn execute(cli: Cli) -> Result<(), CliError> {
         Commands::MoveModule(args) => execute_move_module(args),
         Commands::Rename(args) => rename::execute_rename(args).await,
         Commands::Doctor(args) => doctor::execute_doctor(args).await,
+        Commands::Guide(args) => guide::execute_guide(args),
         Commands::Completions(args) => execute_completions(args),
         Commands::Man => execute_man(),
     }

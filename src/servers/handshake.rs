@@ -57,6 +57,7 @@ async fn handshake(
         capabilities: launch.profile.capabilities(false),
         keep_notifications: launch.profile.kept_notifications(),
         language_id: launch.profile.language_id(),
+        env: Vec::new(),
     })
     .await?;
     let missing = launch.profile.missing_capabilities(&init["capabilities"]);

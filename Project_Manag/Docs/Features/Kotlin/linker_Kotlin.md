@@ -24,7 +24,7 @@ All Kotlin code is under [`src/drivers/kotlin/`](../../../../src/drivers/kotlin/
 
 ## Tests
 
-Pure logic (planning, XML rewriting, imports, edit parsing, verification helpers) runs in the normal `cargo test`. The scenarios against the real server are `#[ignore]`d and fail loudly when `REFAC_KOTLIN_SERVER` is missing: `tests/kotlin_server.rs` (startup, broken build), `tests/kotlin_moves.rs` (JVM moves, rollback), `tests/kotlin_rename.rs` (renames, clash and shadowing refusals), `tests/kotlin_android.rs` (a real Android Gradle Plugin project compiled after each move), and `tests/kotlin_dispatch.rs` (the CLI entry points). Fixtures are `tests/fixtures/kotlin/jvm_project` and `android_project`; every successful scenario ends with a Gradle compile, because a refactor is right when the project still builds.
+Pure logic (planning, XML rewriting, imports, edit parsing, verification helpers) runs in the normal `cargo test`. The scenarios against the real server are `#[ignore]`d and fail loudly when `REFAC_KOTLIN_SERVER` is missing: `tests/kotlin/server.rs` (startup, broken build), `tests/kotlin/moves.rs` (JVM moves, rollback), `tests/kotlin/rename.rs` (renames, clash and shadowing refusals), `tests/kotlin/android.rs` (a real Android Gradle Plugin project compiled after each move), and `tests/kotlin/dispatch.rs` (the CLI entry points). Fixtures are `tests/fixtures/kotlin/jvm_project` and `android_project`; every successful scenario ends with a Gradle compile, because a refactor is right when the project still builds.
 
 ## Known limits
 

@@ -62,6 +62,6 @@ The Kotlin cost is the Gradle import; see [Kotlin server setup](kotlin_Server.md
 
 ## Checking a machine
 
-`refac doctor` is the quick check. The tests that need a server are `#[ignore]`d and print the same explanation when it is missing, so `cargo test --test go_rename -- --ignored` on a machine without gopls fails with the install steps instead of a cryptic error. `tests/doctor.rs` runs the real binary with an empty `PATH` and an empty `HOME` and needs nothing installed.
+`refac doctor` is the quick check. The tests that need a server are `#[ignore]`d and print the same explanation when it is missing, so `cargo test --test rename go:: -- --ignored` on a machine without gopls fails with the install steps instead of a cryptic error. `tests/cli/doctor.rs` runs the real binary with an empty `PATH` and an empty `HOME` and needs nothing installed.
 
 Python file moves use other tools (Rope, Pyrefly); `refac move` on a Python batch with neither says so. `refac doctor python` is about the rename server.
