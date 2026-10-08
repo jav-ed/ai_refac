@@ -200,11 +200,10 @@ fn reference_edit(
     {
         return Ok(None);
     }
-    let path_node = token
+    let mut path_node = token
         .parent_ancestors()
         .filter_map(ast::Path::cast)
-        .filter(|node| node.syntax().text_range().contains_range(reference))
-        .last()
+        .find(|node| node.syntax().text_range().contains_range(reference))
         .with_context(|| {
             format!(
                 "Reference at byte {} in {} is not a rewritable Rust path; macro-generated and documentation references are not supported in v1",
@@ -212,6 +211,16 @@ fn reference_edit(
                 path.display()
             )
         })?;
+    // Climb only while the path is the qualifier of the next one outwards
+    // (`a::b` in `a::b::c`). A path that merely sits inside the generic
+    // arguments of another (`old::Item` in `Vec<old::Item>`) is a path of its
+    // own, and the outer one is not part of the module's spelling.
+    while let Some(parent) = path_node.syntax().parent().and_then(ast::Path::cast) {
+        if parent.qualifier().as_ref() != Some(&path_node) {
+            break;
+        }
+        path_node = parent;
+    }
 
     let prefix_range = TextRange::new(path_node.syntax().text_range().start(), reference.end());
     let prefix_text = content

@@ -421,6 +421,45 @@ fn crate_paths_inside_macro_arguments_are_rewritten() {
 }
 
 #[test]
+fn a_module_path_inside_generic_arguments_is_rewritten_on_its_own() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod domain;\npub mod engine;\npub mod user;\n",
+    );
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub struct Item { pub a: u32 }\n",
+    );
+    write(
+        root,
+        "src/user.rs",
+        "use crate::engine;\n\npub fn all(items: &[engine::matching::Item]) -> Vec<crate::engine::matching::Item> {\n    let _: Option<Vec<engine::matching::Item>> = None;\n    items.iter().map(|item| crate::engine::matching::Item { a: item.a }).collect()\n}\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let user = common::read_file(root, "src/user.rs");
+    assert!(!user.contains("engine::matching"), "{user}");
+    assert_eq!(
+        user.matches("crate::domain::matching::Item").count(),
+        4,
+        "{user}"
+    );
+}
+
+#[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
