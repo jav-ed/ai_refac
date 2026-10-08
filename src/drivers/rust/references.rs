@@ -75,10 +75,17 @@ pub fn module_reference_edits(
     Ok(edits)
 }
 
+/// Rewrites the `super::` paths of a moved file whose target lies outside the
+/// moved module into absolute `crate::` paths, so they keep their meaning in the
+/// new place. A `super` that stays inside the moved module (the `use super::*`
+/// of an inline `mod tests`, a child reaching its parent) is position
+/// independent and stays as written. `moved_module` is the old path of the
+/// module being moved.
 pub fn super_path_edits(
     path: &Path,
     content: &str,
     file_module: &[String],
+    moved_module: &[String],
 ) -> Result<Vec<TextReplacement>> {
     let parse = SourceFile::parse(content, Edition::CURRENT);
     if !parse.errors().is_empty() {
@@ -134,6 +141,9 @@ pub fn super_path_edits(
             );
         }
         context.truncate(context.len() - super_count);
+        if context.starts_with(moved_module) {
+            continue;
+        }
         let replacement = if context.is_empty() {
             "crate".to_string()
         } else {

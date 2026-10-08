@@ -181,6 +181,43 @@ fn references_inside_cfg_test_code_are_rewritten_too() {
     assert!(moved.contains("use crate::domain::matching::*;"), "{moved}");
 }
 
+/// A `super` that stays inside the moved module is position independent: the `use super::*`
+/// of an inline test module and a child module reaching its parent keep working as written,
+/// while a `super` that leaves the module is made absolute.
+#[test]
+fn super_paths_inside_the_moved_module_stay_and_those_leaving_it_become_absolute() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\npub mod shared;\n");
+    write(root, "src/shared.rs", "pub fn base() -> u32 { 1 }\n");
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub mod child;\n\npub fn helper() -> u32 { 2 }\npub fn run() -> u32 { super::super::shared::base() + child::read() }\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n    #[test]\n    fn runs() { assert_eq!(run(), 3); }\n}\n",
+    );
+    write(
+        root,
+        "src/engine/matching/child.rs",
+        "use super::helper;\npub fn read() -> u32 { helper() }\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let moved = common::read_file(root, "src/domain/matching.rs");
+    assert!(moved.contains("use super::*;"), "{moved}");
+    assert!(moved.contains("crate::shared::base()"), "{moved}");
+    let child = common::read_file(root, "src/domain/matching/child.rs");
+    assert!(child.contains("use super::helper;"), "{child}");
+}
+
 #[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();

@@ -39,6 +39,7 @@ pub fn move_module(root: &Path, source_path: &str, target_path: &str) -> Result<
                 path,
                 &content,
                 logical_module,
+                &source_segments,
             )?);
         }
     }
