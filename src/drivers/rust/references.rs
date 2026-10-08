@@ -221,6 +221,17 @@ fn reference_edit(
         }
         path_node = parent;
     }
+    // A module is never a value. When the search lists a reference that is a
+    // whole expression (`renames.classes` after `let renames = renames::collect()`),
+    // it is a local, constant or function that carries the module's name.
+    let ends_the_path = path_node.syntax().text_range().end() == reference.end();
+    let is_a_value = path_node
+        .syntax()
+        .parent()
+        .is_some_and(|parent| ast::PathExpr::can_cast(parent.kind()));
+    if ends_the_path && is_a_value {
+        return Ok(None);
+    }
 
     let prefix_range = TextRange::new(path_node.syntax().text_range().start(), reference.end());
     let prefix_text = content

@@ -460,6 +460,41 @@ fn a_module_path_inside_generic_arguments_is_rewritten_on_its_own() {
 }
 
 #[test]
+fn a_local_variable_named_like_the_module_is_left_alone() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\n");
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\nmod user;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "#[derive(Default)]\npub struct Found { pub items: Vec<u32> }\npub fn collect() -> Result<Found, String> { Ok(Found::default()) }\n",
+    );
+    write(
+        root,
+        "src/engine/user.rs",
+        "use super::matching;\n\npub fn run() -> Result<usize, String> {\n    let matching = matching::collect()?;\n    let count = matching.items.len();\n    drop(matching);\n    Ok(count)\n}\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let user = common::read_file(root, "src/engine/user.rs");
+    assert!(
+        user.contains("let matching = matching::collect()?;"),
+        "{user}"
+    );
+    assert!(user.contains("matching.items.len()"), "{user}");
+    assert!(user.contains("drop(matching)"), "{user}");
+}
+
+#[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
