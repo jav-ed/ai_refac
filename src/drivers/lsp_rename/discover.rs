@@ -6,7 +6,7 @@ use super::family;
 use super::language::Language;
 use super::server::RenameServer;
 use crate::drivers::lsp_session::RpcError;
-use crate::drivers::lsp_text::TextIndex;
+use crate::drivers::lsp::text::TextIndex;
 use crate::drivers::symbol_scan::Occurrence;
 use anyhow::{Context, Result, bail};
 use lsp_types::{Range, TextEdit};

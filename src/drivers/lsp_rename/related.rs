@@ -15,7 +15,7 @@ use super::discover::{Candidate, Reference, RenamePlan, references_at};
 use super::language::{EditedText, Language};
 use super::server::RenameServer;
 use crate::drivers::lsp_session::RpcError;
-use crate::drivers::lsp_text::TextIndex;
+use crate::drivers::lsp::text::TextIndex;
 use anyhow::{Result, bail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

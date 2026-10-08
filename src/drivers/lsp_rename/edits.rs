@@ -1,7 +1,7 @@
 //! Turning a `WorkspaceEdit` from a language server into the new content of
 //! each file, without writing anything. Writing goes through the journal.
 
-use crate::drivers::lsp_text::apply_text_edits;
+use crate::drivers::lsp::text::apply_text_edits;
 use anyhow::{Context, Result, bail};
 use lsp_types::TextEdit;
 use serde_json::Value;

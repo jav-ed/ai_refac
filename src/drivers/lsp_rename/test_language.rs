@@ -90,7 +90,7 @@ impl WordServer {
         let text = self.docs.get(&path)?;
         let position: lsp_types::Position =
             serde_json::from_value(params["position"].clone()).ok()?;
-        let at = crate::drivers::lsp_text::TextIndex::new(text)
+        let at = crate::drivers::lsp::text::TextIndex::new(text)
             .offset(position)
             .ok()?;
         let start = text[..at]
@@ -125,7 +125,7 @@ impl WordServer {
     }
 
     fn range(&self, path: &Path, start: usize, end: usize) -> lsp_types::Range {
-        let index = crate::drivers::lsp_text::TextIndex::new(&self.docs[path]);
+        let index = crate::drivers::lsp::text::TextIndex::new(&self.docs[path]);
         lsp_types::Range {
             start: index.position(start),
             end: index.position(end),

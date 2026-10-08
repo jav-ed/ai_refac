@@ -6,7 +6,7 @@
 //! project as it will be after the move; one that points at nothing, and did
 //! not point at nothing before, is reported.
 
-use crate::drivers::lsp_text::apply_text_edits;
+use crate::drivers::lsp::text::apply_text_edits;
 use anyhow::{Context, Result};
 use lsp_types::TextEdit;
 use std::collections::{HashMap, HashSet};

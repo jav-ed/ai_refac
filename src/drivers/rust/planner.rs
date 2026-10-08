@@ -1,5 +1,6 @@
 use super::{
-    apply::{MovePlan, TextReplacement, append_replacement, apply_transaction, render_writes},
+    apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
+    declarations::insert_module_declaration,
     layout,
     module_graph::{self, ResolvedModule},
     references, validation,
@@ -153,9 +154,10 @@ fn prepare_target_parent(
         } else {
             format!("{} ", source.visibility)
         };
-        replacements.push(append_replacement(
+        replacements.push(insert_module_declaration(
             &parent_file,
             &parent_content,
+            segment,
             &format!("{visibility}mod {segment};"),
         ));
         new_files.insert(new_module_file.clone(), String::new());
@@ -209,9 +211,10 @@ fn plan_declaration_edits(
         .cloned()
         .map(Ok)
         .unwrap_or_else(|| std::fs::read_to_string(target_parent_file))?;
-    replacements.push(append_replacement(
+    replacements.push(insert_module_declaration(
         target_parent_file,
         &target_content,
+        target_name,
         declaration.trim(),
     ));
     Ok(())

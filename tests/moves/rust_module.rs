@@ -218,6 +218,37 @@ fn super_paths_inside_the_moved_module_stay_and_those_leaving_it_become_absolute
     assert!(child.contains("use super::helper;"), "{child}");
 }
 
+/// The declaration of the moved module joins the block of declarations of its new parent,
+/// in alphabetical order, instead of landing after the items and the tests.
+#[test]
+fn the_new_declaration_joins_the_parents_block_in_order() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\n");
+    write(
+        root,
+        "src/domain/mod.rs",
+        "pub mod alpha;\npub mod omega;\n\npub fn run() {}\n",
+    );
+    write(root, "src/domain/alpha.rs", "");
+    write(root, "src/domain/omega.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(root, "src/engine/matching.rs", "pub fn value() -> u32 { 7 }\n");
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    assert_eq!(
+        common::read_file(root, "src/domain/mod.rs"),
+        "pub mod alpha;\npub mod matching;\npub mod omega;\n\npub fn run() {}\n"
+    );
+}
+
 #[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();

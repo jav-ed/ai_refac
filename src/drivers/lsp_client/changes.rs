@@ -3,7 +3,7 @@
 //! the plan before `apply_pending_changes` writes it.
 
 use super::resource_ops::apply_resource_op;
-use crate::drivers::lsp_text::apply_text_edits;
+use crate::drivers::lsp::text::apply_text_edits;
 use anyhow::Result;
 use lsp_types::{
     AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, ResourceOp,

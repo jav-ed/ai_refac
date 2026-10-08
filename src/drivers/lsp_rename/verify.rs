@@ -10,7 +10,7 @@ use super::discover::{Candidate, Reference, RenamePlan, file_uri};
 use super::language::Language;
 use super::related::{self, Group};
 use super::server::RenameServer;
-use crate::drivers::lsp_text::TextIndex;
+use crate::drivers::lsp::text::TextIndex;
 use anyhow::{Context, Result, bail};
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap};

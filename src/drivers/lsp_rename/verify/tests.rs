@@ -1,7 +1,7 @@
 use super::*;
 use crate::drivers::lsp_rename::discover::EditedFile;
 use crate::drivers::lsp_rename::edits::PlannedFile;
-use crate::drivers::lsp_text::apply_text_edits;
+use crate::drivers::lsp::text::apply_text_edits;
 use async_trait::async_trait;
 use lsp_types::{Position, Range, TextEdit};
 use serde_json::Value;

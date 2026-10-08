@@ -13,7 +13,7 @@
 use super::discover::{Reference, file_uri, parse_references, refuse_or};
 use super::edits::{Change, FileEdits, parse_changes};
 use super::server::RenameServer;
-use crate::drivers::lsp_text::TextIndex;
+use crate::drivers::lsp::text::TextIndex;
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::collections::HashMap;

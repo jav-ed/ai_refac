@@ -44,10 +44,10 @@ pub trait RefactorDriver: Send + Sync {
 pub mod dart;
 pub mod go;
 pub mod kotlin;
+pub mod lsp;
 pub mod lsp_client;
 pub mod lsp_rename;
 pub mod lsp_session;
-pub mod lsp_text;
 pub mod markdown;
 pub mod python;
 pub mod rust;
