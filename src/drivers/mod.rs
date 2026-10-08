@@ -90,92 +90,54 @@ pub async fn complete_filesystem_moves(
     Ok(())
 }
 
-/// Resolves a path relative to the executable location (finding the project root).
-/// Handles "debug", "release", and "deps" directory structures.
+/// Finds a file that ships with the checkout (`scripts/ts_refactor.ts`,
+/// `pyrefly.toml`, `.venv/...`), looking in three places and naming all of them
+/// when it is nowhere:
+///
+/// 1. next to the executable and in every folder above it, which finds the
+///    checkout for `target/release/refac` and for a symlink to it;
+/// 2. the checkout this binary was built from, which is where `scripts/` is
+///    when the binary was installed elsewhere (`cargo install --path .`) or
+///    built into another `CARGO_TARGET_DIR`;
+/// 3. the current directory.
 pub fn resolve_resource_path(relative_path: &str) -> Result<std::path::PathBuf> {
+    let mut looked = Vec::new();
+
     let exe_path = std::env::current_exe()?;
     let mut current_dir = exe_path.parent();
-
-    // Traverse up to find the "scripts" or ".venv" folder or Cargo.toml
     while let Some(dir) = current_dir {
         let candidate = dir.join(relative_path);
         if candidate.exists() {
             return Ok(std::fs::canonicalize(candidate)?);
         }
-
-        // Also check if we are in target/release or target/debug, root is 2 levels up
-        // But "scripts" is in root.
-
-        // Safety check: don't traverse beyond reasonable limits or "/"
-        if dir.parent().is_none() {
-            break;
-        }
         current_dir = dir.parent();
     }
+    looked.push(format!(
+        "next to {} and in the folders above it",
+        exe_path.display()
+    ));
 
-    // Fallback: Check CWD
-    let cwd_res = std::env::current_dir()?.join(relative_path);
-    if cwd_res.exists() {
-        return Ok(std::fs::canonicalize(cwd_res)?);
+    let built_from = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path);
+    if built_from.exists() {
+        return Ok(std::fs::canonicalize(built_from)?);
     }
+    looked.push(format!(
+        "in the checkout this binary was built from ({})",
+        env!("CARGO_MANIFEST_DIR")
+    ));
 
-    anyhow::bail!("Could not find resource: {}", relative_path)
+    let cwd = std::env::current_dir()?;
+    let in_cwd = cwd.join(relative_path);
+    if in_cwd.exists() {
+        return Ok(std::fs::canonicalize(in_cwd)?);
+    }
+    looked.push(format!("in the current directory ({})", cwd.display()));
+
+    anyhow::bail!(
+        "Could not find {relative_path}. Looked {}. refac keeps its helper files in its checkout; run it from a build of that checkout, or keep the checkout where it was built.",
+        looked.join(", ")
+    )
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-    use std::fs;
-
-    #[test]
-    fn test_resolve_resource_path_from_foreign_dir() -> Result<()> {
-        // 1. Get original CWD and exe path
-        let _original_cwd = env::current_dir()?;
-        // This test relies on being run via cargo test, where exe is in target/debug/deps
-        // and scripts are in project root.
-
-        // 2. Create a random temp dir to be our new "fake user project"
-        let temp_dir = env::temp_dir().join("run_refac_test_dir");
-        fs::create_dir_all(&temp_dir)?;
-
-        // 3. Change CWD to temp dir (simulating running from user project)
-        let _guard = DirectoryGuard::new(temp_dir.clone())?; // RAII style verification? 
-        // Rust tests run in threads, changing env CWD is dangerous/racy for parallel tests.
-        // We will just temporarily change it if we are generic.
-        // Actually, changing CWD in tests is bad practice in Rust due to threading.
-
-        // Instead of changing CWD, let's verify resolve_resource_path logic
-        // explicitly checks the executable's relative paths.
-        // pass.
-
-        let path = resolve_resource_path("scripts/ts_refactor.ts")?;
-        assert!(
-            path.exists(),
-            "Should find script even if CWD was weird (logic analysis)"
-        );
-        assert!(
-            path.to_string_lossy().contains("scripts"),
-            "Should point to scripts dir"
-        );
-
-        Ok(())
-    }
-
-    // Simple RAII guard to restore CWD if we did change it (which we won't for safety)
-    struct DirectoryGuard {
-        original: std::path::PathBuf,
-    }
-    impl DirectoryGuard {
-        fn new(target: std::path::PathBuf) -> Result<Self> {
-            let original = env::current_dir()?;
-            env::set_current_dir(&target)?;
-            Ok(Self { original })
-        }
-    }
-    impl Drop for DirectoryGuard {
-        fn drop(&mut self) {
-            let _ = env::set_current_dir(&self.original);
-        }
-    }
-}
+mod tests;

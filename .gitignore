@@ -18,6 +18,7 @@ Repos/
 Trials/
 
 scripts/node_modules/
+scripts/.install.lock
 scripts/package-lock.json
 
 # Local reports and experiments
