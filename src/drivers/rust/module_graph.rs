@@ -236,9 +236,15 @@ fn resolve_module(
             );
         }
     }
-    if !matches!(visibility.as_str(), "" | "pub" | "pub(crate)") {
+    // `pub(in crate::…)` is accepted only in its absolute form, which is also
+    // what a move writes when a private module has to reach further.
+    let supported = matches!(
+        visibility.as_str(),
+        "" | "pub" | "pub(crate)" | "pub(self)" | "pub(super)"
+    ) || visibility.starts_with("pub(in crate");
+    if !supported {
         bail!(
-            "Module `crate::{}` uses unsupported visibility `{visibility}`; v1 supports private, pub, and pub(crate)",
+            "Module `crate::{}` uses unsupported visibility `{visibility}`; v1 supports private, pub, pub(crate), pub(self), pub(super) and pub(in crate::…)",
             module_segments(module, database).join("::")
         );
     }

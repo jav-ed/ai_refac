@@ -1,6 +1,6 @@
 use super::{
     apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
-    declarations::insert_module_declaration,
+    declarations::{insert_module_declaration, visibility_prefix},
     layout, macro_paths,
     module_graph::{self, ResolvedModule},
     references, validation,
@@ -148,7 +148,7 @@ fn prepare_target_parent(
         existing_length -= 1;
     };
 
-    for segment in &target_parent[existing_length..] {
+    for (index, segment) in target_parent[existing_length..].iter().enumerate() {
         let new_directory = child_directory.join(segment);
         let new_module_file = new_directory.join("mod.rs");
         if new_module_file.exists() || new_directory.with_extension("rs").exists() {
@@ -163,11 +163,12 @@ fn prepare_target_parent(
             .cloned()
             .map(Ok)
             .unwrap_or_else(|| std::fs::read_to_string(&parent_file))?;
-        let visibility = if source.visibility.is_empty() {
-            String::new()
-        } else {
-            format!("{} ", source.visibility)
-        };
+        let declaring_parent = &target_parent[..existing_length + index];
+        let visibility = visibility_prefix(
+            &source.visibility,
+            &source.segments[..source.segments.len() - 1],
+            declaring_parent,
+        );
         replacements.push(insert_module_declaration(
             &parent_file,
             &parent_content,
@@ -220,6 +221,27 @@ fn plan_declaration_edits(
     let local_name_end = usize::from(source.name_range.end() - source.declaration_range.start());
     let mut declaration = source.declaration_text.clone();
     declaration.replace_range(local_name_start..local_name_end, target_name);
+    // The visibility must keep its reach in the new parent. The `mod` keyword
+    // is the last word before the name; attributes sit above it and the
+    // written visibility right before it.
+    let keyword = declaration[..local_name_start].trim_end();
+    let before_keyword = keyword
+        .strip_suffix("mod")
+        .context("The module declaration has no `mod` keyword before its name")?
+        .trim_end();
+    let keyword_start = keyword.len() - "mod".len();
+    let visibility_start = if source.visibility.is_empty() {
+        keyword_start
+    } else {
+        before_keyword
+            .strip_suffix(source.visibility.as_str())
+            .context("The module declaration does not end with its visibility before `mod`")?
+            .len()
+    };
+    declaration.replace_range(
+        visibility_start..keyword_start,
+        &visibility_prefix(&source.visibility, source_parent, target_parent),
+    );
     let target_content = new_files
         .get(target_parent_file)
         .cloned()

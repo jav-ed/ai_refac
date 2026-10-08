@@ -499,6 +499,48 @@ fn pub_super_keeps_its_reach_when_the_module_moves_deeper() {
 }
 
 #[test]
+fn a_private_module_moved_deeper_stays_visible_to_its_old_users() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod engine;\n");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "mod matching;\nmod user;\n\npub fn run() -> u32 {\n    user::go() + matching::value()\n}\n\n#[cfg(test)]\nmod tests {}\n",
+    );
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n",
+    );
+    write(
+        root,
+        "src/engine/user.rs",
+        "pub fn go() -> u32 { super::matching::value() }\n",
+    );
+
+    let output = run(
+        root,
+        "crate::engine::matching",
+        "crate::engine::plan::matching",
+    );
+    common::assert_move_succeeded(&output);
+
+    let parent = common::read_file(root, "src/engine/mod.rs");
+    assert!(
+        parent.contains("\nmod plan;\n") || parent.starts_with("mod plan;\n"),
+        "{parent}"
+    );
+    let plan = common::read_file(root, "src/engine/plan/mod.rs");
+    assert!(plan.contains("pub(super) mod matching;"), "{plan}");
+}
+
+#[test]
 fn a_local_variable_named_like_the_module_is_left_alone() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();

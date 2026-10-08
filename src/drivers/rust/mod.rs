@@ -46,7 +46,7 @@ impl RefactorDriver for RustDriver {
             .map(Path::to_path_buf)
             .unwrap_or(std::env::current_dir()?);
         let binary = crate::servers::executable("rust", &root_dir)?;
-        let client = super::lsp_client::LspClient::new(&binary.to_string_lossy());
+        let client = crate::drivers::lsp::client::LspClient::new(&binary.to_string_lossy());
         let mut lsp_batch: Vec<(String, String, RustSymbolRenameRequest)> = Vec::new();
 
         for (source, target) in &file_map {
@@ -96,7 +96,7 @@ impl RefactorDriver for RustDriver {
                 let mut pending_moves = std::collections::HashMap::new();
                 pending_moves.insert(target_abs, source_abs);
 
-                super::lsp_client::SymbolRenameRequest {
+                crate::drivers::lsp::client::SymbolRenameRequest {
                     document_path: request.document_path.clone(),
                     position: request.position,
                     new_name: request.new_name.clone(),
