@@ -34,9 +34,13 @@ Refac finds every whole-word match of `--symbol` in `--file` and asks the server
 4. **The write.** Every planned file is re-read and must still read as it did when planning began; the edits go through an undo log and a failure restores everything.
 5. **A report of what is left.** After the plan, refac scans the project's sources for the old name as a whole word and reports where it is still written: untyped receivers, text in strings and comments, other symbols with the same name, and for Rust the macro bodies the server never renames (printed as an `ATTENTION` note, because the build breaks until they are edited). The note ends with the `rg -w` command to check them.
 
+## Several renames: `--batch`
+
+`refac rename --batch <file|->` runs a JSON list of renames (`{"file", "symbol", "new_name"}`, optional `"line"` and `"column"`) of one project and language in one server session: one start, one stop, all or nothing. Each rename is proven and written against the files the previous one left, so an entry may use the name an earlier entry gave, and in Kotlin the path a class rename moved a file to. A failing entry undoes the earlier ones. No server is kept running between commands (the reasons are in [Symbol rename options](../../Investigation/symbol_Rename_Options.md)), so batching is how a series of renames avoids paying the start each time. Steps and guarantees: [Engine](engine.md).
+
 ## Output
 
-Human text lists each changed file with its edit count, then the notes. `--json` returns `status`, `edits`, `edited_files`, `files`, and `notes`. `--dry-run` plans, proves, and reports the same, and writes nothing. Failures exit with code 1 and, with `--json`, an `error` string.
+Human text lists each changed file with its edit count, then the notes. `--json` returns `status`, `edits`, `edited_files`, `files`, and `notes`; a batch returns `operation: "rename-batch"`, the totals, and one such object per rename in `renames`. `--dry-run` plans, proves, and reports the same, and writes nothing. Failures exit with code 1 and, with `--json`, an `error` string.
 
 ## Hard failures
 
@@ -44,6 +48,6 @@ Each stops the command and leaves every file unchanged: the server missing or br
 
 ## Related
 
-- [Engine](engine.md): the steps in order, the `Language` and `RenameServer` interfaces, related symbols, override families, retries, the leftover scan, and the file map.
+- [Engine](engine.md): the steps in order, the batch, the `Language` and `RenameServer` interfaces, related symbols, override families, retries, the leftover scan, and the file map.
 - [Language servers](../../Setup/language_Servers.md): `refac doctor`, the lookup order, environment variables, and what each server costs.
 - [Symbol rename options](../../Investigation/symbol_Rename_Options.md): the evidence behind each server choice.

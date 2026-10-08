@@ -208,6 +208,20 @@ refac rename --project-path /path/to/package --file lib/shapes.dart   --symbol a
 
 `--project-path` is the folder with `go.mod`, `Cargo.toml`, or `pubspec.yaml` (after `dart pub get`); for Python it is the folder basedpyright treats as the root. The same rules hold in all four: the server (gopls, rust-analyzer, basedpyright, the Dart SDK's analysis server) lists the references and proposes the edits, refac proves in memory that the renamed program still means the same (a new name that clashes with or shadows something is refused with the usages that would change), writes through an undo log, and reports where the old name is still written (untyped receivers, strings, comments, Rust `macro_rules!` bodies). `--dry-run` writes nothing; `--line` and `--column` choose one symbol when the name refers to several. Package, module, and file names are paths: use `refac move` or `move-module`. Details per language: [Symbol rename](Project_Manag/Docs/Features/Symbol_Rename/linker_Symbol_Rename.md).
 
+**Several renames in one call.** Starting a language server costs seconds (Kotlin about 40 s), so several renames of one project go into one `--batch` call: the server starts once, each rename is proven and written against the files the previous one left, and the batch is all or nothing (a failing rename undoes the earlier ones). The batch is a JSON list read from a file or from stdin with `-`; it works for Kotlin, Go, Rust, Python, and Dart, one language and one project per batch.
+
+```bash
+refac rename --project-path /path/to/crate --batch - <<'JSON'
+[
+  {"file": "src/shapes.rs", "symbol": "SCALE", "new_name": "FACTOR"},
+  {"file": "src/shapes.rs", "symbol": "Square", "new_name": "Cube", "line": 36},
+  {"file": "src/shapes.rs", "symbol": "FACTOR", "new_name": "MULTIPLIER"}
+]
+JSON
+```
+
+On the Rust fixture four renames took 18.8 s as four commands and 4.6 s as one batch. No server stays running between commands, by design: a resident server would hold hundreds of MB to a few GB of memory and would see a stale copy of every file that anything else edits.
+
 ### Fix a missing language server
 
 ```bash
@@ -322,7 +336,7 @@ The approach depends on the language:
 
 **Semantic Rust modules:** `move-module` loads the Cargo workspace through embedded rust-analyzer crates, resolves the logical module and references through HIR, plans conventional module-tree edits and physical moves, then validates a fresh semantic load and the full Cargo workspace. Unsupported or ambiguous structures fail with a descriptive error rather than falling back to text-only guesses.
 
-**Shared rename engine (Go, Rust, Python, Dart, Kotlin symbol rename):** `rename` starts the language server for the file's language, asks it for the references and the rename edits, shows it the renamed text in memory and asks for the references again, and writes only if the sets match (and every listed reference was edited). The server is shut down before anything is written. Python overrides are found with `textDocument/implementation` and renamed together; gopls is asked again when it answers under load with only part of the edits; the Dart server is made to finish analysing the changed documents first. See [Engine](Project_Manag/Docs/Features/Symbol_Rename/engine.md).
+**Shared rename engine (Go, Rust, Python, Dart, Kotlin symbol rename):** `rename` (or `rename --batch`, which does this for each of its renames in one server session) starts the language server for the file's language, asks it for the references and the rename edits, shows it the renamed text in memory and asks for the references again, and writes only if the sets match (and every listed reference was edited). The server is shut down before anything is written. Python overrides are found with `textDocument/implementation` and renamed together; gopls is asked again when it answers under load with only part of the edits; the Dart server is made to finish analysing the changed documents first. See [Engine](Project_Manag/Docs/Features/Symbol_Rename/engine.md).
 
 **TypeScript 7 native server (TypeScript / JavaScript symbol rename):** `rename` starts `tsc --lsp --stdio` from the locked `typescript-native` dependency, asks it for the rename edits, applies them in memory only, and asks for the references of the renamed declaration to prove that no clash or shadowing changed any meaning. Files are written only after that check, with rollback on a failed write. See [Symbol rename](Project_Manag/Docs/Features/TypeScript/symbol_Rename.md).
 

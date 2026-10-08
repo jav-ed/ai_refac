@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RenameRequest {
     pub project_path: PathBuf,
     pub file: PathBuf,

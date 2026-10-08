@@ -16,6 +16,7 @@ pub mod plan;
 pub mod project;
 pub mod rename;
 pub mod renames;
+pub mod resync;
 pub mod server;
 pub mod stale;
 pub mod survey;

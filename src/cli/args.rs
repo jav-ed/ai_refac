@@ -46,24 +46,28 @@ pub(super) struct RenameArgs {
     pub(super) project_path: Option<std::path::PathBuf>,
 
     /// File containing the symbol (relative to project_path or absolute).
-    #[arg(long, value_hint = ValueHint::FilePath)]
-    pub(super) file: std::path::PathBuf,
+    #[arg(long, value_hint = ValueHint::FilePath, required_unless_present = "batch", conflicts_with = "batch")]
+    pub(super) file: Option<std::path::PathBuf>,
 
     /// Current name of the symbol, as written in that file.
-    #[arg(long)]
-    pub(super) symbol: String,
+    #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+    pub(super) symbol: Option<String>,
 
     /// New identifier for the symbol.
-    #[arg(long)]
-    pub(super) new_name: String,
+    #[arg(long, required_unless_present = "batch", conflicts_with = "batch")]
+    pub(super) new_name: Option<String>,
 
     /// 1-based line that picks the occurrence when the name refers to several symbols in the file.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "batch")]
     pub(super) line: Option<u32>,
 
     /// 1-based byte column on --line, like `rg --column`.
-    #[arg(long, requires = "line")]
+    #[arg(long, requires = "line", conflicts_with = "batch")]
     pub(super) column: Option<u32>,
+
+    /// Several renames of one project in one language-server session, all or nothing: a JSON file (or `-` for stdin) holding a list of {"file", "symbol", "new_name"} objects, each with an optional "line" and "column". The server starts once, each rename is proven and written against the files the one before left, and a failure undoes the earlier renames. One language per batch (not TypeScript).
+    #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath)]
+    pub(super) batch: Option<std::path::PathBuf>,
 
     /// Plan and verify the rename, report the edits, and change no files.
     #[arg(long)]

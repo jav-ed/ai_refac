@@ -16,8 +16,8 @@ use super::survey::survey;
 use crate::drivers::lsp_rename::discover::RenamePlan;
 use crate::drivers::lsp_rename::journal::FileWrite;
 use crate::drivers::lsp_rename::language::{EditedText, FollowUps, Language};
-use crate::drivers::lsp_rename::rename_symbol as rename_with;
 use crate::drivers::lsp_rename::server::RenameServer;
+use crate::drivers::lsp_rename::{rename_symbol as rename_with, rename_symbols as rename_all_with};
 pub use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -59,6 +59,12 @@ pub struct Kotlin;
 
 pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
     rename_with(&Kotlin, request).await
+}
+
+/// Several renames in one server session, which for Kotlin saves the half
+/// minute the server needs to import the Gradle build for each of them.
+pub async fn rename_all_symbols(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>> {
+    rename_all_with(&Kotlin, requests).await
 }
 
 #[async_trait]

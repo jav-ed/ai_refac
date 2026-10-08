@@ -27,6 +27,12 @@ pub fn ensure_unchanged(plan: &RenamePlan) -> Result<()> {
 /// Write the server's edits, then `writes` (files refac edits itself), then
 /// move the files the server wants moved.
 pub fn apply(plan: &RenamePlan, writes: &[FileWrite]) -> Result<()> {
+    apply_undoable(plan, writes).map(drop)
+}
+
+/// The same write, keeping the undo log so that a later step of a batch that
+/// fails can take this one back too.
+pub fn apply_undoable(plan: &RenamePlan, writes: &[FileWrite]) -> Result<Journal> {
     ensure_unchanged(plan)?;
     let mut journal = Journal::default();
     let outcome: Result<()> = (|| {
@@ -40,7 +46,7 @@ pub fn apply(plan: &RenamePlan, writes: &[FileWrite]) -> Result<()> {
         Ok(())
     })();
     match outcome {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(journal),
         Err(error) => match journal.rollback() {
             Ok(()) => Err(error.context("The rename failed and every change was undone")),
             Err(failure) => Err(error.context(format!("{failure:#}"))),

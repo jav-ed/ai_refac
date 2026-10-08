@@ -3,7 +3,7 @@
 //! they fail loudly with what refac itself says about the missing server.
 
 use refac::drivers::symbol_rename::{RenameReport, RenameRequest};
-use refac::logic::rename::handle_rename;
+use refac::logic::rename::{handle_rename, handle_rename_batch};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -39,6 +39,27 @@ pub async fn rename(request: RenameRequest) -> RenameReport {
     handle_rename(request)
         .await
         .unwrap_or_else(|error| panic!("the rename failed: {error:#}"))
+}
+
+/// Several renames in one server session; each must succeed.
+pub async fn batch(requests: Vec<RenameRequest>) -> Vec<RenameReport> {
+    handle_rename_batch(requests)
+        .await
+        .unwrap_or_else(|error| panic!("the batch failed: {error:#}"))
+}
+
+/// The error of a batch that must be refused.
+pub async fn refused_batch(requests: Vec<RenameRequest>) -> String {
+    match handle_rename_batch(requests).await {
+        Ok(reports) => panic!(
+            "the batch should be refused, but changed {:?}",
+            reports
+                .iter()
+                .map(|report| &report.files)
+                .collect::<Vec<_>>()
+        ),
+        Err(error) => format!("{error:#}"),
+    }
 }
 
 /// The error of a rename that must be refused.

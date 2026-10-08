@@ -28,6 +28,13 @@ pub(super) struct RenameSuccessOutput<'a> {
     pub(super) status: &'static str,
     pub(super) operation: &'static str,
     pub(super) project_path: &'a str,
+    #[serde(flatten)]
+    pub(super) rename: RenameResult<'a>,
+}
+
+/// What one rename did, alone or as one of a batch.
+#[derive(Debug, Serialize)]
+pub(super) struct RenameResult<'a> {
     pub(super) file: &'a str,
     pub(super) symbol: &'a str,
     pub(super) new_name: &'a str,
@@ -36,6 +43,17 @@ pub(super) struct RenameSuccessOutput<'a> {
     pub(super) edited_files: usize,
     pub(super) files: Vec<RenamedFile>,
     pub(super) notes: &'a [String],
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct RenameBatchOutput<'a> {
+    pub(super) status: &'static str,
+    pub(super) operation: &'static str,
+    pub(super) project_path: &'a str,
+    pub(super) dry_run: bool,
+    pub(super) edits: usize,
+    pub(super) edited_files: usize,
+    pub(super) renames: Vec<RenameResult<'a>>,
 }
 
 #[derive(Debug, Serialize)]

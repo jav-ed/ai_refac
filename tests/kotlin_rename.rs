@@ -8,7 +8,9 @@ mod common;
 // Run with: REFAC_KOTLIN_SERVER=<install dir> [ANDROID_HOME=<sdk>] \
 //   cargo test --test kotlin_rename -- --ignored
 
-use refac::drivers::kotlin::rename::{RenameReport, RenameRequest, rename_symbol};
+use refac::drivers::kotlin::rename::{
+    RenameReport, RenameRequest, rename_all_symbols, rename_symbol,
+};
 use std::path::Path;
 
 const K: &str = "src/main/kotlin/com/example";
@@ -111,6 +113,65 @@ async fn a_class_is_renamed_together_with_its_file() {
         report.notes
     );
     common::kotlin::assert_compiles(project.path(), COMPILE);
+}
+
+/// Greeter.kt becomes Welcomer.kt with its class; the second rename names the
+/// file by its new path, so the server must have been told about the move. The
+/// third runs in the file the first one did not touch.
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_batch_follows_a_class_file_that_an_earlier_rename_moved() {
+    let project = setup();
+    let greeter = format!("{K}/app/Greeter.kt");
+    let welcomer = format!("{K}/app/Welcomer.kt");
+
+    let reports = rename_all_symbols(vec![
+        request(project.path(), &greeter, "Greeter", "Welcomer"),
+        request(project.path(), &welcomer, "greet", "welcome"),
+        request(project.path(), HELPER, "decorate", "embellish"),
+    ])
+    .await
+    .unwrap_or_else(|error| panic!("the batch failed: {error:#}"));
+
+    assert_eq!(reports.len(), 3);
+    assert!(!project.path().join(&greeter).exists());
+    let moved = common::read_file(project.path(), &welcomer);
+    assert!(moved.contains("class Welcomer"), "{moved}");
+    assert!(moved.contains("fun welcome(name: String)"), "{moved}");
+    assert!(moved.contains("helper.embellish("), "{moved}");
+    let main = common::read_file(project.path(), &format!("{K}/app/Main.kt"));
+    assert!(main.contains("Welcomer(helper)"), "{main}");
+    assert!(main.contains("greeter.welcome(\"world\")"), "{main}");
+    common::kotlin::assert_compiles(project.path(), COMPILE);
+}
+
+/// The failing rename comes after one that moved a file: the move is undone
+/// as well as the edits.
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_failing_batch_gives_back_the_moved_file_and_every_edit() {
+    let project = setup();
+    let before = common::kotlin::snapshot(project.path());
+
+    let error = rename_all_symbols(vec![
+        request(
+            project.path(),
+            &format!("{K}/app/Greeter.kt"),
+            "Greeter",
+            "Welcomer",
+        ),
+        request(project.path(), HELPER, "no_such_symbol", "something_else"),
+    ])
+    .await
+    .expect_err("the second rename cannot work");
+
+    let message = format!("{error:#}");
+    assert!(message.contains("Rename 2 of 2"), "{message}");
+    assert!(
+        message.contains("1 earlier rename(s) were undone"),
+        "{message}"
+    );
+    assert_eq!(common::kotlin::snapshot(project.path()), before);
 }
 
 #[tokio::test]

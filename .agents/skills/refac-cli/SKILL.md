@@ -30,8 +30,8 @@ Passing a directory for any language other than TypeScript/JavaScript and Kotlin
 - Paths may be absolute or relative to `--project-path`.
 - Mixed languages in one call are fine — the tool groups them internally.
 - TypeScript/JavaScript invocations are limited to 30 contained source files. Directory contents count toward the limit, and the CLI reports the measured count.
-- `rename` renames one symbol per call. The language comes from the file extension. `--project-path` is: TypeScript, the package root whose `tsconfig.json` includes every caller (and the tsconfig must be accepted by TypeScript 7: no `baseUrl`, no `moduleResolution: node10`); Kotlin, the Gradle root (`settings.gradle.kts`); Go, the folder with `go.mod` or `go.work`; Rust, the folder with `Cargo.toml`; Python, the folder pyright should treat as the root (it reads `pyrightconfig.json` or `[tool.pyright]` there); Dart, the package folder with `pubspec.yaml` after `dart pub get` (without `.dart_tool/package_config.json` the rename is refused).
-- Language servers are never left running: each `move` or `rename` starts the server it needs and stops it afterwards, so do not start one yourself. If a server is not installed, the error lists every place that was looked at and says `Run refac doctor <language>`. Run that command, follow its numbered install steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command. `refac doctor` alone shows all languages.
+- `rename` renames one symbol per call, or several in one call with `--batch` (see below). The language comes from the file extension. `--project-path` is: TypeScript, the package root whose `tsconfig.json` includes every caller (and the tsconfig must be accepted by TypeScript 7: no `baseUrl`, no `moduleResolution: node10`); Kotlin, the Gradle root (`settings.gradle.kts`); Go, the folder with `go.mod` or `go.work`; Rust, the folder with `Cargo.toml`; Python, the folder pyright should treat as the root (it reads `pyrightconfig.json` or `[tool.pyright]` there); Dart, the package folder with `pubspec.yaml` after `dart pub get` (without `.dart_tool/package_config.json` the rename is refused).
+- Language servers are never left running: each `move` or `rename` starts the server it needs and stops it afterwards, so do not start one yourself, and there is no memory to give back afterwards. Starting costs seconds (Go and Python 1-8 s, Rust 5-35 s, Kotlin about 40 s), which is why several renames of one project belong into ONE `rename --batch` call. If a server is not installed, the error lists every place that was looked at and says `Run refac doctor <language>`. Run that command, follow its numbered install steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command. `refac doctor` alone shows all languages.
 - Kotlin and Android need the JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`). Each call imports the Gradle build first and takes about 30 seconds, so put several moves into one `move` call. `.java` files, directories with Java sources, and moves between modules or source sets are refused. Read the `// Note:` lines of the output: they list old class names in ProGuard rules, build scripts, and strings that refac does not edit.
 
 ## Usage
@@ -80,6 +80,16 @@ refac rename --project-path /path/to/crate --file src/shapes.rs --symbol area --
 refac rename --project-path /path/to/project --file shop/shapes.py --symbol area --new-name surface
 refac rename --project-path /path/to/package --file lib/shapes.dart --symbol area --new-name surface
 
+# several renames of one project in ONE call (one language, one server start, all or nothing)
+refac rename --project-path /path/to/crate --batch renames.json
+refac rename --project-path /path/to/crate --batch - --dry-run <<'JSON'
+[
+  {"file": "src/shapes.rs", "symbol": "SCALE", "new_name": "FACTOR"},
+  {"file": "src/shapes.rs", "symbol": "Square", "new_name": "Cube", "line": 36},
+  {"file": "src/shapes.rs", "symbol": "FACTOR", "new_name": "MULTIPLIER"}
+]
+JSON
+
 # a server is missing or broken: this prints what to install and how to check it
 refac doctor go
 refac doctor                      # all languages at a glance
@@ -94,6 +104,16 @@ refac rename --project-path /path/to/package \
 ```
 
 A rename that would clash with or shadow another symbol, an ambiguous name, an unrenameable symbol, or an unsupported config stops with a message and leaves every file unchanged. Read the message: an ambiguity lists the `--line`/`--column` candidates. After a successful rename read the `Note:` lines: they list where the old name is still written (calls on untyped Python or Dart receivers, strings, comments, Rust `macro_rules!` bodies, which the build needs changed by hand when the note says `ATTENTION`) and end with the `rg -w` command to check them. A package, module, or file name is not a symbol: use `refac move` (or `move-module` for Rust modules).
+
+### Several renames: `--batch`
+
+Use one `--batch` call whenever you have two or more renames in the same project. The language server is started once (not once per rename), every rename is planned, proven and written against the files as the previous one left them, and the server is stopped before the command ends. A later entry may therefore name a symbol by the name an earlier entry gave it, and may name a Kotlin file by the path its class rename moved it to.
+
+- The batch is a JSON list of `{"file", "symbol", "new_name"}` objects, each with an optional `"line"` and `"column"` (same meaning as `--line` and `--column`), read from a file or from stdin with `--batch -`. `--dry-run` and `--json` apply to the whole batch. `--batch` cannot be combined with `--file`, `--symbol`, `--new-name`, `--line` or `--column`.
+- All or nothing: if rename 3 of 5 fails, renames 1 and 2 are undone and the message says `Rename 3 of 5 (...) failed; the 2 earlier rename(s) were undone, so nothing was changed`. Fix the entry and run the whole batch again.
+- Requests that can be refused beforehand (bad name, keyword, unknown file in the first entry, two projects, two languages, dry-run mixed with real runs) are refused before the server starts.
+- One language and one project per batch. Run one batch per language. TypeScript/JavaScript has no batch: run its renames one by one.
+- Dry-run entries are planned independently, each against the files as they are on disk.
 
 Exit codes: `0` = all succeeded, `1` = one or more failed.
 

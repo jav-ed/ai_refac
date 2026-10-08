@@ -130,6 +130,19 @@ Not an engine question, but it decided how the servers are found: all four are i
 
 Nothing is left running afterwards; that was a design rule, because an idle server holds hundreds of megabytes and an agent runs a rename a few times per task.
 
+## Keep the server alive between commands? No, batch instead
+
+The question: several renames in a row each pay the start (above), so should an option keep the server alive for a while? Weighed and rejected for now:
+
+- **Stale view.** The in-memory proof is only as good as the server's picture of the files. A resident server would hold documents that an editor, `git checkout`, a formatter, or another refac command has since changed; every request would need every changed file revalidated and re-sent, and a mistake there turns the proof into a false assurance. Observed cases that already needed care with a fresh server: the Dart server answers from files it has not analysed yet, gopls answers a rename with part of the edits under load, and the Kotlin server's file watcher is asynchronous.
+- **Memory.** Idle servers hold 0.1-2 GB each (table above); per project and language, for as long as the time-to-live runs. The design rule is that nothing stays resident.
+- **Process management.** A socket or pid file, a time-to-live, cleanup after a crash or a killed agent, one server per project and language, and an environment where the process may not outlive the command at all (the remote sandbox this was built in).
+- **What it would save.** Only the start. Most starts are small: Go 1.7 s, Python 1.3 s, Dart 0.4 s, and the fixtures' Rust 4.6 s. The expensive ones are Kotlin (about 38 s) and a large Rust project (33 s, 1.9 GB).
+
+What was built instead is `refac rename --batch`: all renames of one task in one call, one server start, one stop, all or nothing. Measured on the Rust fixture, four renames: 18.8 s as four commands, 4.6 s as one batch, identical files. The batch keeps the proof honest (each rename is planned against the files as the previous one wrote them, the server is told what changed) and nothing is left behind to warn about; the skill teaches agents to put the renames of one project into one batch.
+
+Revisit for Kotlin only, and only opt-in: a time-to-live, revalidation of every file that changed on disk since the last request, and an explicit message in the output that a server of about 1.6 GiB stays resident until a stated time.
+
 ## Revisit when
 
 - Pyrefly or ty resolve attributes and re-exports across files (rerun the nine cases from a project that follows C1 to C9) or pyright announces `implementationProvider`.

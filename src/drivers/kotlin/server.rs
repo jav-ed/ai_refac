@@ -237,6 +237,14 @@ impl RenameServer for KotlinServer {
         KotlinServer::sync_document(self, path, text).await
     }
 
+    async fn after_apply(
+        &mut self,
+        edited: &[PathBuf],
+        moves: &[(PathBuf, PathBuf)],
+    ) -> Result<()> {
+        super::resync::after_rename(self, edited, moves).await
+    }
+
     async fn shutdown(self: Box<Self>) {
         KotlinServer::shutdown(*self).await;
     }

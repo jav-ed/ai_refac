@@ -1,8 +1,6 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use crate::drivers::symbol_rename::RenameRequest;
-use crate::logic::rename::handle_rename;
 use crate::logic::{RefactorRequest, handle_refactor};
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
@@ -13,11 +11,10 @@ use serde::Serialize;
 mod args;
 mod doctor;
 mod output;
+mod rename;
 
 use args::{CompletionsArgs, MoveArgs, MoveModuleArgs, RenameArgs};
-use output::{
-    ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput, RenameSuccessOutput, RenamedFile,
-};
+use output::{ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -30,7 +27,7 @@ Supported languages: TypeScript, JavaScript, Python, Markdown, Rust, Go, Dart, K
 Markdown files, images and other assets, and folders of them can be moved too; after any move, the Markdown links that point at the moved files are updated.
 Use `move-module` for semantic Rust module-subtree moves.
 Use `rename` to rename a TypeScript/JavaScript, Kotlin, Go, Rust, Python or Dart symbol (variable, parameter, function, type, member) and update every reference.
-Renames use a language server (gopls, rust-analyzer, basedpyright, the Dart SDK's server, the Kotlin server). refac starts it for the command and stops it afterwards, so nothing stays in memory. When a server is missing the error says where refac looked; `refac doctor <language>` shows how to install it. For Kotlin, --project-path is the Gradle project root.
+Renames use a language server (gopls, rust-analyzer, basedpyright, the Dart SDK's server, the Kotlin server). refac starts it for the command and stops it afterwards, so nothing stays in memory. Starting takes seconds (Kotlin about 40), so put several renames of one project into one `rename --batch` call: one start, all or nothing. When a server is missing the error says where refac looked; `refac doctor <language>` shows how to install it. For Kotlin, --project-path is the Gradle project root.
 Paths may be absolute or relative to --project-path.
 
 EXAMPLES:
@@ -60,6 +57,10 @@ EXAMPLES:
   refac rename --project-path /my/gradle/project \\
     --file app/src/main/kotlin/com/example/util/Helper.kt \\
     --symbol shout --new-name yell
+
+  # Several renames of one project in one language-server session (JSON list from a file or stdin); all or nothing
+  refac rename --project-path /my/crate --batch renames.json
+  # renames.json: [{\"file\": \"src/a.rs\", \"symbol\": \"old_a\", \"new_name\": \"new_a\"}, ...]; use --batch - to read it from stdin
 
   # Rename a Go, Rust, Python or Dart symbol the same way (the file extension picks the language)
   refac rename --project-path /my/module --file shape/shape.go \\
@@ -113,7 +114,7 @@ async fn execute(cli: Cli) -> Result<(), CliError> {
     match cli.command {
         Commands::Move(args) => execute_move(args).await,
         Commands::MoveModule(args) => execute_move_module(args),
-        Commands::Rename(args) => execute_rename(args).await,
+        Commands::Rename(args) => rename::execute_rename(args).await,
         Commands::Doctor(args) => doctor::execute_doctor(args).await,
         Commands::Completions(args) => execute_completions(args),
         Commands::Man => execute_man(),
@@ -205,79 +206,6 @@ fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {
             "// Alhamdulillah Rust module moved semantically:\n{} -> {}\n// {} filesystem path(s) moved; {} source file(s) updated.",
             args.source_module, args.target_module, report.moved_paths, report.edited_files
         );
-    }
-
-    Ok(())
-}
-
-async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
-    let json = args.json;
-    let project_path = args
-        .project_path
-        .clone()
-        .map(Ok)
-        .unwrap_or_else(std::env::current_dir)
-        .map_err(|error| CliError {
-            json,
-            error: error.into(),
-        })?;
-    let request = RenameRequest {
-        project_path: project_path.clone(),
-        file: args.file.clone(),
-        symbol: args.symbol.clone(),
-        new_name: args.new_name.clone(),
-        line: args.line,
-        column: args.column,
-        dry_run: args.dry_run,
-    };
-    let report = handle_rename(request)
-        .await
-        .map_err(|error| CliError { json, error })?;
-
-    if json {
-        let payload = RenameSuccessOutput {
-            status: "ok",
-            operation: "rename",
-            project_path: &project_path.to_string_lossy(),
-            file: &args.file.to_string_lossy(),
-            symbol: &args.symbol,
-            new_name: &args.new_name,
-            dry_run: report.dry_run,
-            edits: report.edits,
-            edited_files: report.files.len(),
-            files: report
-                .files
-                .iter()
-                .map(|(path, edits)| RenamedFile {
-                    path: path.to_string_lossy().into_owned(),
-                    edits: *edits,
-                })
-                .collect(),
-            notes: &report.notes,
-        };
-        write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })?;
-    } else {
-        let headline = if report.dry_run {
-            "// Dry run: nothing was changed. Planned and verified rename:"
-        } else {
-            "// Alhamdulillah symbol renamed:"
-        };
-        println!("{headline}\n{} -> {}", args.symbol, args.new_name);
-        for (path, edits) in &report.files {
-            println!(
-                "// {} ({edits} edit{})",
-                path.display(),
-                if *edits == 1 { "" } else { "s" }
-            );
-        }
-        println!(
-            "// {} edit(s) in {} file(s).",
-            report.edits,
-            report.files.len()
-        );
-        for note in &report.notes {
-            println!("// Note: {note}");
-        }
     }
 
     Ok(())

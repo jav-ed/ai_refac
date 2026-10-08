@@ -5,7 +5,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[async_trait]
 pub trait RenameServer: Send {
@@ -20,6 +20,19 @@ pub trait RenameServer: Send {
     /// the last call, so that its next answer is about their new text. A
     /// server that answers from the latest text at once needs nothing here.
     async fn settle(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    /// The rename was written to disk: the documents it edited now hold the
+    /// text the server was shown, and `moves` (current path, new path) were
+    /// moved. A server that keeps its own view of the files (Kotlin) must be
+    /// told, because the next rename of a batch runs in the same session. The
+    /// others already hold the new texts and need nothing.
+    async fn after_apply(
+        &mut self,
+        _edited: &[PathBuf],
+        _moves: &[(PathBuf, PathBuf)],
+    ) -> Result<()> {
         Ok(())
     }
 

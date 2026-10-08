@@ -31,6 +31,7 @@ The current test suite covers:
 - Markdown move flow
 - The shared rename engine (`src/drivers/lsp_rename/`): the proof, related groups, override families, planning, retries, and each language's rules, all against a fake server that only knows words; the server locator (`src/servers/`) against fake executables
 - `refac doctor` and the missing-server messages, on a machine with no server at all (`tests/doctor.rs`)
+- `rename --batch`: the batch engine against the word server (`lsp_rename/batch/tests.rs`), the Kotlin change notifications (`kotlin/resync/tests.rs`), the dispatch (`logic/rename/tests.rs`), and the command line (`tests/rename_batch_cli.rs`)
 - Symbol rename in Go, Rust, Python, and Dart against the real servers (`#[ignore]`d, section 2, Rename tests)
 - Kotlin and Android: pure planning, XML rewriting, import insertion, and verification logic in the normal suite; the scenarios against the real Kotlin server are `#[ignore]`d (section 2, Kotlin tests)
 - Batch moves across all languages, including partial failure and cross-package Go batches
@@ -55,6 +56,7 @@ Each language has a fixture directory and a test file:
 | Python rename | `tests/fixtures/python/rename_project/` | `tests/python_rename.rs` | override family, `__all__`, keyword arguments, untyped receiver note, module refusal; the program and its checks are run after each rename |
 | Dart rename | `tests/fixtures/dart/rename_package/` | `tests/dart_rename.rs` | overrides, `export show`, field formals, named parameters, missing `package_config.json`; `dart analyze --fatal-infos` after each rename |
 | Encoding | the four rename fixtures | `tests/rename_encoding.rs` | CRLF files and wide characters before the symbol on the same line, in Go, Rust, Python, and Dart; the project builds, the text and every line ending are intact |
+| Batch rename | the four rename fixtures | `tests/rename_batch.rs` (real servers), `tests/rename_batch_cli.rs` (no server) | four renames in one session, one by the name an earlier one gave; a failing entry leaves the project byte for byte unchanged; independent dry runs; what the command line refuses before any server starts |
 | Doctor | none (temporary folders) | `tests/doctor.rs` | overview, per-language report, `--json`, wrong variable, rename and move without a server |
 | Kotlin (JVM) | `tests/fixtures/kotlin/jvm_project/` | `tests/kotlin_moves.rs`, `tests/kotlin_rename.rs`, `tests/kotlin_server.rs`, `tests/kotlin_dispatch.rs` | package moves, directory moves, rollback, symbol renames, clash and shadowing refusals, dispatch through the CLI entry points |
 | Kotlin (Android) | `tests/fixtures/kotlin/android_project/` | `tests/kotlin_android.rs` | class moves and renames with manifest, layout and navigation XML, `R` and `BuildConfig` imports, compiled with a real Android Gradle Plugin |
@@ -82,7 +84,7 @@ Each language has a fixture directory and a test file:
 These scenarios start the real language server, so they are `#[ignore]`d and a plain `cargo test` skips them. A server that is not installed does not skip them: they fail with refac's own missing-server explanation (where it looked, the environment variable, `Run refac doctor <language>`), so the same message that teaches an agent also teaches the test runner. Each successful scenario ends by running the renamed project, because a rename is right when the project still behaves.
 
 ```bash
-cargo test --test go_rename --test rust_rename --test python_rename --test dart_rename --test rename_encoding -- --ignored
+cargo test --test go_rename --test rust_rename --test python_rename --test dart_rename --test rename_encoding --test rename_batch -- --ignored
 ```
 
 The Dart suite also has one normal test (a project without `package_config.json`), so use `--include-ignored` there. Needs `gopls`, `rust-analyzer` (a toolchain that has it; the tests copy `rust-toolchain.toml`), `basedpyright`, and the Dart SDK on `PATH` or through `REFAC_GOPLS`, `REFAC_RUST_ANALYZER`, `REFAC_PYTHON_SERVER`, `REFAC_DART`. `tests/doctor.rs` needs none of them: it runs the binary with an empty `PATH` and `HOME`. Under heavy CPU load gopls sometimes answers with part of the edits; the engine asks again (four attempts for Go), and the nine Go scenarios passed 16 of 16 runs under load. `REFAC_LSP_TRACE=1` prints every message exchanged with the server when a scenario misbehaves.

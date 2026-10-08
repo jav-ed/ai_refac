@@ -15,6 +15,7 @@ refac rename --project-path /path/to/gradle/root \
 - `--symbol` and `--new-name`: the current and the new identifier. The new name must be a plain identifier and not a Kotlin hard keyword (backtick names are not supported).
 - `--line` (1-based) and `--column` (1-based byte column): choose one occurrence when the name refers to several symbols in the file.
 - `--dry-run`: plan and verify, print what would change, write nothing.
+- `--batch <file|->`: several renames in one call (a JSON list of `file`, `symbol`, `new_name`, optional `line` and `column`). The Gradle import, about 40 s, is paid once for all of them, and the whole batch is all or nothing. A class rename moves its file; a later entry names that file by its new path, because refac tells the server about the move (`kotlin/resync.rs`) before the next rename. See [Engine](../Symbol_Rename/engine.md).
 - `--json`: machine-readable result with the per-file edit counts and `notes`.
 
 The server must be installed first: see [Kotlin server setup](../../Setup/kotlin_Server.md); `refac doctor kotlin` checks the setup and prints what is missing. The steps below are the shared engine of Go, Rust, Python, Dart, and Kotlin ([Symbol rename](../Symbol_Rename/linker_Symbol_Rename.md), [Engine](../Symbol_Rename/engine.md)); this page is what is specific to Kotlin.
