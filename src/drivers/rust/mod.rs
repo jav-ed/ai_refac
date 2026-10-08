@@ -13,6 +13,7 @@ pub use planner::move_module;
 
 use rename::{RustSymbolRenameRequest, build_symbol_rename_request};
 
+#[derive(Default)]
 pub struct RustDriver;
 
 impl RustDriver {

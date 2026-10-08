@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use lsp_types::Position;
 use std::path::{Path, PathBuf};
 
+#[derive(Default)]
 pub struct GoDriver;
 
 impl GoDriver {

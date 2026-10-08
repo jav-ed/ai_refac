@@ -23,6 +23,12 @@ impl PythonDriver {
     }
 }
 
+impl Default for PythonDriver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl RefactorDriver for PythonDriver {
     fn lang(&self) -> &str {

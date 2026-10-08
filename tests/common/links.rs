@@ -65,18 +65,18 @@ fn raw_links(text: &str) -> Vec<String> {
         }
     }
     for line in text.lines() {
-        if let Some((label, destination)) = line.split_once("]: ") {
-            if label.starts_with('[') {
-                links.push(
-                    destination
-                        .trim()
-                        .trim_matches('<')
-                        .split(" \"")
-                        .next()
-                        .unwrap_or("")
-                        .to_string(),
-                );
-            }
+        if let Some((label, destination)) = line.split_once("]: ")
+            && label.starts_with('[')
+        {
+            links.push(
+                destination
+                    .trim()
+                    .trim_matches('<')
+                    .split(" \"")
+                    .next()
+                    .unwrap_or("")
+                    .to_string(),
+            );
         }
     }
     links

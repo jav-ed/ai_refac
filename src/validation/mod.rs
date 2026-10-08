@@ -26,14 +26,14 @@ pub fn initial_sanity_check(
     }
 
     // 2. Validate Targets
-    if let Some(targets) = target_path {
-        if targets.len() != source_paths.len() {
-            bail!(
-                "Mismatch check: Source count ({}) != Target count ({})",
-                source_paths.len(),
-                targets.len()
-            );
-        }
+    if let Some(targets) = target_path
+        && targets.len() != source_paths.len()
+    {
+        bail!(
+            "Mismatch check: Source count ({}) != Target count ({})",
+            source_paths.len(),
+            targets.len()
+        );
     }
 
     // 3. No duplicate source paths
@@ -214,7 +214,7 @@ mod tests {
         let path = file_path.to_str().unwrap().to_string();
 
         let result = initial_sanity_check(
-            &[path.clone()],
+            std::slice::from_ref(&path),
             "move",
             Some(&vec![path.clone()]),
             None,

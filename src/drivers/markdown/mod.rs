@@ -24,6 +24,7 @@ mod workspace;
 /// Markdown files, the assets they point at, and folders of both. One driver
 /// moves them all so that a request with a page and its image is planned as a
 /// whole.
+#[derive(Default)]
 pub struct MarkdownDriver;
 
 impl MarkdownDriver {

@@ -31,13 +31,13 @@ pub async fn apply_pending_changes(
     // Phase 2: Validate — every text-edit target must exist before we write
     // anything. Fail fast so no partial edits are applied.
     for change in &changes {
-        if let PendingChange::TextEdit { path, .. } = change {
-            if !path.exists() {
-                anyhow::bail!(
-                    "LSP returned a text edit for a file that does not exist: {:?}",
-                    path
-                );
-            }
+        if let PendingChange::TextEdit { path, .. } = change
+            && !path.exists()
+        {
+            anyhow::bail!(
+                "LSP returned a text edit for a file that does not exist: {:?}",
+                path
+            );
         }
     }
 
@@ -132,10 +132,10 @@ fn collect_text_document_edit(
 }
 
 fn redirect_if_pending(path: &Path, pending_moves: &HashMap<PathBuf, PathBuf>) -> PathBuf {
-    if !path.exists() {
-        if let Some(source) = pending_moves.get(path) {
-            return source.clone();
-        }
+    if !path.exists()
+        && let Some(source) = pending_moves.get(path)
+    {
+        return source.clone();
     }
     path.to_path_buf()
 }

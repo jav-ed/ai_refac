@@ -8,6 +8,9 @@ use std::str::FromStr;
 use tempfile::tempdir;
 use url::Url;
 
+// `WorkspaceEdit::changes` is a map keyed by `Uri`, which is what the protocol
+// type demands.
+#[allow(clippy::mutable_key_type)]
 #[tokio::test]
 async fn test_apply_workspace_edit_writes_changes_map() -> Result<()> {
     let dir = tempdir()?;

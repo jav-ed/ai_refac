@@ -17,10 +17,20 @@ ARGUMENTS
 
 --project-path is a Cargo package or a workspace root (default: the current directory).
 
+WHAT IT REWRITES
+  `crate::`, `super::` and `self::` paths, names imported with `use` (they keep their short form),
+  paths in generic arguments, code behind `#[cfg(test)]`, and `crate::` paths in macro arguments
+  (`vec![crate::old::Item { .. }]`). A module that leaves a grouped import (`use super::{a, old}`)
+  gets an import of its own. The `mod` line keeps its reach: a private module moved deeper is
+  declared `pub(super)` or `pub(in crate::parent)`, so its old users still see it.
+
 SAFETY
   The layout must be the conventional one; an ambiguous or unsupported layout is refused before
-  anything is written ("strict v1"). After the move the workspace is checked again; if the check
-  fails every changed file is put back. Cross-crate moves are not supported.
+  anything is written ("strict v1"): inline modules, `#[path]` and `#[macro_use]` declarations,
+  attributes other than conditions and lints, `pub(in ..)` that is not an absolute `crate::` path.
+  After the move the workspace is checked again (`cargo check --workspace --all-targets`, the
+  slow part: about 4 minutes on this repository); if the check fails every changed file is put
+  back. Cross-crate moves are not supported.
 
 WHAT YOU GET BACK
   `// Alhamdulillah Rust module moved semantically:` then `old -> new`, the number of filesystem
