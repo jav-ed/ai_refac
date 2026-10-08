@@ -144,11 +144,21 @@ pub fn super_path_edits(
         if context.starts_with(moved_module) {
             continue;
         }
-        let replacement = if context.is_empty() {
+        let mut replacement = if context.is_empty() {
             "crate".to_string()
         } else {
             format!("crate::{}", context.join("::"))
         };
+        // `pub(super)` becomes `pub(in crate::parent)`: a path in a visibility
+        // needs the `in`, only the bare keywords go without it.
+        let visibility_without_in = candidate
+            .syntax()
+            .parent()
+            .and_then(ast::VisibilityInner::cast)
+            .is_some_and(|inner| inner.in_token().is_none());
+        if visibility_without_in {
+            replacement = format!("in {replacement}");
+        }
         let leading_supers = TextRange::new(
             candidate.syntax().text_range().start(),
             segments[super_count - 1].syntax().text_range().end(),

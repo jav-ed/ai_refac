@@ -460,6 +460,45 @@ fn a_module_path_inside_generic_arguments_is_rewritten_on_its_own() {
 }
 
 #[test]
+fn pub_super_keeps_its_reach_when_the_module_moves_deeper() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod engine;\n");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "pub mod matching;\npub mod plan;\n\npub fn run() -> u32 {\n    matching::helper()\n}\n",
+    );
+    write(root, "src/engine/plan/mod.rs", "");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub(super) fn helper() -> u32 { 7 }\npub(self) fn own() {}\npub(crate) fn wide() {}\npub(in super::super) fn explicit() {}\n",
+    );
+
+    let output = run(
+        root,
+        "crate::engine::matching",
+        "crate::engine::plan::matching",
+    );
+    common::assert_move_succeeded(&output);
+
+    let moved = common::read_file(root, "src/engine/plan/matching.rs");
+    assert!(
+        moved.contains("pub(in crate::engine) fn helper()"),
+        "{moved}"
+    );
+    assert!(moved.contains("pub(self) fn own()"), "{moved}");
+    assert!(moved.contains("pub(crate) fn wide()"), "{moved}");
+    assert!(moved.contains("pub(in crate) fn explicit()"), "{moved}");
+}
+
+#[test]
 fn a_local_variable_named_like_the_module_is_left_alone() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();
