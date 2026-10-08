@@ -27,6 +27,10 @@ When source and target are in the same directory, no package rename is needed. T
 
 When a batch contains files from multiple source packages, all cross-directory renames are sent to **one gopls session**. Each package rename fires as a sequential `textDocument/rename` within that session, with `textDocument/didChange` notifications sent between renames to keep gopls's view current. This is O(1) gopls startups regardless of how many packages are in the batch.
 
+### Dry run (`move --dry-run`)
+
+The same package-rename requests are sent to gopls and its answer is read instead of applied (`LspClient::plan_symbol_renames`): the preview lists the requested paths, the `RenameFile` operations gopls added (the other files of the package, with a note), and the text edits per file. Several package renames in one command are each asked against the files as they are, not as the one before left them (the real move writes each before it asks the next); two renames whose edits touch the same text are refused with that reason, since the second answer would be wrong. A move inside one directory needs no server and previews as the plain move.
+
 ## Known limits
 
 - **Whole-package moves only.** Partial-package moves (moving some but not all files from a directory to different destinations) are not supported. gopls moves all files in the package together on the first rename; subsequent files from the same source dir are handled by the filesystem step alone.

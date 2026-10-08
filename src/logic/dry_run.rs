@@ -5,9 +5,9 @@
 //! the real one: per language the paths that move, then the edits per file.
 
 use super::RefactorRequest;
-use super::prepare::{Prepared, prepare};
 use super::report::{FailedGroup, Pairs, capitalize, render_failed};
 use crate::drivers::MovePreview;
+use crate::logic::grouping::prepare::{Prepared, prepare};
 use anyhow::{Result, bail};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

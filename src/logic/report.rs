@@ -93,7 +93,7 @@ impl MoveOutcome<'_> {
                 } else {
                     "s"
                 },
-                super::typescript::MAX_FILES_PER_MOVE
+                crate::logic::grouping::typescript::MAX_FILES_PER_MOVE
             ));
         }
         for (src, tgt) in files {

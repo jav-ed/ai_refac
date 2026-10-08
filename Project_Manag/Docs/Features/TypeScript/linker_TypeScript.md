@@ -27,6 +27,10 @@ Supported forms include imports, re-exports, side-effect imports, literal dynami
 
 Aliases in `compilerOptions.paths` retain their spelling when the destination fits the same alias. Fixed aliases or moves outside an alias become explicit relative imports; tsconfig mappings themselves are not edited. Resolution is checked after all moves against each previously resolved target in affected files. A normal apply or verification error restores edited bytes and moved paths; rollback failure is reported explicitly.
 
+## Dry run (`move --dry-run`)
+
+`scripts/ts_refactor.ts` builds the whole plan (every moved file, every rewritten specifier) before it writes anything; with `--dry-run` it prints that plan as one JSON line (`moves`, and `files` with the number of rewritten specifiers) and stops. The check that each rewritten specifier resolves from the new place needs the moved files, so it runs only on a real move.
+
 ## Key limits
 
 - **Coverage:** callers must be in the owning tsconfig. Project references are rejected until cross-project planning is supported.

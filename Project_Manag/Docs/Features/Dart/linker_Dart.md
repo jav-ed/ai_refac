@@ -12,3 +12,7 @@ The Dart SDK (`dart`) and, in the project, `pubspec.yaml` with `dart pub get` ha
 ## Tests
 
 `src/drivers/dart.rs` holds the move tests (`test_dart_move_updates_imports` runs when `dart` is available), `tests/moves/dart_package_config.rs` the `package_config.json` refusal, and `tests/rename/dart.rs` the rename scenarios ([Dart symbol rename](../Symbol_Rename/dart.md)).
+
+## Dry run (`move --dry-run`)
+
+The preview is the plan the real move uses: the analysis server's answer to `workspace/willRenameFiles`, checked for imports that would dangle, and counted instead of applied. The edits per file are the server's text edits (one per rewritten import or export). A plan that would leave an import pointing at a missing file is refused as in a real move.

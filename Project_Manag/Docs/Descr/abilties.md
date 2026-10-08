@@ -5,6 +5,7 @@
 ## 1. Core Utilities
 
 * **Intelligent Move/Rename**: Moves files and updates imports, module declarations, package references, or Markdown links where supported.
+* **Dry run**: `refac move --dry-run` (every language), `refac move-module --dry-run` and `refac rename --dry-run` plan the operation, list the paths that would move and the edits per file, refuse what the real operation refuses, and write nothing. Backends that can read their tool's plan before it writes (TypeScript, Markdown, Dart, Go, Rust, Pyrefly) use it; Rope and the Kotlin server cannot, so a throw-away copy of the project takes the real move and the difference is reported.
 * **Batch Operations**: Execute multiple move operations in one CLI invocation by repeating `--source-path` and `--target-path`.
 * **Cross-Language Orchestration**: Routes each move to the correct backend for the target language.
 * **Safety First**: Uses language-aware tooling instead of raw filesystem renames whenever possible.

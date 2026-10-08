@@ -1,17 +1,14 @@
+use crate::logic::grouping::prepare::{Prepared, prepare};
 use anyhow::{Result, bail};
-use prepare::{Prepared, prepare};
 use report::{FailedGroup, MoveOutcome, Pairs};
 use std::collections::{BTreeMap, HashMap};
 
 mod dry_run;
 mod go_collaterals;
+mod grouping;
 mod markdown_links;
-mod prepare;
 pub mod rename;
 mod report;
-mod route;
-mod typescript;
-mod unavailable;
 
 pub use dry_run::{DryRun, plan_refactor};
 

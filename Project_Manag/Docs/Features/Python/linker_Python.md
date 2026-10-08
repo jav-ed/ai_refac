@@ -21,6 +21,10 @@ The backend is available if **either** engine is reachable.
 
 Rope is preferred because the Pyrefly `willRenameFiles` LSP path is less reliable for move operations in practice. If Rope fails at runtime (not just missing), a warning is logged and Pyrefly is tried automatically.
 
+## Dry run (`move --dry-run`)
+
+Rope applies one move after the other and reads the files it has moved, so it cannot plan on the unchanged project. The preview runs the real Rope move on a throw-away copy of the project (the files `.gitignore` does not exclude, `.ropeproject` if there is one; 500 MiB at most, `REFAC_DRY_RUN_COPY_MAX_MB` changes the limit) and reports the difference to the original: the moves, and per file the number of changed passages. Rope's own `.ropeproject` state in the copy is not part of the answer, and the project is never touched. Paths outside the project cannot be copied, so Rope refuses them in a dry run; the dispatcher then falls back to Pyrefly, as a real move does when Rope fails. Pyrefly is planned from its `willRenameFiles` answer without a copy.
+
 ## Known limits
 
 - Both engines require `__init__.py` files to resolve package boundaries correctly. Projects without them (namespace packages) may see incomplete import updates.

@@ -51,6 +51,11 @@ refac move \
 export REFAC_PROJECT_PATH=/path/to/package
 refac move --source-path src/old.ts --target-path src/new.ts
 
+# see what a move would do first: the paths that move and the edits per file; nothing is written
+refac move --dry-run --project-path /path/to/package \
+  --source-path src/old.ts --target-path src/new.ts
+# (--json adds dry_run, moves, files, edits, notes; Python and Kotlin are planned on a temporary copy)
+
 # batch move (flags in matching order)
 refac move \
   --project-path /path/to/package \

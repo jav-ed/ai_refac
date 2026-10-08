@@ -2,16 +2,19 @@
 //! the request is validated, its paths are grouped by language, and every
 //! driver the groups need is checked to be there.
 
-use super::report::Pairs;
-use super::{RefactorRequest, route, typescript, unavailable};
 use crate::drivers::RefactorDriver;
+use crate::logic::RefactorRequest;
+use crate::logic::grouping::route;
+use crate::logic::grouping::typescript;
+use crate::logic::grouping::unavailable;
+use crate::logic::report::Pairs;
 use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
 use std::path::Path;
 
 /// A request that passed every check that does not need the language tools to
 /// do work.
-pub(super) struct Prepared<'a> {
+pub(in crate::logic) struct Prepared<'a> {
     pub root: Option<&'a Path>,
     /// Per language, in language order: its pairs and the driver for them.
     pub groups: Vec<(String, Pairs, Box<dyn RefactorDriver>)>,
@@ -20,7 +23,7 @@ pub(super) struct Prepared<'a> {
     pub typescript_source_count: usize,
 }
 
-pub(super) async fn prepare(req: &RefactorRequest) -> Result<Prepared<'_>> {
+pub(in crate::logic) async fn prepare(req: &RefactorRequest) -> Result<Prepared<'_>> {
     // 1. Validation
     initial_sanity_check(
         &req.source_path,

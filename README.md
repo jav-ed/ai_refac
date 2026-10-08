@@ -160,6 +160,17 @@ refac move \
 
 Mixed languages in one call work — the tool groups files by language and dispatches each batch to its correct backend. If one language's batch fails, the others still run. The response reports which succeeded and which failed.
 
+### Preview a move
+
+Add `--dry-run` to any `move` to see what it would do without changing a file:
+
+```bash
+refac move --dry-run --project-path /path/to/project \
+  --source-path src/utils/format.ts --target-path src/helpers/format.ts
+```
+
+The report lists, per language, the paths that would move (also the files that travel with a Go package) and one `// <file> (N edits)` line per file that would be edited, where an edit is one rewritten import, module line, package line or link. It runs the same checks as the move and refuses what the move refuses. TypeScript, Markdown, Dart, Go, Rust, and Pyrefly are planned from the plan their tool makes before it writes. Python (Rope) and Kotlin cannot plan without moving, so they run the real move on a throw-away copy of the project (at most 500 MiB, `REFAC_DRY_RUN_COPY_MAX_MB` changes it) and report the difference; the original is never touched. The checks that need the moved files (the TypeScript resolver, the Kotlin package check on disk) run only on a real move.
+
 ### Move a Rust module subtree
 
 Use logical module paths, not filesystem paths, for a structural Rust move:
@@ -255,7 +266,7 @@ With `--json`, a file move returns a single JSON object with operation-specific 
 }
 ```
 
-On failure, `"status"` is `"error"` and `"error"` contains the descriptive failure chain. Successful `move-module --json` output additionally reports `source_module`, `target_module`, `dry_run`, `moved_paths`, `edited_files`, `edits`, `files` (path and number of edits) and `moves` (from, to). `move-module --dry-run` plans the move, lists what it would move and edit, and writes nothing; the Cargo check that proves the result compiles runs only on a real move.
+On failure, `"status"` is `"error"` and `"error"` contains the descriptive failure chain. Successful `move-module --json` output additionally reports `source_module`, `target_module`, `dry_run`, `moved_paths`, `edited_files`, `edits`, `files` (path and number of edits) and `moves` (from, to). `move-module --dry-run` plans the move, lists what it would move and edit, and writes nothing; the Cargo check that proves the result compiles runs only on a real move. `move --dry-run --json` returns the same shape (`dry_run`, `moved_paths`, `edited_files`, `edits`, `files`, `moves`) plus `notes`, with paths relative to the project path.
 
 ### Exit codes
 
@@ -308,7 +319,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - A name that clashes with or shadows another symbol is refused, and an ambiguous name asks for `--line`.
 
 **General**
-- File moves have no dry-run mode: changes are applied to disk immediately. `rename` supports `--dry-run`.
+- `move`, `move-module` and `rename` all support `--dry-run`. A plain `move` writes to disk immediately.
 - Ordinary file-move backends may overwrite a target path. Rust `move-module` rejects existing targets during preflight.
 - The tool does not walk into `node_modules/`, `target/`, `.git/`, or similar build/vendor directories when scanning for references.
 

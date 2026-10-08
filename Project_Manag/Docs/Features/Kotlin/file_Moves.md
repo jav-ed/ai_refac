@@ -33,6 +33,10 @@ The server is trusted for the reference updates, and refac checks what is cheap 
 
 Every write and every move goes through an undo log. When anything fails, whether a server error, a failed check, or a write error, the log restores every edited file and every moved path and the error says that the move was undone. A rollback that itself fails is reported with the failure, never hidden.
 
+## Dry run (`move --dry-run`)
+
+The moves run in groups, each asked of the server after the one before was written, and then the Android layer reads the moved files, so there is no plan to read before the first write. The preview runs the real move on a throw-away copy of the project and reports the difference to the original (the moves, and per file the number of changed passages). The copy holds what `.gitignore` leaves in (plus `local.properties` and `gradle/wrapper`), at most 500 MiB (`REFAC_DRY_RUN_COPY_MAX_MB`); `.gradle`, `.kotlin` and the `build` output the import creates are not part of the answer. The server imports the copy with Gradle, so a dry run takes as long as a real move (about 40 seconds on a small project). Every path must lie inside the project.
+
 ## What the output tells you
 
 Besides the list of moves, `refac move` prints `// Note:` lines for things only the caller can act on:

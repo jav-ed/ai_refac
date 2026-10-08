@@ -89,6 +89,8 @@ Proc-macro expansion and build-script output loading are disabled for v1. The fi
 
 Same-directory file renames use one rust-analyzer LSP session for the batch and rename the module symbol before the filesystem move. A cross-directory `.rs` path passed to ordinary `refac move` fails with guidance to use `move-module`; Refac does not silently create a shim.
 
+`move --dry-run` asks the same two questions without applying the answer: the module rename (`textDocument/rename` on the `mod` line) and the file rename (`workspace/willRenameFiles`) are planned against the files as they are, the edits are counted per file, and a `Cargo.lock` that Cargo writes while the workspace loads is removed again. Two renames that edit the same text are refused in a dry run. Cross-directory moves are refused exactly as in a real move.
+
 The external `rust-analyzer` binary is therefore required for ordinary file renames. `move-module` uses the embedded rust-analyzer libraries locked in `Cargo.lock`.
 
 ## Evidence: moving this repository's own modules

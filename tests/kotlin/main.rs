@@ -6,6 +6,7 @@ mod common;
 
 mod android;
 mod dispatch;
+mod dry_run;
 mod moves;
 mod rename;
 mod server;

@@ -80,3 +80,31 @@ fn the_error_of_a_json_dry_run_is_json_on_stderr() {
     let error: serde_json::Value = serde_json::from_str(&stderr_text(&output)).unwrap();
     assert_eq!(error["status"], "error");
 }
+
+#[test]
+fn a_group_that_cannot_be_planned_fails_the_dry_run_but_the_others_are_listed() {
+    let project = typescript_project();
+    project.write("notes.md", "# Notes\n");
+    let before = project.tree();
+    let output = run_cli(&[
+        "move",
+        "--dry-run",
+        "--project-path",
+        project.path().to_str().unwrap(),
+        "--source-path",
+        "src/a.ts",
+        "--source-path",
+        "notes.md",
+        "--target-path",
+        "src/b.ts",
+        "--target-path",
+        "docs/notes.md",
+    ]);
+    assert!(!output.status.success());
+    let text = stderr_text(&output);
+    assert!(text.contains("Dry run: nothing was changed"), "{text}");
+    assert!(text.contains("// Failed:"), "{text}");
+    assert!(text.contains("already exists"), "{text}");
+    assert!(text.contains("notes.md -> docs/notes.md"), "{text}");
+    assert_same_tree(&before, &project.tree());
+}

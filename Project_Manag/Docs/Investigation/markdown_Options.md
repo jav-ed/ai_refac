@@ -80,7 +80,7 @@ Keep the embedded engine. Reasons, in order of weight:
 
 ## What to take from the others
 
-- **Dry run and audit** (`docmv plan`, `audit`; `mdref --dry-run`; `markmv --dry-run`). The engine already builds the full plan before touching the disk, so `refac move --dry-run` for documents is cheap; it is not exposed yet because the move command has no dry-run flag across languages.
+- **Dry run and audit** (`docmv plan`, `audit`; `mdref --dry-run`; `markmv --dry-run`). The engine already builds the full plan before touching the disk, so `refac move --dry-run` for documents was cheap, and it is exposed since the move command got `--dry-run` for every language.
 - **Heading rename with `#slug` links.** `markmv refactor-headings`, Marksman, and the VS Code service all do it. A Rust implementation would use `pulldown-cmark` for headings and the `github-slugger` crate for GitHub's anchor algorithm (including `-1` suffixes for duplicates). It is the natural next feature for `refac rename` on `.md` files.
 - **Wiki-links and Obsidian vaults** (`markmv --obsidian`, Marksman, markdown-oxide) are a separate link model resolved by note name; not supported, documented as a limit.
 - **`explain`** (`docmv explain`) shows how each link in a file resolves; a similar report would help an agent debug a link that was not changed.

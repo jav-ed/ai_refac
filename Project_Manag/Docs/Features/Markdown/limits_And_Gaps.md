@@ -17,7 +17,7 @@ This file owns the current boundaries of Markdown support.
 - Go moves whole packages; the other `.go` files that gopls moves along are not known to the Markdown pass, so Markdown links to them are not updated. The response already lists them.
 - Links are measured against the project path. A target outside it is fine, but Markdown files outside it are not searched.
 - There is no cross-language transaction. If the TypeScript batch fails after the Markdown batch has run, the Markdown batch stays done (each batch is atomic on its own).
-- `move` has no dry-run mode (only `rename` has one). The planning code could show the changes first; it is not exposed.
+- `move --dry-run` plans Markdown and the links to other languages' files as one set and writes nothing (the real move runs two passes, one for the documents and one for links to the other languages' files; the preview plans them together, so a link in a moved page to a moved source file is counted once). Without `--project-path` the preview scans the Markdown below the folder all moves share, which can be a larger tree than either real pass.
 
 ## Style
 

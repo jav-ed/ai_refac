@@ -151,4 +151,36 @@ mod tests {
         );
         Ok(())
     }
+
+    // Pyrefly is the fallback of the dispatcher, so its plan is checked on its
+    // own: the plan names the importer and writes nothing.
+    #[tokio::test]
+    #[ignore]
+    async fn test_pyrefly_plan_move_names_the_importer_and_writes_nothing() -> Result<()> {
+        let driver = PyreflyDriver::new();
+        assert!(
+            driver.check_availability().await?,
+            "pyrefly not found in .venv or PATH"
+        );
+        let dir = tempfile::tempdir()?;
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("pkg"))?;
+        std::fs::write(root.join("pkg/__init__.py"), "")?;
+        std::fs::write(root.join("pkg/util.py"), "def helper():\n    return 1\n")?;
+        let main = "from pkg.util import helper\n\nprint(helper())\n";
+        std::fs::write(root.join("main.py"), main)?;
+
+        let preview = driver
+            .plan_move(
+                vec![("pkg/util.py".to_string(), "pkg/tools.py".to_string())],
+                Some(root),
+            )
+            .await?;
+
+        assert_eq!(preview.moves.len(), 1);
+        assert!(preview.edits.keys().any(|path| path.ends_with("main.py")));
+        assert_eq!(std::fs::read_to_string(root.join("main.py"))?, main);
+        assert!(root.join("pkg/util.py").exists());
+        Ok(())
+    }
 }
