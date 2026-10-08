@@ -45,14 +45,10 @@ pub mod dart;
 pub mod go;
 pub mod kotlin;
 pub mod lsp;
-pub mod lsp_client;
-pub mod lsp_rename;
-pub mod lsp_session;
 pub mod markdown;
 pub mod python;
 pub mod rust;
-pub mod symbol_rename;
-pub mod symbol_scan;
+pub mod symbol;
 pub mod typescript;
 
 pub async fn complete_filesystem_moves(

@@ -1,5 +1,5 @@
 use super::in_home;
-use crate::drivers::lsp_client::Server as Profile;
+use crate::drivers::lsp::client::Server as Profile;
 use crate::servers::{Candidate, Find, Launch, Requirement, Server, Version};
 use std::path::{Path, PathBuf};
 

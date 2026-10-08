@@ -6,7 +6,7 @@
 //! texts that were written.
 
 use super::server::KotlinServer;
-use crate::drivers::lsp_rename::discover::file_uri;
+use crate::drivers::lsp::rename::plan::discover::file_uri;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};

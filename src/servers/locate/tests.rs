@@ -1,6 +1,6 @@
 use super::probe::run_with_timeout;
 use super::*;
-use crate::drivers::lsp_client::Server as Profile;
+use crate::drivers::lsp::client::Server as Profile;
 use crate::servers::{Launch, Version};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;

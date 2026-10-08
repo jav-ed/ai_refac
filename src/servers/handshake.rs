@@ -4,7 +4,7 @@
 
 use super::locate::Located;
 use super::{Find, Server};
-use crate::drivers::lsp_session::{LspSession, SessionConfig};
+use crate::drivers::lsp::session::{LspSession, SessionConfig};
 use anyhow::{Result, bail};
 use std::path::Path;
 use std::time::{Duration, Instant};

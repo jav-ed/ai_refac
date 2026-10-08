@@ -4,7 +4,7 @@
 use super::args::RenameArgs;
 use super::output::{RenameBatchOutput, RenameResult, RenameSuccessOutput, RenamedFile};
 use super::{CliError, write_json};
-use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
+use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use crate::logic::rename::{handle_rename, handle_rename_batch};
 use anyhow::{Context, Result};
 use serde::Deserialize;

@@ -46,4 +46,4 @@ Each stops the command and leaves every file unchanged: no Gradle root; the serv
 - **Not edited:** ProGuard and keep rules, build scripts, string literals, reflection, resource ids. The server refuses to rename a resource id, which is the safe answer. Names left behind in such files are listed in the notes.
 - **False refusals:** a rename onto a name that is already an alias of the same symbol changes the usage count and is refused, which is the safe direction.
 - **Cost:** about 30 seconds of Gradle import per call, plus the requests (one reference query per candidate symbol, one rename, one verification query).
-- **Other languages:** TypeScript has its own rename ([TypeScript symbol rename](../TypeScript/symbol_Rename.md)). Both share the request and report types and the occurrence scan in `src/drivers/symbol_scan.rs`.
+- **Other languages:** TypeScript has its own rename ([TypeScript symbol rename](../TypeScript/symbol_Rename.md)). Both share the request and report types and the occurrence scan in `src/drivers/symbol/scan.rs`.

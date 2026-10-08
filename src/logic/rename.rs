@@ -1,9 +1,11 @@
 use crate::drivers::kotlin::rename::{
     rename_all_symbols as rename_all_kotlin, rename_symbol as rename_kotlin_symbol,
 };
-use crate::drivers::lsp_rename::languages::{Dart, Go, Python, Rust};
-use crate::drivers::lsp_rename::{rename_symbol as rename_with, rename_symbols as rename_all_with};
-use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
+use crate::drivers::lsp::rename::languages::{Dart, Go, Python, Rust};
+use crate::drivers::lsp::rename::{
+    rename_symbol as rename_with, rename_symbols as rename_all_with,
+};
+use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use crate::drivers::typescript::rename::rename_symbol as rename_typescript_symbol;
 use anyhow::{Result, bail};
 use std::path::Path;

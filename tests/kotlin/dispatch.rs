@@ -5,7 +5,7 @@ use crate::common;
 // driver and shows its notes; `handle_rename` routes .kt files to the Kotlin
 // rename. Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin dispatch:: -- --ignored
 
-use refac::drivers::symbol_rename::RenameRequest;
+use refac::drivers::symbol::rename::RenameRequest;
 use refac::logic::rename::handle_rename;
 use refac::logic::{RefactorRequest, handle_refactor};
 

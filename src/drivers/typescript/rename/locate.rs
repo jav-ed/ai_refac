@@ -1,8 +1,8 @@
 use super::edits::LineIndex;
-use crate::drivers::symbol_scan;
+use crate::drivers::symbol::scan;
 use anyhow::Result;
 
-pub use crate::drivers::symbol_scan::Occurrence;
+pub use crate::drivers::symbol::scan::Occurrence;
 
 pub fn is_identifier_char(character: char) -> bool {
     matches!(character, '$' | '_' | '\u{200c}' | '\u{200d}') || character.is_alphanumeric()
@@ -16,7 +16,7 @@ pub fn occurrences(
     column: Option<u32>,
 ) -> Result<Vec<Occurrence>> {
     let index = LineIndex::new(text);
-    symbol_scan::occurrences(text, symbol, line, column, is_identifier_char, |offset| {
+    scan::occurrences(text, symbol, line, column, is_identifier_char, |offset| {
         index.position(offset)
     })
 }

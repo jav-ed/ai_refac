@@ -29,9 +29,9 @@ The current test suite covers:
 - Go move flow, including whole-package rename cascade
 - Dart move flow, including the refusal of a plan that would leave `package:` imports dangling
 - Markdown move flow
-- The shared rename engine (`src/drivers/lsp_rename/`): the proof, related groups, override families, planning, retries, and each language's rules, all against a fake server that only knows words; the server locator (`src/servers/`) against fake executables
+- The shared rename engine (`src/drivers/lsp/rename/`): the proof, related groups, override families, planning, retries, and each language's rules, all against a fake server that only knows words; the server locator (`src/servers/`) against fake executables
 - `refac doctor` and the missing-server messages, on a machine with no server at all (`tests/cli/doctor.rs`)
-- `rename --batch`: the batch engine against the word server (`lsp_rename/batch/tests.rs`), the Kotlin change notifications (`kotlin/resync/tests.rs`), the dispatch (`logic/rename/tests.rs`), and the command line (`tests/cli/batch_rename.rs`)
+- `rename --batch`: the batch engine against the word server (`lsp/rename/batch/tests.rs`), the Kotlin change notifications (`kotlin/resync/tests.rs`), the dispatch (`logic/rename/tests.rs`), and the command line (`tests/cli/batch_rename.rs`)
 - Symbol rename in Go, Rust, Python, and Dart against the real servers (`#[ignore]`d, section 2, Rename tests)
 - Kotlin and Android: pure planning, XML rewriting, import insertion, and verification logic in the normal suite; the scenarios against the real Kotlin server are `#[ignore]`d (section 2, Kotlin tests)
 - Batch moves across all languages, including partial failure and cross-package Go batches
@@ -122,7 +122,7 @@ Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these te
 
 **Dart tests are serialised.** The Dart analysis server is sensitive to concurrent starts. `dart_move.rs` acquires a global `Mutex` before each test so at most one analysis server runs at a time within that binary. `dart_package_config.rs` holds the single test for a project without `.dart_tool/package_config.json` (the move must be refused and every file left byte-identical); it is its own binary so it needs no lock.
 
-**No test waits a fixed time for a language server.** The Dart, Go, Rust and Pyrefly drivers wait for the server's own readiness signal (see the shared client in `src/drivers/lsp_client.rs`), so the suites pass on a busy machine too: the Dart, Go, batch, Rust and Python suites were run under 40 busy processes on 4 cores and passed. A server that never becomes ready fails after `REFAC_LSP_TIMEOUT_SECS` (default 300); set it lower when debugging a hang.
+**No test waits a fixed time for a language server.** The Dart, Go, Rust and Pyrefly drivers wait for the server's own readiness signal (see the shared client in `src/drivers/lsp/client.rs`), so the suites pass on a busy machine too: the Dart, Go, batch, Rust and Python suites were run under 40 busy processes on 4 cores and passed. A server that never becomes ready fails after `REFAC_LSP_TIMEOUT_SECS` (default 300); set it lower when debugging a hang.
 
 **Pyrefly is a fallback behind Rope**, so `python_move` normally never starts it. `cargo test --lib pyrefly -- --ignored` runs the real server (it needs `.venv/bin/pyrefly` or `pyrefly` on `PATH` and panics when it is missing).
 

@@ -12,7 +12,7 @@ mod doctor;
 mod handshake;
 mod locate;
 
-use crate::drivers::lsp_client::Server as Profile;
+use crate::drivers::lsp::client::Server as Profile;
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};
 

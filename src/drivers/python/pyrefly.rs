@@ -1,6 +1,6 @@
 use super::super::RefactorDriver;
 use super::super::complete_filesystem_moves;
-use super::super::lsp_client::LspClient;
+use crate::drivers::lsp::client::LspClient;
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 

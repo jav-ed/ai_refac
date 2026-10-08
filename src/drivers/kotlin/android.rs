@@ -4,17 +4,21 @@
 //! server is done. Projects without Android modules pass through untouched.
 
 use super::declarations::declared_package;
-use super::moved::MovedFile;
-use super::survey::Survey;
-use crate::drivers::lsp_rename::journal::FileWrite;
+use crate::drivers::lsp::rename::write::journal::FileWrite;
 use anyhow::{Context, Result};
 use std::path::Path;
 
+pub mod class_renames;
 mod imports;
+pub mod moved;
 mod namespace;
+pub mod stale;
+pub mod survey;
 mod xml;
 
+use moved::MovedFile;
 use namespace::Module;
+use survey::Survey;
 
 /// The file changes Android needs for the classes in `renames`, planned
 /// without writing anything, so a dry run can show them and a real run can

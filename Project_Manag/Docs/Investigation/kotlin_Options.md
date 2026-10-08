@@ -36,7 +36,7 @@ Kotlin does not require a file's directory to match its package, but conventions
 4. Android specifics: `R` references, view binding, layout XML that names a class in a tag, `AndroidManifest.xml` class names, and the Gradle `namespace`. These are the likely gaps if the Android plugin is not part of the server.
 5. Memory and time on a real multi-module Android project, and how the helper's limits should apply.
 6. Does the experimental Android Gradle Plugin import work on this machine's SDK?
-7. Readiness: `src/drivers/lsp_client.rs` waits fixed sleeps (1.5 s) before asking for edits, and this already makes Dart moves report success without rewriting imports when the machine is loaded. A Gradle import is far slower, so the Kotlin backend needs a real readiness signal (progress notifications, or retrying until the server answers for a known file) and a hard error on timeout, not a reuse of the fixed sleep.
+7. Readiness: `src/drivers/lsp/client.rs` waits fixed sleeps (1.5 s) before asking for edits, and this already makes Dart moves report success without rewriting imports when the machine is loaded. A Gradle import is far slower, so the Kotlin backend needs a real readiness signal (progress notifications, or retrying until the server answers for a known file) and a hard error on timeout, not a reuse of the fixed sleep.
 
 Answers: 1 yes (section below), 2 yes with the exceptions listed, 3 yes, but the server refuses only true redeclarations and accepts a shadowing rename, which refac catches, 4 as expected (the server never edits XML), 5 not measured on a large project, 6 yes (a real Android Gradle Plugin project imports and compiles), 7 solved with real signals.
 

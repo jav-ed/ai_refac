@@ -1,6 +1,6 @@
 use super::RefactorDriver;
 use super::complete_filesystem_moves;
-use super::lsp_client::{
+use crate::drivers::lsp::client::{
     LspClient, PendingChange, apply_pending_changes, collect_workspace_documents,
 };
 use anyhow::{Ok, Result, bail};

@@ -1,5 +1,5 @@
 //! Semantic symbol rename for Kotlin: the shared rename engine
-//! (`lsp_rename`) with the JetBrains Kotlin language server. Kotlin adds what
+//! (`lsp::rename`) with the JetBrains Kotlin language server. Kotlin adds what
 //! the server never touches (Android XML that names a renamed class), lets a
 //! class rename move its file, and expects the server to rewrite or drop the
 //! symbol's own import line.
@@ -7,18 +7,20 @@
 mod imports;
 
 use super::android;
-use super::moved::MovedFile;
+use super::android::class_renames;
+use super::android::moved::MovedFile;
+use super::android::stale;
+use super::android::survey::survey;
 use super::project::gradle_root;
-use super::renames;
 use super::server::{self, KotlinServer};
-use super::stale;
-use super::survey::survey;
-use crate::drivers::lsp_rename::discover::RenamePlan;
-use crate::drivers::lsp_rename::journal::FileWrite;
-use crate::drivers::lsp_rename::language::{EditedText, FollowUps, Language};
-use crate::drivers::lsp_rename::server::RenameServer;
-use crate::drivers::lsp_rename::{rename_symbol as rename_with, rename_symbols as rename_all_with};
-pub use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
+use crate::drivers::lsp::rename::language::{EditedText, FollowUps, Language};
+use crate::drivers::lsp::rename::plan::discover::RenamePlan;
+use crate::drivers::lsp::rename::server::RenameServer;
+use crate::drivers::lsp::rename::write::journal::FileWrite;
+use crate::drivers::lsp::rename::{
+    rename_symbol as rename_with, rename_symbols as rename_all_with,
+};
+pub use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
@@ -113,7 +115,7 @@ impl Language for Kotlin {
                 after: edited.file.text.clone(),
             })
             .collect();
-        let renames = renames::collect(&moved)?;
+        let renames = class_renames::collect(&moved)?;
         let files = survey(root)?;
         let writes = android::plan(&files, &moved, &renames.classes)?;
         // Files already decided, so the scan reads them as they will be.

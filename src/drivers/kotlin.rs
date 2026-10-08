@@ -10,16 +10,12 @@ use async_trait::async_trait;
 pub mod android;
 pub mod checks;
 pub mod declarations;
-pub mod moved;
 pub mod moves;
 pub mod plan;
 pub mod project;
 pub mod rename;
-pub mod renames;
 pub mod resync;
 pub mod server;
-pub mod stale;
-pub mod survey;
 
 pub struct KotlinDriver;
 

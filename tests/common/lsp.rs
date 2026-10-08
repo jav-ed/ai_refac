@@ -2,7 +2,7 @@
 //! are `#[ignore]`d; running them without the server is a setup mistake, so
 //! they fail loudly with what refac itself says about the missing server.
 
-use refac::drivers::symbol_rename::{RenameReport, RenameRequest};
+use refac::drivers::symbol::rename::{RenameReport, RenameRequest};
 use refac::logic::rename::{handle_rename, handle_rename_batch};
 use std::collections::BTreeMap;
 use std::fs;

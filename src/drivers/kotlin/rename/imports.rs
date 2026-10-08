@@ -2,7 +2,7 @@
 //! symbol, which the engine's inside-a-reference check has to expect: the
 //! symbol's own import line.
 
-use crate::drivers::lsp_rename::language::EditedText;
+use crate::drivers::lsp::rename::language::EditedText;
 
 /// Which edits of one file are import tidying. The server lists no reference
 /// for the import of an extension, yet it rewrites or drops that line, and it

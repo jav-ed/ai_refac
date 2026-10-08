@@ -7,8 +7,8 @@
 //! answered `null`, which is why this module waits for the real signals and
 //! never sleeps.
 
-use crate::drivers::lsp_rename::server::RenameServer;
-use crate::drivers::lsp_session::{LspSession, SessionConfig};
+use crate::drivers::lsp::rename::server::RenameServer;
+use crate::drivers::lsp::session::{LspSession, SessionConfig};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use serde_json::{Value, json};

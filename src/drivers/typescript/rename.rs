@@ -12,7 +12,7 @@ mod session;
 mod verify;
 
 use super::process::{self, Limits};
-pub use crate::drivers::symbol_rename::{RenameReport, RenameRequest};
+pub use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use sysinfo::Pid;

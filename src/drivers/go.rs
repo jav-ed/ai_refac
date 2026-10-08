@@ -1,7 +1,7 @@
 use super::RefactorDriver;
 use super::complete_filesystem_moves;
-use super::lsp_client::LspClient;
-use super::lsp_client::SymbolRenameRequest;
+use crate::drivers::lsp::client::LspClient;
+use crate::drivers::lsp::client::SymbolRenameRequest;
 use crate::servers;
 use anyhow::{Context, Result};
 use async_trait::async_trait;

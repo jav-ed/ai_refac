@@ -4,17 +4,17 @@
 //! write and move is journaled, so a failure restores the project.
 
 use super::android;
+use super::android::class_renames;
+use super::android::moved::{Snapshot, locate, relocate};
+use super::android::stale;
+use super::android::survey::survey;
 use super::checks::{Check, check_moved_file};
-use super::moved::{Snapshot, locate, relocate};
 use super::plan::{self, Group, MovePlan, Step};
 use super::project::gradle_root;
-use super::renames;
 use super::server::{self, KotlinServer};
-use super::stale;
-use super::survey::survey;
-use crate::drivers::lsp_rename::edits::{PlannedFile, parse_workspace_edit, plan_files};
-use crate::drivers::lsp_rename::journal::Journal;
-use crate::drivers::lsp_session::RpcError;
+use crate::drivers::lsp::rename::plan::edits::{PlannedFile, parse_workspace_edit, plan_files};
+use crate::drivers::lsp::rename::write::journal::Journal;
+use crate::drivers::lsp::session::RpcError;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -67,7 +67,7 @@ async fn run(
     // What the server never touches: Android XML, the implicit R and
     // BuildConfig, and old names in files nobody edits for us.
     let moved = snapshot.finish(plan)?;
-    let renames = renames::collect(&moved)?;
+    let renames = class_renames::collect(&moved)?;
     let files = survey(root)?;
     let writes = android::plan(&files, &moved, &renames.classes)?;
     report

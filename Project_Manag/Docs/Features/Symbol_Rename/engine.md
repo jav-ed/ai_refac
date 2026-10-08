@@ -1,6 +1,6 @@
 # The shared rename engine
 
-One engine, `src/drivers/lsp_rename/`, renames symbols for every language whose server speaks the Language Server Protocol: Go, Rust, Python, Dart, and Kotlin. The server finds the references and proposes the edits; the engine makes the answer safe to apply. A language is a small `Language` implementation that says what its identifiers look like, which server it starts, and the few edits it expects. TypeScript keeps its own engine ([TypeScript symbol rename](../TypeScript/symbol_Rename.md)) because its server and project loading differ; the request and report types and the occurrence scan are shared.
+One engine, `src/drivers/lsp/rename/`, renames symbols for every language whose server speaks the Language Server Protocol: Go, Rust, Python, Dart, and Kotlin. The server finds the references and proposes the edits; the engine makes the answer safe to apply. A language is a small `Language` implementation that says what its identifiers look like, which server it starts, and the few edits it expects. TypeScript keeps its own engine ([TypeScript symbol rename](../TypeScript/symbol_Rename.md)) because its server and project loading differ; the request and report types and the occurrence scan are shared.
 
 ## One call, in order
 
@@ -8,7 +8,7 @@ One engine, `src/drivers/lsp_rename/`, renames symbols for every language whose 
 
 1. **Validate** the request (`names.rs`): new name is a plain identifier, not a keyword (`reserved_words`), not the old name, not refused by the language (`refuse_names`: Python special methods). `--column` needs `--line`.
 2. **Project and file**: `language.project_root` (fails when the path is not a project of that language), then the file must exist inside it with a known extension.
-3. **Occurrences**: whole-word matches of the symbol in the file, with line and column (`symbol_scan.rs`, shared with TypeScript).
+3. **Occurrences**: whole-word matches of the symbol in the file, with line and column (`src/drivers/symbol/scan.rs`, shared with TypeScript).
 4. **Start the server** (`language.start`), found by `src/servers/` (next section). It is stopped in step 8 whatever happens.
 5. **Plan** (`discover.rs`): for each occurrence not already inside an earlier symbol's references, `prepareRename`, `references`, `rename`. Refusals are skipped; a refusal that names the symbol (a clash) beats the generic "not a symbol". Several distinct symbols are an ambiguity listing for `--line`. If the language opts in (`renames_overrides`), `family.rs` renames the overrides of the symbol too.
 6. **Prove** (`related.rs`, `verify.rs`): see below. A failure the server may cause under load (`Unfaithful`) is retried up to `rename_attempts()` times (Go: 4) with the documents put back first.
@@ -58,7 +58,7 @@ The server does not notice a new name that collides with something in scope. The
 | `refuse_file_operations` | advice when the answer needs file creates, deletes, or renames; `None` lets files move (Kotlin classes) | "use `refac move`" |
 | `follow_ups` | writes and notes beyond the server's edits | none |
 
-`RenameServer` is the other contract: `request`, `sync_document`, `settle`, `after_apply` (batches), `shutdown`. `ProjectServer` implements it for Go, Rust, Python, and Dart over `lsp_session.rs`; the Kotlin server has its own start-up and implements it too. What differs per server (capabilities, how it announces that the project is loaded, whether it can list implementations) lives in `src/drivers/lsp_client/server.rs`.
+`RenameServer` is the other contract: `request`, `sync_document`, `settle`, `after_apply` (batches), `shutdown`. `ProjectServer` implements it for Go, Rust, Python, and Dart over `src/drivers/lsp/session.rs`; the Kotlin server has its own start-up and implements it too. What differs per server (capabilities, how it announces that the project is loaded, whether it can list implementations) lives in `src/drivers/lsp/client/server.rs`.
 
 ## Finding the server
 
@@ -66,7 +66,10 @@ The server does not notice a new name that collides with something in scope. The
 
 ## File map
 
-- `src/drivers/lsp_rename/`: `mod.rs` (the call), `batch.rs` (several renames in one session), `language.rs`, `server.rs`, `project_server.rs`, `names.rs`, `discover.rs`, `family.rs`, `related.rs`, `verify.rs`, `leftovers.rs`, `comments.rs`, `edits.rs` (parse a `WorkspaceEdit` into new file contents), `apply.rs` and `journal.rs` (write with undo), `languages/` (one file per language, Rust's macro scanner under `languages/rust/`), `test_language.rs` (a fake language and a fake server for unit tests).
+- `src/drivers/lsp/rename/`: `mod.rs` (the call), `batch.rs` (several renames in one session), `language.rs`, `server.rs`, `project_server.rs`, `languages/` (one file per language, Rust's macro scanner under `languages/rust/`), `test_language.rs` (a fake language and a fake server for unit tests), and three folders for the three stages of a rename:
+  - `plan/`: `names.rs`, `discover.rs`, `family.rs`, `related.rs`, `comments.rs`, `edits.rs` (parse a `WorkspaceEdit` into new file contents).
+  - `check/`: `verify.rs` (the in-memory proof) and `leftovers.rs` (the old name where nobody edited).
+  - `write/`: `apply.rs` and `journal.rs` (write with undo).
 - `src/servers/`: `mod.rs`, `locate.rs` and `locate/probe.rs`, `handshake.rs`, `doctor.rs`, `catalog/`.
 - `src/cli/doctor.rs`: the `refac doctor` command. `src/logic/rename.rs`: picks the language from the extension. `src/logic/unavailable.rs`: the same explanation for a move whose driver is missing.
 - Kotlin: `src/drivers/kotlin/rename.rs` is its `Language` implementation, `rename/imports.rs` its import exemption, `resync.rs` tells its server what an earlier rename of a batch wrote.

@@ -1,5 +1,5 @@
 use super::*;
-use crate::drivers::kotlin::moved::{locate, relocate};
+use crate::drivers::kotlin::android::moved::{locate, relocate};
 
 fn step(from: &str, to: &str) -> Step {
     Step {

@@ -1,9 +1,9 @@
-use crate::drivers::lsp_session::{LspSession, SessionConfig};
+use crate::drivers::lsp::session::{LspSession, SessionConfig};
 use anyhow::{Result, bail};
 use serde_json::json;
 use std::path::Path;
 
-pub use crate::drivers::lsp_session::{LspSession as Session, RpcError};
+pub use crate::drivers::lsp::session::{LspSession as Session, RpcError};
 
 /// Start the TypeScript 7 native engine on a project. rootUri is mandatory for
 /// this server; UTF-8 positions keep every offset a plain byte offset in the

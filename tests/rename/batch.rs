@@ -14,7 +14,7 @@ use crate::common;
 use common::lsp::{
     assert_unchanged, at_line, batch, refused_batch, request, require_server, snapshot,
 };
-use refac::drivers::symbol_rename::RenameRequest;
+use refac::drivers::symbol::rename::RenameRequest;
 use std::path::Path;
 use std::process::Command;
 
