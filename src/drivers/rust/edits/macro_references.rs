@@ -21,6 +21,7 @@ use crate::drivers::rust::analysis::workspace::SemanticWorkspace;
 use crate::drivers::rust::transaction::apply::TextReplacement;
 use anyhow::{Context, Result};
 use ra_ap_hir::{Crate, ModuleDef, PathResolution, Semantics, SemanticsScope};
+use ra_ap_ide::RootDatabase;
 use ra_ap_syntax::{AstNode, Edition, SourceFile, ast, ast::make};
 use std::{collections::HashSet, path::Path};
 
@@ -42,11 +43,8 @@ pub fn macro_reference_edits(
         for (file_id, path) in module_graph::crate_source_files(workspace, krate)? {
             let file = semantics.parse_guess_edition(file_id);
             for tree in outermost_token_trees(&file) {
-                let Some(scope) = semantics.scope(tree.syntax()) else {
-                    continue;
-                };
                 edits.extend(tree_edits(
-                    &path, &file, &tree, &scope, source, target, same_crate,
+                    &semantics, &path, &file, &tree, source, target, same_crate,
                 )?);
             }
         }
@@ -58,10 +56,10 @@ pub fn macro_reference_edits(
 }
 
 fn tree_edits(
+    semantics: &Semantics<'_, RootDatabase>,
     path: &Path,
     file: &SourceFile,
     tree: &ast::TokenTree,
-    scope: &SemanticsScope<'_>,
     source: &ResolvedModule,
     target: &[String],
     same_crate: bool,
@@ -71,14 +69,30 @@ fn tree_edits(
         .last()
         .context("Source module has no name")?;
     let pieces = pieces_of(tree);
+    // Most token trees (derives, doc attributes, `println!`) never mention the
+    // module's name; asking for their scope is the costly part.
+    let candidates: Vec<Chain> = chains(&pieces)
+        .into_iter()
+        .filter(|chain| {
+            (chain.start..chain.start + chain.len)
+                .step_by(2)
+                .any(|index| pieces[index].text == *name)
+        })
+        .collect();
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(scope) = semantics.scope(tree.syntax()) else {
+        return Ok(Vec::new());
+    };
     let mut edits = Vec::new();
-    for chain in chains(&pieces) {
+    for chain in candidates {
         // The words of the chain sit at every second piece: `a :: b :: c`.
         let Some(at) = (chain.start..chain.start + chain.len)
             .step_by(2)
             .find(|&index| {
                 pieces[index].text == *name
-                    && names_the_module(scope, &pieces[chain.start..=index], source)
+                    && names_the_module(&scope, &pieces[chain.start..=index], source)
             })
         else {
             continue;
