@@ -121,7 +121,8 @@ mod tests {
         tokio::fs::write(
             root.join("tsconfig.json"),
             r#"{"compilerOptions":{"target":"es2020","module":"commonjs"},"include":["src/**/*"]}"#,
-        ).await?;
+        )
+        .await?;
 
         tokio::fs::create_dir_all(root.join("src/utils")).await?;
 
@@ -129,13 +130,15 @@ mod tests {
         tokio::fs::write(
             root.join("src/utils/format.ts"),
             "export function fmt(s: string) { return s.trim(); }\n",
-        ).await?;
+        )
+        .await?;
 
         // src/app.ts — outside, imports from utils/
         tokio::fs::write(
             root.join("src/app.ts"),
             "import { fmt } from \"./utils/format\";\nconsole.log(fmt(\"hi\"));\n",
-        ).await?;
+        )
+        .await?;
 
         // Move src/utils → src/helpers
         let result = driver
@@ -150,8 +153,14 @@ mod tests {
 
         assert!(result.is_ok(), "Directory move failed: {:?}", result.err());
         assert!(!root.join("src/utils").exists(), "src/utils should be gone");
-        assert!(root.join("src/helpers").exists(), "src/helpers should exist");
-        assert!(root.join("src/helpers/format.ts").exists(), "file inside moved dir should exist");
+        assert!(
+            root.join("src/helpers").exists(),
+            "src/helpers should exist"
+        );
+        assert!(
+            root.join("src/helpers/format.ts").exists(),
+            "file inside moved dir should exist"
+        );
 
         let app = tokio::fs::read_to_string(root.join("src/app.ts")).await?;
         assert!(
@@ -208,5 +217,4 @@ mod tests {
 
         Ok(())
     }
-
 }

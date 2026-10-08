@@ -1,0 +1,46 @@
+# What every push and pull request must pass: formatting, clippy, and the plain
+# test suite. The plain suite needs only the Rust toolchain and Bun (the
+# TypeScript engine); the tests that start a real language server (gopls, the
+# Dart SDK, rope, basedpyright, the Kotlin server) are #[ignore]d, so they are
+# not run here. Run them locally after `refac doctor` says the tools are there.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # The tests need no debug info; the lean profile in Cargo.toml keeps the
+  # build small, and these keep the test programs from growing it again.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins the version; rustup installs exactly that.
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add clippy
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install the TypeScript engine's packages
+        run: bun install --frozen-lockfile
+        working-directory: scripts
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --no-fail-fast

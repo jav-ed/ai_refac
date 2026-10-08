@@ -151,7 +151,11 @@ mod tests {
         let target = vec!["anywhere/foo".to_string()];
 
         let result = initial_sanity_check(&source, "move", Some(&target), None);
-        assert!(result.is_ok(), "directory source should pass validation: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "directory source should pass validation: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -183,7 +187,12 @@ mod tests {
             None,
         );
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate source path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate source path")
+        );
         Ok(())
     }
 
@@ -196,13 +205,21 @@ mod tests {
         File::create(&b)?;
 
         let result = initial_sanity_check(
-            &[a.to_str().unwrap().to_string(), b.to_str().unwrap().to_string()],
+            &[
+                a.to_str().unwrap().to_string(),
+                b.to_str().unwrap().to_string(),
+            ],
             "move",
             Some(&vec!["out.ts".to_string(), "out.ts".to_string()]),
             None,
         );
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate target path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate target path")
+        );
         Ok(())
     }
 
