@@ -119,7 +119,7 @@ cargo install --path .
 
 The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds them next to the binary (`target/release`), or in the checkout it was built from, so keep the checkout where you built it. When it cannot find one, the error lists every place it looked.
 
-**Platform:** Linux and macOS. Windows is untested and not supported.
+**Platform:** Linux. macOS and Windows are not targets (not needed), so nothing is tested or promised for them.
 
 Each language backend requires its own tooling — see [Prerequisites](#prerequisites).
 
