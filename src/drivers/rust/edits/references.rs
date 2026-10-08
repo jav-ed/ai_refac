@@ -1,4 +1,5 @@
 use super::imports::imports_module_by_name;
+use super::new_path::desired_reference_path;
 use super::use_split::split_leaf_from_group;
 use crate::drivers::rust::analysis::module_graph::{self, ResolvedModule};
 use crate::drivers::rust::analysis::workspace::SemanticWorkspace;
@@ -104,8 +105,8 @@ fn reference_edit(
         return Ok(Vec::new());
     }
     // A reference in the arguments of a macro call is a token, not a path
-    // node. The ones that spell `crate::…` are rewritten by `macro_paths`; any
-    // other is left for the post-move check to report.
+    // node. Those are found and rewritten by `macro_references` (which does
+    // not depend on rust-analyzer expanding the macro) and `macro_paths`.
     if token
         .parent_ancestors()
         .any(|node| ast::TokenTree::cast(node).is_some())
@@ -209,34 +210,6 @@ fn reference_edit(
         prefix_range,
         replacement,
     )])
-}
-
-fn desired_reference_path(
-    full: &[String],
-    source: &[String],
-    target: &[String],
-    same_crate: bool,
-) -> Result<Option<Vec<String>>> {
-    let source_start = full.len().checked_sub(source.len());
-    let encodes_source = source_start.is_some_and(|start| full[start..] == *source);
-    if !same_crate && !encodes_source {
-        return Ok(None);
-    }
-    if !same_crate && source_start == Some(0) {
-        return Ok(None);
-    }
-
-    if same_crate {
-        let mut canonical = vec!["crate".to_string()];
-        canonical.extend_from_slice(target);
-        return Ok(Some(canonical));
-    }
-
-    let start =
-        source_start.context("External reference does not encode the source module path")?;
-    let mut rewritten = full[..start].to_vec();
-    rewritten.extend_from_slice(target);
-    Ok(Some(rewritten))
 }
 
 fn inherited_use_segments(path: &ast::Path) -> Result<Vec<String>> {

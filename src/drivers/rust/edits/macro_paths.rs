@@ -1,10 +1,11 @@
 //! Absolute `crate::…` paths inside the arguments of a macro call
-//! (`assert_eq!(crate::a::b::f(), 1)`, `vec![crate::a::b::Item { .. }]`).
-//! The arguments are a token tree, not parsed paths, and rust-analyzer does not
-//! always report the references in them; a stale path there is a compile error
-//! the post-move check would only catch by rolling the whole move back. Only
-//! the form that starts with `crate` is recognised: a path through an import,
-//! `super` or another crate's name cannot be told from other tokens.
+//! (`assert_eq!(crate::a::b::f(), 1)`, `vec![crate::a::b::Item { .. }]`), read
+//! from the tokens alone. This is the fallback behind `macro_references`,
+//! which resolves every spelling through rust-analyzer; it covers the files
+//! and macros where rust-analyzer cannot give a scope for the call. A path
+//! through an import, `super` or another crate's name cannot be told from other
+//! tokens without that resolution, so only the form that starts with `crate`
+//! is recognised here.
 
 use crate::drivers::rust::transaction::apply::TextReplacement;
 use ra_ap_syntax::{
@@ -14,9 +15,9 @@ use std::path::Path;
 
 /// One word or punctuation of a token tree. rust-analyzer keeps `::` inside a
 /// token tree as two `:` tokens, so adjacent colons are joined here.
-struct Piece {
-    text: String,
-    range: TextRange,
+pub(super) struct Piece {
+    pub text: String,
+    pub range: TextRange,
 }
 
 /// The edits that rewrite `crate::<source…>` to `crate::<target…>` in the
@@ -30,20 +31,7 @@ pub fn macro_path_edits(
     let parse = SourceFile::parse(content, Edition::CURRENT);
     let replacement = format!("crate::{}", target.join("::"));
     let mut edits = Vec::new();
-    for tree in parse
-        .tree()
-        .syntax()
-        .descendants()
-        .filter_map(ast::TokenTree::cast)
-        // The outermost tree holds the nested ones' tokens as well.
-        .filter(|tree| {
-            !tree
-                .syntax()
-                .ancestors()
-                .skip(1)
-                .any(|ancestor| ast::TokenTree::cast(ancestor).is_some())
-        })
-    {
+    for tree in outermost_token_trees(&parse.tree()) {
         let pieces = pieces_of(&tree);
         let mut index = 0;
         while index < pieces.len() {
@@ -63,7 +51,23 @@ pub fn macro_path_edits(
     edits
 }
 
-fn pieces_of(tree: &ast::TokenTree) -> Vec<Piece> {
+/// The token trees that are not inside another one: the outermost holds the
+/// tokens of the nested ones as well.
+pub(super) fn outermost_token_trees(file: &ast::SourceFile) -> Vec<ast::TokenTree> {
+    file.syntax()
+        .descendants()
+        .filter_map(ast::TokenTree::cast)
+        .filter(|tree| {
+            !tree
+                .syntax()
+                .ancestors()
+                .skip(1)
+                .any(|ancestor| ast::TokenTree::cast(ancestor).is_some())
+        })
+        .collect()
+}
+
+pub(super) fn pieces_of(tree: &ast::TokenTree) -> Vec<Piece> {
     let tokens: Vec<SyntaxToken> = tree
         .syntax()
         .descendants_with_tokens()

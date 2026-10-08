@@ -5,7 +5,7 @@ use super::{
     },
     edits::{
         declarations::{insert_module_declaration, visibility_prefix},
-        macro_paths, references, super_paths,
+        macro_paths, macro_references, references, super_paths,
     },
     transaction::{
         apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
@@ -37,19 +37,19 @@ pub fn move_module(root: &Path, source_path: &str, target_path: &str) -> Result<
 
     let mut replacements =
         references::module_reference_edits(&workspace, &source, &target_segments)?;
-    // Paths inside macro arguments, which the reference search may not list.
-    for file in module_graph::crate_source_files(&workspace, source.krate)? {
+    // Paths inside macro arguments, which the reference search does not list
+    // unless it can expand the macro: first by name resolution, then (for a
+    // scope rust-analyzer cannot give) the `crate::` spelling by its tokens.
+    add_without_overlap(
+        &mut replacements,
+        macro_references::macro_reference_edits(&workspace, &source, &target_segments)?,
+    );
+    for (_, file) in module_graph::crate_source_files(&workspace, source.krate)? {
         let content = std::fs::read_to_string(&file)?;
-        for edit in
-            macro_paths::macro_path_edits(&file, &content, &source_segments, &target_segments)
-        {
-            let overlaps = replacements.iter().any(|existing| {
-                existing.path == edit.path && existing.start < edit.end && edit.start < existing.end
-            });
-            if !overlaps {
-                replacements.push(edit);
-            }
-        }
+        add_without_overlap(
+            &mut replacements,
+            macro_paths::macro_path_edits(&file, &content, &source_segments, &target_segments),
+        );
     }
     let module_files = layout::module_files(&source)?;
     if source_segments[..source_segments.len() - 1] != target_segments[..target_segments.len() - 1]
@@ -62,6 +62,15 @@ pub fn move_module(root: &Path, source_path: &str, target_path: &str) -> Result<
                 logical_module,
                 &source_segments,
             )?);
+            add_without_overlap(
+                &mut replacements,
+                super_paths::super_macro_path_edits(
+                    path,
+                    &content,
+                    logical_module,
+                    &source_segments,
+                ),
+            );
         }
     }
 
@@ -268,4 +277,19 @@ fn full_line_range(content: &str, start: usize, end: usize) -> (usize, usize) {
         .find('\n')
         .map_or(content.len(), |offset| end + offset + 1);
     (line_start, line_end)
+}
+
+/// Adds the edits that do not touch text an earlier edit already rewrites.
+fn add_without_overlap(
+    replacements: &mut Vec<TextReplacement>,
+    edits: impl IntoIterator<Item = TextReplacement>,
+) {
+    for edit in edits {
+        let overlaps = replacements.iter().any(|existing| {
+            existing.path == edit.path && existing.start < edit.end && edit.start < existing.end
+        });
+        if !overlaps {
+            replacements.push(edit);
+        }
+    }
 }

@@ -103,9 +103,12 @@ pub fn resolve_source(
 
 /// Every file of the crate that holds a module (out-of-line modules and the
 /// crate root), including the ones only compiled for tests.
-pub fn crate_source_files(workspace: &SemanticWorkspace, krate: Crate) -> Result<Vec<PathBuf>> {
+pub fn crate_source_files(
+    workspace: &SemanticWorkspace,
+    krate: Crate,
+) -> Result<Vec<(FileId, PathBuf)>> {
     let database = workspace.database();
-    let mut files = std::collections::BTreeSet::new();
+    let mut files = std::collections::BTreeMap::new();
     for module in krate.modules(database) {
         if module.is_inline(database) {
             continue;
@@ -113,9 +116,13 @@ pub fn crate_source_files(workspace: &SemanticWorkspace, krate: Crate) -> Result
         let Some(source_file) = module.as_source_file_id(database) else {
             continue;
         };
-        files.insert(workspace.file_path(source_file.file_id(database))?);
+        let file_id = source_file.file_id(database);
+        files.insert(workspace.file_path(file_id)?, file_id);
     }
-    Ok(files.into_iter().collect())
+    Ok(files
+        .into_iter()
+        .map(|(path, file_id)| (file_id, path))
+        .collect())
 }
 
 pub fn find_module(
