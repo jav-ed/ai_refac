@@ -22,6 +22,21 @@ pub struct ResolvedModule {
     pub is_mod_rs: bool,
 }
 
+/// Attributes on a module declaration that keep their meaning when the line is
+/// copied to another parent: conditions and lints. `#[path]` is refused on its
+/// own (it names a file relative to the old place), and `#[macro_use]` depends
+/// on the order of declarations.
+const MOVABLE_ATTRIBUTES: &[&str] = &[
+    "cfg",
+    "allow",
+    "warn",
+    "deny",
+    "forbid",
+    "expect",
+    "doc",
+    "deprecated",
+];
+
 pub fn parse_module_path(value: &str) -> Result<Vec<String>> {
     let mut parts = value.split("::");
     if parts.next() != Some("crate") {
@@ -55,7 +70,7 @@ pub fn resolve_source(
             if module_segments(module, database) != source_segments {
                 continue;
             }
-            let resolved = resolve_module(workspace, krate, module)?;
+            let resolved = resolve_module(workspace, krate, module, true)?;
             if !matches.iter().any(|existing: &ResolvedModule| {
                 existing.declaration_file == resolved.declaration_file
                     && existing.declaration_range == resolved.declaration_range
@@ -97,7 +112,7 @@ pub fn find_module(
     let database = workspace.database();
     for module in krate.modules(database) {
         if module_segments(module, database) == segments {
-            return resolve_module(workspace, krate, module).map(Some);
+            return resolve_module(workspace, krate, module, false).map(Some);
         }
     }
     Ok(None)
@@ -111,7 +126,7 @@ pub fn collect_subtree(
     let mut modules = Vec::new();
     let mut pending = vec![root.module];
     while let Some(module) = pending.pop() {
-        let resolved = resolve_module(workspace, root.krate, module)?;
+        let resolved = resolve_module(workspace, root.krate, module, false)?;
         for child in module.children(database) {
             if child.is_inline(database) {
                 if child
@@ -132,10 +147,15 @@ pub fn collect_subtree(
     Ok(modules)
 }
 
+/// `moved` is true for the module the user asked to move: its declaration is
+/// copied to the new parent, so its attributes must be ones that mean the same
+/// there. The declarations of its children stay inside the files that move
+/// along and are not touched, so they may carry any attribute.
 fn resolve_module(
     workspace: &SemanticWorkspace,
     krate: Crate,
     module: Module,
+    moved: bool,
 ) -> Result<ResolvedModule> {
     let database = workspace.database();
     if module.is_inline(database) {
@@ -178,11 +198,26 @@ fn resolve_module(
         .map(|value| value.syntax().text().to_string())
         .unwrap_or_default();
 
-    if declaration.value.attrs().next().is_some() {
-        bail!(
-            "Module declaration for `crate::{}` has attributes; cfg and attributed module moves are not supported in v1",
-            module_segments(module, database).join("::")
-        );
+    if moved {
+        let unsupported: Vec<String> = declaration
+            .value
+            .attrs()
+            .map(|attribute| attribute.simple_name().map(|name| name.to_string()))
+            .filter(|name| {
+                !name
+                    .as_deref()
+                    .is_some_and(|name| MOVABLE_ATTRIBUTES.contains(&name))
+            })
+            .map(|name| name.unwrap_or_else(|| "(unnamed)".to_string()))
+            .collect();
+        if !unsupported.is_empty() {
+            bail!(
+                "Module declaration for `crate::{}` has the attribute(s) {} that move-module v1 cannot carry to a new parent safely; supported are {}",
+                module_segments(module, database).join("::"),
+                unsupported.join(", "),
+                MOVABLE_ATTRIBUTES.join(", ")
+            );
+        }
     }
     if !matches!(visibility.as_str(), "" | "pub" | "pub(crate)") {
         bail!(

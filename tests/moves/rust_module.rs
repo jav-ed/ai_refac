@@ -249,6 +249,81 @@ fn the_new_declaration_joins_the_parents_block_in_order() {
     );
 }
 
+/// The convention of this repository: every module has `#[cfg(test)] mod tests;` and its tests in
+/// `<module>/tests.rs`. The test child moves with the module, and an attributed declaration of the
+/// moved module itself keeps its attribute in the new parent.
+#[test]
+fn a_module_with_a_cfg_test_child_and_a_cfg_declaration_moves_whole() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\n");
+    write(root, "src/domain/mod.rs", "");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "#[cfg(test)]\npub mod matching;\n",
+    );
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n\n#[cfg(test)]\nmod tests;\n",
+    );
+    write(
+        root,
+        "src/engine/matching/tests.rs",
+        "use super::*;\n#[test]\nfn reads() { assert_eq!(value(), 7); }\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    assert!(root.join("src/domain/matching.rs").exists());
+    assert!(root.join("src/domain/matching/tests.rs").exists());
+    assert!(!root.join("src/engine/matching/tests.rs").exists());
+    assert_eq!(
+        common::read_file(root, "src/domain/mod.rs"),
+        "#[cfg(test)]\npub mod matching;\n"
+    );
+    assert_eq!(common::read_file(root, "src/engine/mod.rs"), "");
+    assert_eq!(
+        common::read_file(root, "src/domain/matching/tests.rs"),
+        "use super::*;\n#[test]\nfn reads() { assert_eq!(value(), 7); }\n"
+    );
+}
+
+/// `#[macro_use]` makes the order of declarations matter, so moving that declaration is refused,
+/// naming the attribute, and nothing changes.
+#[test]
+fn a_macro_use_declaration_is_refused_by_name_and_changes_nothing() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\n");
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "#[macro_use]\npub mod matching;\n");
+    write(root, "src/engine/matching.rs", "pub fn value() {}\n");
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+
+    assert!(!output.status.success());
+    let error = common::stderr_text(&output);
+    assert!(error.contains("macro_use"), "{error}");
+    assert!(root.join("src/engine/matching.rs").exists());
+    assert_eq!(
+        common::read_file(root, "src/engine/mod.rs"),
+        "#[macro_use]\npub mod matching;\n"
+    );
+}
+
 #[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();
