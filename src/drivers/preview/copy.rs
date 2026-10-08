@@ -54,10 +54,12 @@ where
         Some(root) => std::path::absolute(root)?,
         None => std::env::current_dir()?,
     };
-    let root = root
+    let canonical = root
         .canonicalize()
         .with_context(|| format!("Cannot read the project folder {}", root.display()))?;
-    let pairs = relative_pairs(&root, file_map)?;
+    // A path may be written through a symbolic link to the project folder.
+    let pairs = relative_pairs(&[canonical.clone(), root], file_map)?;
+    let root = canonical;
 
     let copy = tempfile::Builder::new()
         .prefix("refac-dry-run-")
@@ -73,19 +75,27 @@ where
     Ok(preview)
 }
 
-/// The pairs relative to the project: the copy has the same layout.
-fn relative_pairs(root: &Path, file_map: &[(String, String)]) -> Result<Vec<(String, String)>> {
+/// The pairs relative to the project: the copy has the same layout. `roots`
+/// are the spellings of the project folder (its real path first); a path below
+/// any of them is inside.
+fn relative_pairs(
+    roots: &[PathBuf],
+    file_map: &[(String, String)],
+) -> Result<Vec<(String, String)>> {
     let inside = |path: &str| -> Result<String> {
         let joined = if Path::new(path).is_absolute() {
             PathBuf::from(path)
         } else {
-            root.join(path)
+            roots[0].join(path)
         };
         let normalized = normalize(&joined);
-        let Ok(relative) = normalized.strip_prefix(root) else {
+        let Some(relative) = roots
+            .iter()
+            .find_map(|root| normalized.strip_prefix(root).ok())
+        else {
             bail!(
                 "A dry run copies the project, so every path must lie inside {}: {path} does not. Run the move itself to move files out of the project.",
-                root.display()
+                roots[0].display()
             );
         };
         Ok(relative.to_string_lossy().into_owned())

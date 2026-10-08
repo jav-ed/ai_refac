@@ -240,3 +240,34 @@ async fn build_output_the_tool_creates_is_not_reported() {
     .unwrap();
     assert_eq!(preview.notes, vec!["a note".to_string()]);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_path_written_through_a_link_to_the_project_is_inside() {
+    let dir = project();
+    let links = tempdir().unwrap();
+    let link = links.path().join("linked");
+    std::os::unix::fs::symlink(dir.path(), &link).unwrap();
+    // The project is given as the link and so are the absolute paths in it.
+    let pairs = vec![(
+        link.join("lib/db/database.py")
+            .to_string_lossy()
+            .into_owned(),
+        link.join("lib/services/database.py")
+            .to_string_lossy()
+            .into_owned(),
+    )];
+    let preview = preview_on_copy(
+        Some(&link),
+        &pairs,
+        CopyPlan {
+            tool_state: &[],
+            scratch: &[],
+        },
+        fake_move,
+    )
+    .await
+    .unwrap();
+    assert_eq!(preview.moves.len(), 1);
+    assert_eq!(preview.edits.len(), 2);
+}
