@@ -40,6 +40,7 @@ fn snapshot(root: &std::path::Path) -> Vec<(std::path::PathBuf, Vec<u8>)> {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_without_package_config_refuses_and_changes_nothing() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();

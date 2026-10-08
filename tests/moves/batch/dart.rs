@@ -4,6 +4,7 @@ use crate::common;
 use crate::common::DART_LOCK;
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_batch_moves_two_files_and_updates_cross_import() {
     // validator.dart imports formatter.dart via package: URI.
     // Both move from lib/src/ to lib/src/core/ in one batch call.

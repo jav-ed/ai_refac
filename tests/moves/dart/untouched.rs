@@ -5,6 +5,7 @@ use crate::common;
 use crate::common::DART_LOCK;
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_does_not_rewrite_dart_sdk_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -34,6 +35,7 @@ fn dart_move_does_not_rewrite_dart_sdk_imports() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_does_not_rewrite_dart_io_import_in_service() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -48,6 +50,7 @@ fn dart_move_does_not_rewrite_dart_io_import_in_service() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_leaves_control_files_unchanged() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -75,6 +78,7 @@ fn dart_move_leaves_control_files_unchanged() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_preserves_dart_io_in_http_client_while_updating_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();

@@ -120,12 +120,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
     async fn test_dart_move_updates_imports() -> Result<()> {
         let driver = DartDriver::new();
-        if !driver.check_availability().await? {
-            eprintln!("dart not found, skipping test");
-            return Ok(());
-        }
+        assert!(driver.check_availability().await?, "dart not found");
 
         let temp_dir = tempfile::Builder::new()
             .prefix("refac-dart-test-")

@@ -3,6 +3,7 @@
 use crate::common;
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_batch_moves_two_files_and_updates_all_imports() {
     // validators.py imports formatters.py via `from .formatters import ...`.
     // Both move from myapp/utils/ to myapp/core/.

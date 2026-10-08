@@ -27,6 +27,7 @@ use crate::common;
 // Control files (byte-identical before/after):
 //   config.py, models/base.py
 
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn run_move(project: &std::path::Path) -> std::process::Output {
     common::run_cli(&[
         "move",
@@ -42,6 +43,7 @@ fn run_move(project: &std::path::Path) -> std::process::Output {
 // ── file placement ────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_places_file_at_target_and_removes_source() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -60,6 +62,7 @@ fn python_move_places_file_at_target_and_removes_source() {
 // ── positive assertions ───────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_updates_direct_imports_across_all_files() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -87,6 +90,7 @@ fn python_move_updates_direct_imports_across_all_files() {
 }
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_updates_relative_sibling_import_to_absolute() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -106,6 +110,7 @@ fn python_move_updates_relative_sibling_import_to_absolute() {
 }
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_rewrites_init_reexport_from_relative_to_absolute() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -125,6 +130,7 @@ fn python_move_rewrites_init_reexport_from_relative_to_absolute() {
 }
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_preserves_alias_in_aliased_import() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -144,6 +150,7 @@ fn python_move_preserves_alias_in_aliased_import() {
 }
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_updates_module_level_aliased_import() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -165,6 +172,7 @@ fn python_move_updates_module_level_aliased_import() {
 // ── negative assertions (Rope limitation: indirect imports not updated) ────────
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_does_not_update_indirect_imports_via_init_reexport() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();
@@ -189,6 +197,7 @@ fn python_move_does_not_update_indirect_imports_via_init_reexport() {
 // ── control files ─────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn python_move_does_not_touch_unrelated_files() {
     let temp = common::setup_fixture("python/project");
     let project = temp.path();

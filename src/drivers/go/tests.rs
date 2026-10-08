@@ -29,12 +29,10 @@ fn test_find_go_package_name_position() {
 }
 
 #[tokio::test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 async fn test_go_move_updates_imports() -> Result<()> {
     let driver = GoDriver::new();
-    if !driver.check_availability().await? {
-        eprintln!("gopls not found, skipping test");
-        return Ok(());
-    }
+    assert!(driver.check_availability().await?, "gopls not found");
 
     let temp_dir = tempfile::Builder::new()
         .prefix("refac-go-test-")
@@ -71,12 +69,10 @@ async fn test_go_move_updates_imports() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 async fn test_go_move_updates_imports_when_filename_changes() -> Result<()> {
     let driver = GoDriver::new();
-    if !driver.check_availability().await? {
-        eprintln!("gopls not found, skipping test");
-        return Ok(());
-    }
+    assert!(driver.check_availability().await?, "gopls not found");
 
     let temp_dir = tempfile::Builder::new()
         .prefix("refac-go-rename-test-")

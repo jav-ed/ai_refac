@@ -25,14 +25,16 @@ fn gopls_is_available() -> bool {
     false
 }
 
+// Without gopls, check_availability() bails before move_files is called, which
+// would turn the partial failure into a total failure; the test says so loudly
+// instead of passing without checking anything.
 #[test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 fn partial_failure_exits_non_zero_and_reports_success_and_failure_in_one_report() {
-    // Skip when gopls is not installed: without it, check_availability() bails
-    // before move_files is called, turning a partial failure into a total failure.
-    if !gopls_is_available() {
-        eprintln!("gopls not found — skipping partial failure test");
-        return;
-    }
+    assert!(
+        gopls_is_available(),
+        "gopls not found (run `refac doctor go`)"
+    );
 
     use std::fs;
 
@@ -106,16 +108,17 @@ fn partial_failure_exits_non_zero_and_reports_success_and_failure_in_one_report(
 }
 
 #[test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 fn all_failed_batch_exits_nonzero_with_error_message() {
     // When every language batch fails, the CLI must exit non-zero and include
     // a human-readable error.  Trigger this by attempting a Go move without
     // go.mod in a project that has ONLY Go files (no fallback successes).
     //
-    // Skip when gopls is not installed (same reason as above).
-    if !gopls_is_available() {
-        eprintln!("gopls not found — skipping all-failed test");
-        return;
-    }
+    // Needs gopls for the same reason as above.
+    assert!(
+        gopls_is_available(),
+        "gopls not found (run `refac doctor go`)"
+    );
 
     use std::fs;
 

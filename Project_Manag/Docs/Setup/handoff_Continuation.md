@@ -32,7 +32,7 @@ Written on 2026-10-07 at the end of the session that added the Kotlin backend, r
 - Ideas not built: `refac move --dry-run`, Markdown heading rename, a Python rename that starts from an override and reaches the base.
 
 - Kotlin: moves between modules or source sets are refused, so cross-module moves are untested. Every Kotlin call costs about 30 seconds of Gradle import and about 1.6 GiB for the server on a tiny project; the server has no memory cap. One broken-build test hung for more than five minutes in one of nine runs and could not be reproduced; the 600 second timeout and the import log tail are the guard.
-- The README line that tool-dependent tests "skip gracefully" is not accurate for the Kotlin real-server tests: they are `#[ignore]`d and panic loudly when the environment is missing.
+- Tests that need a language server (gopls, Dart SDK, rope, basedpyright, Kotlin server) are `#[ignore = "needs X (run `refac doctor Y`)"]` and fail loudly when run without the tool; a plain `cargo test` needs only Rust (+ Bun) and no test skips silently.
 - Pyrefly is a fallback behind Rope, so `python_move` never starts it; `cargo test --lib pyrefly -- --ignored` runs it for real.
 - A blanket `cargo update` can break the build (the `ra-ap-rustc_lexer` Unicode check); build after every update and read [Tool versions](tool_Versions.md).
 

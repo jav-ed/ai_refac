@@ -81,12 +81,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs rope or pyrefly (run `refac doctor python`)"]
     async fn test_python_move_updates_imports() -> Result<()> {
         let driver = PythonDriver::new();
-        if !driver.check_availability().await? {
-            eprintln!("No Python refactor backend found, skipping test");
-            return Ok(());
-        }
+        assert!(
+            driver.check_availability().await?,
+            "neither rope nor pyrefly found"
+        );
 
         let temp_dir = tempfile::Builder::new()
             .prefix("refac-python-test-")

@@ -39,7 +39,5 @@ fn run_move(project: &std::path::Path) -> std::process::Output {
     ])
 }
 
-// ── file placement ─────────────────────────────────────────────────────────
-
 mod imports;
 mod untouched;

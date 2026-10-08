@@ -45,7 +45,7 @@ Every file directly in `tests/` would be its own program linking the whole libra
 | Group (`--test`) | Holds | Real server needed |
 |---|---|---|
 | `cli` | usage errors, `--help`, `refac guide`, `doctor`, `rename --batch` refusals, the answer and exit code of a partly failed `move`, and `layout` (the shape of the code: see below) | no |
-| `moves` | `move` per language (Go, Rust, Python, Dart), `move-module`, multi-language batches | partly (`go`, `dart`, `python` find their tools or skip) |
+| `moves` | `move` per language (Go, Rust, Python, Dart), `move-module`, multi-language batches | partly: the `go`, `dart` and `python` tests are `#[ignore]`d (`-- --ignored` with the tool installed) |
 | `rename` | symbol rename in Go, Rust, Python, Dart, encoding, batch | yes, `#[ignore]`d |
 | `typescript` | moves, rename, limits, the 3,005-file stress test | no (the TypeScript engine is installed by refac) |
 | `markdown` | link rewriting, sites, corpus, scale, safety | no |

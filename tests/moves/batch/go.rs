@@ -3,6 +3,7 @@
 use crate::common;
 
 #[test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 fn go_batch_same_package_moves_both_files_and_updates_all_callers() {
     // pkg/utils/ contains format.go AND validate.go (same package).
     // Batch-moving both triggers the deduplication fix: only one gopls rename
@@ -121,6 +122,7 @@ fn go_batch_same_package_moves_both_files_and_updates_all_callers() {
 }
 
 #[test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 fn go_batch_cross_package_moves_both_packages_and_updates_callers() {
     // Move files from TWO different source packages in one batch call.
     // Each source dir needs its own gopls session (different packages).

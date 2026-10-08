@@ -5,6 +5,7 @@ use crate::common;
 use crate::common::DART_LOCK;
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_places_file_at_target_and_removes_source() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -22,6 +23,7 @@ fn dart_move_places_file_at_target_and_removes_source() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_updates_barrel_export() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -54,6 +56,7 @@ fn dart_move_updates_barrel_export() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_updates_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -87,6 +90,7 @@ fn dart_move_updates_package_import() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_preserves_show_combinator_on_package_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -124,6 +128,7 @@ fn dart_move_preserves_show_combinator_on_package_import() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_updates_relative_import_and_preserves_alias() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -162,6 +167,7 @@ fn dart_move_updates_relative_import_and_preserves_alias() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_preserves_show_combinator_on_item_import() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -180,6 +186,7 @@ fn dart_move_preserves_show_combinator_on_item_import() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_updates_relative_import_and_preserves_alias_in_api_client() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -202,6 +209,7 @@ fn dart_move_updates_relative_import_and_preserves_alias_in_api_client() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_rewrites_all_package_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();
@@ -233,6 +241,7 @@ fn dart_move_rewrites_all_package_imports() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn dart_move_rewrites_all_relative_imports() {
     let temp = common::setup_fixture("dart/project");
     let project = temp.path();

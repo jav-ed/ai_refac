@@ -62,6 +62,7 @@ fn a_typescript_folder_move_updates_links_to_the_folder_and_to_files_in_it() {
 }
 
 #[test]
+#[ignore = "needs python3 with the rope package (pip install rope)"]
 fn a_python_file_move_updates_the_links_to_it() {
     let project = with_docs(
         "python/project",
@@ -83,6 +84,7 @@ fn a_python_file_move_updates_the_links_to_it() {
 }
 
 #[test]
+#[ignore = "needs gopls (run `refac doctor go`)"]
 fn a_go_file_move_updates_the_links_to_it() {
     let project = with_docs(
         "go/project",
@@ -103,6 +105,7 @@ fn a_go_file_move_updates_the_links_to_it() {
 }
 
 #[test]
+#[ignore = "needs the Dart SDK (run `refac doctor dart`)"]
 fn a_dart_file_move_updates_the_links_to_it() {
     let project = with_docs(
         "dart/project",

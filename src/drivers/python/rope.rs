@@ -96,12 +96,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "needs rope (run `refac doctor python`)"]
     async fn test_rope_move_updates_imports() -> Result<()> {
         let driver = RopeDriver;
-        if !driver.check_availability().await? {
-            eprintln!("rope not available, skipping test");
-            return Ok(());
-        }
+        assert!(driver.check_availability().await?, "rope not available");
 
         let temp_dir = tempfile::Builder::new()
             .prefix("refac-rope-test-")
