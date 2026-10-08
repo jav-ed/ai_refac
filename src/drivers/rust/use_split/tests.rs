@@ -49,7 +49,7 @@ fn the_last_item_takes_the_comma_before_it() {
             "crate::plan::names"
         )
         .unwrap(),
-        "use super::{apply};\nuse crate::plan::names;\n"
+        "use super::apply;\nuse crate::plan::names;\n"
     );
 }
 
@@ -67,7 +67,7 @@ fn an_indented_import_keeps_its_indent() {
     let content = "mod tests {\n    use super::{apply, names};\n}\n";
     assert_eq!(
         split(content, "names", "crate::plan::names").unwrap(),
-        "mod tests {\n    use super::{apply};\n    use crate::plan::names;\n}\n"
+        "mod tests {\n    use super::apply;\n    use crate::plan::names;\n}\n"
     );
 }
 
@@ -89,5 +89,13 @@ fn an_item_with_a_list_of_its_own_takes_the_list_along() {
         )
         .unwrap(),
         "use super::{apply, report};\nuse crate::plan::names::{self, Name};\n"
+    );
+}
+
+#[test]
+fn a_group_of_one_becomes_a_plain_import_of_the_new_path() {
+    assert_eq!(
+        split("use super::{names};\n", "names", "crate::plan::names").unwrap(),
+        "use crate::plan::names;\n"
     );
 }

@@ -77,7 +77,7 @@ fn a_module_leaves_the_group_of_an_import_that_can_no_longer_reach_it() {
 
     let user = common::read_file(root, "src/engine/user.rs");
     assert!(
-        user.starts_with("use super::{helper};\nuse crate::engine::plan::matching;\n"),
+        user.starts_with("use super::helper;\nuse crate::engine::plan::matching;\n"),
         "{user}"
     );
 }

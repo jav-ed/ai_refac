@@ -37,26 +37,6 @@ pub fn split_leaf_from_group(
         );
     }
     let siblings: Vec<ast::UseTree> = list.use_trees().collect();
-    if siblings.len() < 2 {
-        return Ok(None);
-    }
-
-    // Take the item out together with one comma: the one after it, or the one
-    // before it when it is the last of the group.
-    let position = siblings
-        .iter()
-        .position(|candidate| candidate.syntax() == tree.syntax())
-        .expect("a tree of a list is one of its siblings");
-    let (start, end) = match siblings.get(position + 1) {
-        Some(next) => (
-            usize::from(tree.syntax().text_range().start()),
-            usize::from(next.syntax().text_range().start()),
-        ),
-        None => (
-            usize::from(siblings[position - 1].syntax().text_range().end()),
-            usize::from(tree.syntax().text_range().end()),
-        ),
-    };
 
     // What follows the path in the tree travels with it: an alias, a glob, or
     // a list of its own (`module_graph::{self, ResolvedModule}`).
@@ -66,7 +46,61 @@ pub fn split_leaf_from_group(
         .visibility()
         .map(|visibility| format!("{} ", visibility.syntax().text()))
         .unwrap_or_default();
-    let item_start = usize::from(item.syntax().text_range().start());
+    let item_range = item.syntax().text_range();
+    let edit = |start: usize, end: usize, replacement: String| TextReplacement {
+        path: file.to_path_buf(),
+        start,
+        end,
+        replacement,
+    };
+
+    // A group of one: the whole import is the moved module, written afresh.
+    if siblings.len() == 1 {
+        let prefix_is_the_root = list
+            .syntax()
+            .parent()
+            .and_then(ast::UseTree::cast)
+            .is_some_and(|prefix| prefix.syntax().parent() == Some(item.syntax().clone()));
+        if !prefix_is_the_root {
+            return Ok(None);
+        }
+        return Ok(Some(vec![edit(
+            usize::from(item_range.start()),
+            usize::from(item_range.end()),
+            format!("{visibility}use {new_path}{tail};"),
+        )]));
+    }
+
+    // Take the item out of the group. Of a pair, the other one is left alone
+    // and loses its braces; otherwise the item goes with one comma: the one
+    // after it, or the one before it when it is the last of the group.
+    let position = siblings
+        .iter()
+        .position(|candidate| candidate.syntax() == tree.syntax())
+        .expect("a tree of a list is one of its siblings");
+    let removal = if siblings.len() == 2 {
+        let other = &siblings[1 - position];
+        edit(
+            usize::from(list.syntax().text_range().start()),
+            usize::from(list.syntax().text_range().end()),
+            other.syntax().text().to_string(),
+        )
+    } else {
+        match siblings.get(position + 1) {
+            Some(next) => edit(
+                usize::from(tree.syntax().text_range().start()),
+                usize::from(next.syntax().text_range().start()),
+                String::new(),
+            ),
+            None => edit(
+                usize::from(siblings[position - 1].syntax().text_range().end()),
+                usize::from(tree.syntax().text_range().end()),
+                String::new(),
+            ),
+        }
+    };
+
+    let item_start = usize::from(item_range.start());
     let indent: String = content[..item_start]
         .rsplit('\n')
         .next()
@@ -74,21 +108,14 @@ pub fn split_leaf_from_group(
         .chars()
         .take_while(|character| character.is_whitespace())
         .collect();
-    let after_item = usize::from(item.syntax().text_range().end());
-
+    let after_item = usize::from(item_range.end());
     Ok(Some(vec![
-        TextReplacement {
-            path: file.to_path_buf(),
-            start,
-            end,
-            replacement: String::new(),
-        },
-        TextReplacement {
-            path: file.to_path_buf(),
-            start: after_item,
-            end: after_item,
-            replacement: format!("\n{indent}{visibility}use {new_path}{tail};"),
-        },
+        removal,
+        edit(
+            after_item,
+            after_item,
+            format!("\n{indent}{visibility}use {new_path}{tail};"),
+        ),
     ]))
 }
 
