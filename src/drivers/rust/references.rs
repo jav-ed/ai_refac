@@ -191,6 +191,15 @@ fn reference_edit(
     if matches!(token.text(), "self" | "super") {
         return Ok(None);
     }
+    // A reference in the arguments of a macro call is a token, not a path
+    // node. The ones that spell `crate::…` are rewritten by `macro_paths`; any
+    // other is left for the post-move check to report.
+    if token
+        .parent_ancestors()
+        .any(|node| ast::TokenTree::cast(node).is_some())
+    {
+        return Ok(None);
+    }
     let path_node = token
         .parent_ancestors()
         .filter_map(ast::Path::cast)
@@ -216,6 +225,31 @@ fn reference_edit(
         )
     })?;
     let inherited = inherited_use_segments(&path_node)?;
+
+    // `name::item` written in a file that imports the module as `name` keeps
+    // its short form: the import is rewritten and brings the new name.
+    let in_use_item = path_node
+        .syntax()
+        .ancestors()
+        .any(|node| ast::Use::cast(node).is_some());
+    if same_crate
+        && !in_use_item
+        && inherited.is_empty()
+        && leaf.len() == 1
+        && source.last() == leaf.first()
+        && super::imports::imports_module_by_name(&parse.tree(), &leaf[0])
+    {
+        let new_name = target.last().context("Target module has no name")?;
+        if *new_name == leaf[0] {
+            return Ok(None);
+        }
+        return Ok(Some(TextReplacement::from_range(
+            path.to_path_buf(),
+            prefix_range,
+            new_name.clone(),
+        )));
+    }
+
     let mut full = inherited.clone();
     full.extend(leaf);
 

@@ -132,7 +132,9 @@ fn a_moved_file_with_generic_types_keeps_them_while_super_paths_are_rewritten() 
         "{moved}"
     );
     assert!(
-        moved.contains("crate::engine::shapes::Wrapper<Vec<u32>> = crate::engine::shapes::Wrapper(items)"),
+        moved.contains(
+            "crate::engine::shapes::Wrapper<Vec<u32>> = crate::engine::shapes::Wrapper(items)"
+        ),
         "{moved}"
     );
     assert!(!moved.contains("super::"), "{moved}");
@@ -176,7 +178,10 @@ fn references_inside_cfg_test_code_are_rewritten_too() {
     common::assert_move_succeeded(&output);
 
     let outside = common::read_file(root, "src/tests.rs");
-    assert!(outside.contains("use crate::domain::matching::value;"), "{outside}");
+    assert!(
+        outside.contains("use crate::domain::matching::value;"),
+        "{outside}"
+    );
     let moved = common::read_file(root, "src/domain/matching.rs");
     assert!(moved.contains("use crate::domain::matching::*;"), "{moved}");
 }
@@ -193,7 +198,11 @@ fn super_paths_inside_the_moved_module_stay_and_those_leaving_it_become_absolute
         "Cargo.toml",
         "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
     );
-    write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\npub mod shared;\n");
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod domain;\npub mod engine;\npub mod shared;\n",
+    );
     write(root, "src/shared.rs", "pub fn base() -> u32 { 1 }\n");
     write(root, "src/domain/mod.rs", "");
     write(root, "src/engine/mod.rs", "pub mod matching;\n");
@@ -238,7 +247,11 @@ fn the_new_declaration_joins_the_parents_block_in_order() {
     write(root, "src/domain/alpha.rs", "");
     write(root, "src/domain/omega.rs", "");
     write(root, "src/engine/mod.rs", "pub mod matching;\n");
-    write(root, "src/engine/matching.rs", "pub fn value() -> u32 { 7 }\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n",
+    );
 
     let output = run(root, "crate::engine::matching", "crate::domain::matching");
     common::assert_move_succeeded(&output);
@@ -309,7 +322,11 @@ fn a_macro_use_declaration_is_refused_by_name_and_changes_nothing() {
     );
     write(root, "src/lib.rs", "pub mod domain;\npub mod engine;\n");
     write(root, "src/domain/mod.rs", "");
-    write(root, "src/engine/mod.rs", "#[macro_use]\npub mod matching;\n");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "#[macro_use]\npub mod matching;\n",
+    );
     write(root, "src/engine/matching.rs", "pub fn value() {}\n");
 
     let output = run(root, "crate::engine::matching", "crate::domain::matching");
@@ -321,6 +338,85 @@ fn a_macro_use_declaration_is_refused_by_name_and_changes_nothing() {
     assert_eq!(
         common::read_file(root, "src/engine/mod.rs"),
         "#[macro_use]\npub mod matching;\n"
+    );
+}
+
+/// A reference written `name::item` in a file that imports the module keeps its short form: the
+/// import is rewritten and brings the new name, so the body is renamed, not made absolute.
+#[test]
+fn short_references_through_an_import_stay_short() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod consumer;\npub mod domain;\npub mod engine;\n",
+    );
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n",
+    );
+    write(
+        root,
+        "src/consumer.rs",
+        "use crate::engine::matching;\n\npub fn consume() -> u32 { matching::value() + matching::value() }\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::scoring");
+    common::assert_move_succeeded(&output);
+
+    assert_eq!(
+        common::read_file(root, "src/consumer.rs"),
+        "use crate::domain::scoring;\n\npub fn consume() -> u32 { scoring::value() + scoring::value() }\n"
+    );
+}
+
+/// Paths in macro arguments are not parsed as paths; the ones that start at `crate` are found
+/// by their tokens, in `assert_eq!`, `vec!` and nested macros.
+#[test]
+fn crate_paths_inside_macro_arguments_are_rewritten() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod domain;\npub mod engine;\n\n#[cfg(test)]\nmod tests;\n",
+    );
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub struct Item { pub a: u32 }\npub fn value() -> u32 { 7 }\n",
+    );
+    write(
+        root,
+        "src/tests.rs",
+        "#[test]\nfn t() {\n    let items = vec![crate::engine::matching::Item { a: crate::engine::matching::value() }];\n    assert_eq!(items.len(), 1);\n    assert_eq!(crate::engine::matching::value(), 7);\n}\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let tests = common::read_file(root, "src/tests.rs");
+    assert!(!tests.contains("crate::engine"), "{tests}");
+    assert_eq!(
+        tests.matches("crate::domain::matching::").count(),
+        3,
+        "{tests}"
     );
 }
 

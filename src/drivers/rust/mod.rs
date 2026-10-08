@@ -5,7 +5,9 @@ use std::path::Path;
 
 mod apply;
 mod declarations;
+mod imports;
 mod layout;
+mod macro_paths;
 mod module_graph;
 mod planner;
 mod references;

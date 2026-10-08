@@ -1,7 +1,7 @@
 use super::{
     apply::{MovePlan, TextReplacement, apply_transaction, render_writes},
     declarations::insert_module_declaration,
-    layout,
+    layout, macro_paths,
     module_graph::{self, ResolvedModule},
     references, validation,
     workspace::SemanticWorkspace,
@@ -31,6 +31,20 @@ pub fn move_module(root: &Path, source_path: &str, target_path: &str) -> Result<
 
     let mut replacements =
         references::module_reference_edits(&workspace, &source, &target_segments)?;
+    // Paths inside macro arguments, which the reference search may not list.
+    for file in module_graph::crate_source_files(&workspace, source.krate)? {
+        let content = std::fs::read_to_string(&file)?;
+        for edit in
+            macro_paths::macro_path_edits(&file, &content, &source_segments, &target_segments)
+        {
+            let overlaps = replacements.iter().any(|existing| {
+                existing.path == edit.path && existing.start < edit.end && edit.start < existing.end
+            });
+            if !overlaps {
+                replacements.push(edit);
+            }
+        }
+    }
     let module_files = layout::module_files(&source)?;
     if source_segments[..source_segments.len() - 1] != target_segments[..target_segments.len() - 1]
     {
