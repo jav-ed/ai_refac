@@ -50,6 +50,13 @@ pub(super) struct MoveModuleArgs {
     /// Must start with `crate::` and lie in the same crate as the source.
     pub(super) target_module: String,
 
+    /// Plan the move, print what it would do, and change no file.
+    ///
+    /// The plan is checked for conflicts, but the Cargo check that proves the moved workspace
+    /// still compiles runs only on a real move.
+    #[arg(long)]
+    pub(super) dry_run: bool,
+
     /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,

@@ -64,6 +64,7 @@ refac move --json --project-path /path/to/package \
 # semantic Rust module move, including its complete physical subtree
 refac move-module --project-path /path/to/cargo-workspace \
   crate::engine::matching crate::domain::matching
+# add --dry-run first to see the moves and the edits per file; it writes nothing
 
 # rename a TypeScript/JavaScript symbol and every reference to it
 refac rename --project-path /path/to/package \

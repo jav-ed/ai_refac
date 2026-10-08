@@ -16,7 +16,7 @@ mod output;
 mod rename;
 
 use args::{CompletionsArgs, MoveArgs, MoveModuleArgs, RenameArgs};
-use output::{ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput};
+use output::{ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput, MovedPath, RenamedFile};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -164,12 +164,16 @@ fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {
             json: args.json,
             error: error.into(),
         })?;
-    let report =
-        crate::drivers::rust::move_module(&project_path, &args.source_module, &args.target_module)
-            .map_err(|error| CliError {
-                json: args.json,
-                error,
-            })?;
+    let report = crate::drivers::rust::move_module(
+        &project_path,
+        &args.source_module,
+        &args.target_module,
+        args.dry_run,
+    )
+    .map_err(|error| CliError {
+        json: args.json,
+        error,
+    })?;
 
     if args.json {
         let project_display = project_path.to_string_lossy();
@@ -179,10 +183,54 @@ fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {
             project_path: &project_display,
             source_module: &args.source_module,
             target_module: &args.target_module,
+            dry_run: report.dry_run,
             moved_paths: report.moved_paths,
             edited_files: report.edited_files,
+            edits: report.edits,
+            files: report
+                .files
+                .iter()
+                .map(|(path, edits)| RenamedFile {
+                    path: path.to_string_lossy().into_owned(),
+                    edits: *edits,
+                })
+                .collect(),
+            moves: report
+                .moves
+                .iter()
+                .map(|(from, to)| MovedPath {
+                    from: from.to_string_lossy().into_owned(),
+                    to: to.to_string_lossy().into_owned(),
+                })
+                .collect(),
         };
         write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })?;
+        return Ok(());
+    }
+
+    if report.dry_run {
+        println!("// Dry run: nothing was changed. Planned Rust module move:");
+        println!("{} -> {}", args.source_module, args.target_module);
+        for (from, to) in &report.moves {
+            println!("// move {} -> {}", from.display(), to.display());
+        }
+        for (path, edits) in &report.files {
+            println!(
+                "// {} ({edits} edit{})",
+                path.display(),
+                if *edits == 1 { "" } else { "s" }
+            );
+        }
+        println!(
+            "// {} edit(s) in {} file(s); {} path(s) would move.",
+            report.edits,
+            report.files.len(),
+            report.moved_paths
+        );
+        println!(
+            "// The Cargo check that proves the result still compiles runs only on a real move."
+        );
+        println!("// Run the same command without --dry-run to apply the move.");
     } else {
         println!(
             "// Alhamdulillah Rust module moved semantically:\n{} -> {}\n// {} filesystem path(s) moved; {} source file(s) updated.",

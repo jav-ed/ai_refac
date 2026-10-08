@@ -31,6 +31,7 @@ fn run_json(project: &Path, source: &str, target: &str) -> Output {
 
 mod basic;
 mod declarations;
+mod dry_run;
 mod imports;
 mod macros;
 mod paths;

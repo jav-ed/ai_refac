@@ -20,6 +20,8 @@ refac move-module --project-path /path/to/cargo-workspace \
   crate::domain::matching
 ```
 
+`--dry-run` plans the move and writes nothing: it prints the paths that would move and the edits per file (`--json` adds `files` and `moves`), refuses what the real move refuses (a target that exists, an unsupported layout), and removes a `Cargo.lock` that Cargo wrote while the workspace loaded. It does not run the final Cargo check, which needs the moved files on disk.
+
 Structural source and target arguments always begin with `crate::`. They identify modules in the same crate, not filesystem paths. If the source path matches multiple workspace crates, Refac stops and reports the matching declaration files.
 
 ## Semantic move sequence

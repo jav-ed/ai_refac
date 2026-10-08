@@ -27,7 +27,8 @@ JSON (--json, on move, move-module, rename and doctor)
     move         {"status":"ok","operation":"move","project_path":...,"source_path":[...],
                   "target_path":[...],"result":"<the text report>"}
     move-module  {"status":"ok","operation":"move-module","project_path","source_module",
-                  "target_module","moved_paths","edited_files"}
+                  "target_module","dry_run","moved_paths","edited_files","edits",
+                  "files":[{"path","edits"}],"moves":[{"from","to"}]}
     rename       {"status":"ok","operation":"rename","project_path","file","symbol","new_name",
                   "dry_run","edits","edited_files","files":[{"path","edits"}],"notes":[...]}
     batch        {"status":"ok","operation":"rename-batch","project_path","dry_run","edits",

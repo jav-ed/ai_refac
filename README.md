@@ -253,7 +253,7 @@ With `--json`, a file move returns a single JSON object with operation-specific 
 }
 ```
 
-On failure, `"status"` is `"error"` and `"error"` contains the descriptive failure chain. Successful `move-module --json` output additionally reports `source_module`, `target_module`, `moved_paths`, and `edited_files`.
+On failure, `"status"` is `"error"` and `"error"` contains the descriptive failure chain. Successful `move-module --json` output additionally reports `source_module`, `target_module`, `dry_run`, `moved_paths`, `edited_files`, `edits`, `files` (path and number of edits) and `moves` (from, to). `move-module --dry-run` plans the move, lists what it would move and edit, and writes nothing; the Cargo check that proves the result compiles runs only on a real move.
 
 ### Exit codes
 

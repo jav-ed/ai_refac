@@ -19,8 +19,18 @@ pub(super) struct MoveModuleSuccessOutput<'a> {
     pub(super) project_path: &'a str,
     pub(super) source_module: &'a str,
     pub(super) target_module: &'a str,
+    pub(super) dry_run: bool,
     pub(super) moved_paths: usize,
     pub(super) edited_files: usize,
+    pub(super) edits: usize,
+    pub(super) files: Vec<RenamedFile>,
+    pub(super) moves: Vec<MovedPath>,
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct MovedPath {
+    pub(super) from: String,
+    pub(super) to: String,
 }
 
 #[derive(Debug, Serialize)]

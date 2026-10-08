@@ -4,6 +4,8 @@
 
 This repo is a CLI-first refactoring tool. Its job is to move files and update affected references so projects stay consistent after structural changes, and to rename symbols (variables, parameters, functions, methods, fields, types) with every reference in TypeScript/JavaScript, Kotlin, Go, Rust, Python, and Dart. The current runtime surface is the `refac` CLI, and the implementation uses language-specific backends for TypeScript/JavaScript, Python, Markdown, Rust, Go, Dart, and Kotlin (JVM and Android).
 
+Why this project exists: we open-source some of our tools to give people real value. `refac` is one of them, and it doubles as proof of how we work: a tool that does one job completely (a move or a rename that leaves the whole project consistent, or changes nothing and says why) is what we would build for a customer, too.
+
 Operational decision: after building `refac`, the binary is made available via `~/.local/bin/refac`. During active development, the preferred setup is a symlink from `~/.local/bin/refac` to the release binary. That keeps the command stable while letting rebuilt binaries take effect without any reinstall step.
 
 **Keep the global install current:** every source change requires a `cargo build --release` so the symlinked binary stays in sync with the latest code. If `~/.local/bin/refac` is missing or stale, the globally available command does not reflect recent changes. See [Install & Build](Guides/dev_guide.md) § 6 for the full workflow.

@@ -32,14 +32,23 @@ SAFETY
   slow part: about 4 minutes on this repository); if the check fails every changed file is put
   back. Cross-crate moves are not supported.
 
+--dry-run plans the move and changes no file (a Cargo.lock that Cargo writes while the workspace
+loads is removed again if it did not exist). It lists the paths that would move and the edits per
+file, and refuses what the real move refuses, but the Cargo check runs only on a real move.
+
 WHAT YOU GET BACK
   `// Alhamdulillah Rust module moved semantically:` then `old -> new`, the number of filesystem
-  paths moved and source files updated. With --json: status, operation, project_path,
-  source_module, target_module, moved_paths, edited_files."#;
+  paths moved and source files updated. With --dry-run: `// Dry run: nothing was changed.`, the
+  moves, `// <file> (<n> edits)` per file. With --json: status, operation, project_path,
+  source_module, target_module, dry_run, moved_paths, edited_files, edits, files (path, edits),
+  moves (from, to)."#;
 
 pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   # Move a module (and everything below it) to another parent
   refac move-module --project-path /my/cargo-workspace crate::engine::matching crate::domain::matching
+
+  # See what it would do first; nothing is written
+  refac move-module --dry-run crate::engine::matching crate::domain::matching
 
   # Same, from inside the workspace, machine-readable
   refac move-module --json crate::util::text crate::text

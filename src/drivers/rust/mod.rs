@@ -7,6 +7,7 @@ mod analysis;
 mod edits;
 mod planner;
 mod rename;
+mod target_parent;
 mod transaction;
 
 pub use planner::move_module;
