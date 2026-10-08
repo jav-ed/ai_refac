@@ -104,11 +104,12 @@ pub fn super_path_edits(
             continue;
         }
 
-        let text = candidate.syntax().text().to_string();
-        let segments = simple_segments(&text)?;
+        // Only the leading `super::` segments are rewritten; whatever follows
+        // them (generic arguments, `::` paths of any shape) stays as written.
+        let segments: Vec<ast::PathSegment> = candidate.segments().collect();
         let super_count = segments
             .iter()
-            .take_while(|segment| segment.as_str() == "super")
+            .take_while(|segment| matches!(segment.kind(), Some(ast::PathSegmentKind::SuperKw)))
             .count();
         if super_count == 0 {
             continue;
@@ -127,20 +128,24 @@ pub fn super_path_edits(
 
         if super_count > context.len() {
             bail!(
-                "Path `{text}` in {} climbs above the crate root",
+                "Path `{}` in {} climbs above the crate root",
+                candidate.syntax().text(),
                 path.display()
             );
         }
         context.truncate(context.len() - super_count);
-        context.extend(segments.into_iter().skip(super_count));
         let replacement = if context.is_empty() {
             "crate".to_string()
         } else {
             format!("crate::{}", context.join("::"))
         };
+        let leading_supers = TextRange::new(
+            candidate.syntax().text_range().start(),
+            segments[super_count - 1].syntax().text_range().end(),
+        );
         edits.push(TextReplacement::from_range(
             path.to_path_buf(),
-            candidate.syntax().text_range(),
+            leading_supers,
             replacement,
         ));
     }
@@ -193,7 +198,13 @@ fn reference_edit(
     let prefix_text = content
         .get(usize::from(prefix_range.start())..usize::from(prefix_range.end()))
         .context("rust-analyzer reference range is outside the source file")?;
-    let leaf = simple_segments(prefix_text)?;
+    let leaf = simple_segments(prefix_text).with_context(|| {
+        format!(
+            "The reference at byte {} in {} cannot be rewritten",
+            usize::from(reference.start()),
+            path.display()
+        )
+    })?;
     let inherited = inherited_use_segments(&path_node)?;
     let mut full = inherited.clone();
     full.extend(leaf);

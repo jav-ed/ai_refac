@@ -84,6 +84,103 @@ fn moves_flat_module_and_rewrites_external_and_super_paths() {
     assert!(!moved.contains("#[path"));
 }
 
+/// Real modules use generic types (`Vec<T>`, `Result<T, E>`), so a path with generic
+/// arguments must not stop the move, and a `super::` path with generic arguments after
+/// it keeps them: only its leading `super::` segments are rewritten.
+#[test]
+fn a_moved_file_with_generic_types_keeps_them_while_super_paths_are_rewritten() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod consumer;\npub mod domain;\npub mod engine;\n",
+    );
+    write(root, "src/domain/mod.rs", "");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "pub mod matching;\npub mod shapes;\n",
+    );
+    write(
+        root,
+        "src/engine/shapes.rs",
+        "pub struct Wrapper<T>(pub T);\npub fn make() -> Wrapper<u32> { Wrapper(7) }\n",
+    );
+    write(
+        root,
+        "src/engine/matching.rs",
+        "use std::collections::HashMap;\n\npub fn execute(items: Vec<u32>) -> Result<HashMap<u32, Vec<String>>, String> {\n    let wrapped: super::shapes::Wrapper<Vec<u32>> = super::shapes::Wrapper(items);\n    Ok(HashMap::from([(wrapped.0.len() as u32, Vec::from([super::shapes::make().0.to_string()]))]))\n}\n",
+    );
+    write(
+        root,
+        "src/consumer.rs",
+        "use crate::engine::matching::execute;\npub fn consume() -> usize { execute(vec![1]).unwrap().len() }\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let moved = common::read_file(root, "src/domain/matching.rs");
+    assert!(
+        moved.contains("Result<HashMap<u32, Vec<String>>, String>"),
+        "{moved}"
+    );
+    assert!(
+        moved.contains("crate::engine::shapes::Wrapper<Vec<u32>> = crate::engine::shapes::Wrapper(items)"),
+        "{moved}"
+    );
+    assert!(!moved.contains("super::"), "{moved}");
+    let consumer = common::read_file(root, "src/consumer.rs");
+    assert!(
+        consumer.contains("crate::domain::matching::execute"),
+        "{consumer}"
+    );
+}
+
+/// Tests are part of the crate: a `#[cfg(test)]` module that uses the moved module, and one
+/// inside the moved file that reaches back out of it, are rewritten like any other code.
+#[test]
+fn references_inside_cfg_test_code_are_rewritten_too() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(
+        root,
+        "src/lib.rs",
+        "pub mod domain;\npub mod engine;\n\n#[cfg(test)]\nmod tests;\n",
+    );
+    write(root, "src/domain/mod.rs", "");
+    write(root, "src/engine/mod.rs", "pub mod matching;\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n\n#[cfg(test)]\nmod tests {\n    use crate::engine::matching::*;\n    #[test]\n    fn reads() { assert_eq!(value(), 7); }\n}\n",
+    );
+    write(
+        root,
+        "src/tests.rs",
+        "use crate::engine::matching::value;\n#[test]\nfn outside() { assert_eq!(value(), 7); }\n",
+    );
+
+    let output = run(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&output);
+
+    let outside = common::read_file(root, "src/tests.rs");
+    assert!(outside.contains("use crate::domain::matching::value;"), "{outside}");
+    let moved = common::read_file(root, "src/domain/matching.rs");
+    assert!(moved.contains("use crate::domain::matching::*;"), "{moved}");
+}
+
 #[test]
 fn moves_mod_rs_subtree_and_creates_missing_parent() {
     let temp = tempfile::tempdir().unwrap();

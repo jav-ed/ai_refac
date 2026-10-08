@@ -31,9 +31,17 @@ impl SemanticWorkspace {
             num_worker_threads: 1,
             proc_macro_processes: 1,
         };
+        // `set_test` switches `cfg(test)` on for the workspace's own crates, as
+        // rust-analyzer does in an editor. Without it every `#[cfg(test)]` module
+        // is invisible: the references inside tests would stay on the old path
+        // and `cargo check --all-targets` would reject the move.
+        let cargo_config = CargoConfig {
+            set_test: true,
+            ..CargoConfig::default()
+        };
         let (database, vfs, _) = load_workspace_at(
             &root,
-            &CargoConfig::default(),
+            &cargo_config,
             &load_config,
             &|message| tracing::debug!(%message, "rust-analyzer workspace load"),
         )
