@@ -2,12 +2,15 @@
 //! (`tests/fixtures/markdown/site`): a move, a rename, and the files that must
 //! not change. Each test checks the exact text of what changes, that every
 //! Markdown file still links to the same files (second reader in
-//! `common/links.rs`), and that moving back restores every byte.
+//! `common/links.rs`), and that moving back restores every byte. Folders,
+//! images and batches are in `site/folders.rs`.
 
 use crate::common;
 
 use common::project::{assert_same_tree, changed, text};
 use common::site::{assert_links_follow, edited, site, sorted};
+
+mod folders;
 
 #[test]
 fn moving_a_file_updates_the_links_to_it_and_the_links_inside_it() {

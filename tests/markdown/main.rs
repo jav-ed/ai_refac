@@ -12,4 +12,3 @@ mod moves;
 mod safety;
 mod scale;
 mod site;
-mod site_folders;
