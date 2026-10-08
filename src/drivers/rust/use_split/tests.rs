@@ -78,3 +78,16 @@ fn a_plain_import_is_not_a_group() {
         None
     );
 }
+
+#[test]
+fn an_item_with_a_list_of_its_own_takes_the_list_along() {
+    assert_eq!(
+        split(
+            "use super::{apply, names::{self, Name}, report};\n",
+            "names",
+            "crate::plan::names"
+        )
+        .unwrap(),
+        "use super::{apply, report};\nuse crate::plan::names::{self, Name};\n"
+    );
+}

@@ -13,7 +13,8 @@ use std::path::Path;
 
 /// The two edits that take the leaf `leaf` out of its group and import
 /// `new_path` in a line of its own, or `None` when the leaf is not an item of
-/// a group. `content` is the file the leaf is in.
+/// a group. The rest of the item (alias, glob, nested list) goes along.
+/// `content` is the file the leaf is in.
 pub fn split_leaf_from_group(
     file: &Path,
     content: &str,
@@ -29,9 +30,6 @@ pub fn split_leaf_from_group(
     let Some(item) = list.syntax().ancestors().find_map(ast::Use::cast) else {
         return Ok(None);
     };
-    if tree.use_tree_list().is_some() || tree.star_token().is_some() {
-        return Ok(None);
-    }
     if item.attrs().next().is_some() {
         bail!(
             "The import in {} carries attributes, so a module in its group cannot be moved out of it; split the group and retry",
@@ -60,10 +58,10 @@ pub fn split_leaf_from_group(
         ),
     };
 
-    let alias = tree
-        .rename()
-        .map(|rename| format!(" {}", rename.syntax().text()))
-        .unwrap_or_default();
+    // What follows the path in the tree travels with it: an alias, a glob, or
+    // a list of its own (`module_graph::{self, ResolvedModule}`).
+    let tail = &content[usize::from(leaf.syntax().text_range().end())
+        ..usize::from(tree.syntax().text_range().end())];
     let visibility = item
         .visibility()
         .map(|visibility| format!("{} ", visibility.syntax().text()))
@@ -89,7 +87,7 @@ pub fn split_leaf_from_group(
             path: file.to_path_buf(),
             start: after_item,
             end: after_item,
-            replacement: format!("\n{indent}{visibility}use {new_path}{alias};"),
+            replacement: format!("\n{indent}{visibility}use {new_path}{tail};"),
         },
     ]))
 }
