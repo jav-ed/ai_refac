@@ -12,6 +12,8 @@ mod module_graph;
 mod planner;
 mod references;
 mod rename;
+mod super_paths;
+mod use_split;
 mod validation;
 mod workspace;
 

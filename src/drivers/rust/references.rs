@@ -1,10 +1,10 @@
-use super::{apply::TextReplacement, module_graph::ResolvedModule, workspace::SemanticWorkspace};
+use super::{
+    apply::TextReplacement, module_graph::ResolvedModule, use_split::split_leaf_from_group,
+    workspace::SemanticWorkspace,
+};
 use anyhow::{Context, Result, bail};
 use ra_ap_ide::{FileId, FilePosition, FindAllRefsConfig, RaFixtureConfig, TextRange};
-use ra_ap_syntax::{
-    AstNode, Edition, SourceFile,
-    ast::{self, HasName},
-};
+use ra_ap_syntax::{AstNode, Edition, SourceFile, ast};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -59,115 +59,16 @@ pub fn module_reference_edits(
                 if path == &source.declaration_file && range == source.name_range {
                     continue;
                 }
-                if let Some(edit) = reference_edit(
+                edits.extend(reference_edit(
                     path,
                     content,
                     range,
                     &source.segments,
                     target_segments,
                     same_crate,
-                )? {
-                    edits.push(edit);
-                }
+                )?);
             }
         }
-    }
-    Ok(edits)
-}
-
-/// Rewrites the `super::` paths of a moved file whose target lies outside the
-/// moved module into absolute `crate::` paths, so they keep their meaning in the
-/// new place. A `super` that stays inside the moved module (the `use super::*`
-/// of an inline `mod tests`, a child reaching its parent) is position
-/// independent and stays as written. `moved_module` is the old path of the
-/// module being moved.
-pub fn super_path_edits(
-    path: &Path,
-    content: &str,
-    file_module: &[String],
-    moved_module: &[String],
-) -> Result<Vec<TextReplacement>> {
-    let parse = SourceFile::parse(content, Edition::CURRENT);
-    if !parse.errors().is_empty() {
-        bail!(
-            "Cannot move {} because it contains Rust syntax errors",
-            path.display()
-        );
-    }
-
-    let mut edits = Vec::new();
-    for candidate in parse
-        .tree()
-        .syntax()
-        .descendants()
-        .filter_map(ast::Path::cast)
-    {
-        if candidate
-            .syntax()
-            .ancestors()
-            .skip(1)
-            .any(|ancestor| ast::Path::cast(ancestor).is_some())
-        {
-            continue;
-        }
-
-        // Only the leading `super::` segments are rewritten; whatever follows
-        // them (generic arguments, `::` paths of any shape) stays as written.
-        let segments: Vec<ast::PathSegment> = candidate.segments().collect();
-        let super_count = segments
-            .iter()
-            .take_while(|segment| matches!(segment.kind(), Some(ast::PathSegmentKind::SuperKw)))
-            .count();
-        if super_count == 0 {
-            continue;
-        }
-
-        let mut context = file_module.to_vec();
-        let mut inline_modules = candidate
-            .syntax()
-            .ancestors()
-            .skip(1)
-            .filter_map(ast::Module::cast)
-            .filter_map(|module| module.name().map(|name| name.text().to_string()))
-            .collect::<Vec<_>>();
-        inline_modules.reverse();
-        context.extend(inline_modules);
-
-        if super_count > context.len() {
-            bail!(
-                "Path `{}` in {} climbs above the crate root",
-                candidate.syntax().text(),
-                path.display()
-            );
-        }
-        context.truncate(context.len() - super_count);
-        if context.starts_with(moved_module) {
-            continue;
-        }
-        let mut replacement = if context.is_empty() {
-            "crate".to_string()
-        } else {
-            format!("crate::{}", context.join("::"))
-        };
-        // `pub(super)` becomes `pub(in crate::parent)`: a path in a visibility
-        // needs the `in`, only the bare keywords go without it.
-        let visibility_without_in = candidate
-            .syntax()
-            .parent()
-            .and_then(ast::VisibilityInner::cast)
-            .is_some_and(|inner| inner.in_token().is_none());
-        if visibility_without_in {
-            replacement = format!("in {replacement}");
-        }
-        let leading_supers = TextRange::new(
-            candidate.syntax().text_range().start(),
-            segments[super_count - 1].syntax().text_range().end(),
-        );
-        edits.push(TextReplacement::from_range(
-            path.to_path_buf(),
-            leading_supers,
-            replacement,
-        ));
     }
     Ok(edits)
 }
@@ -179,7 +80,7 @@ fn reference_edit(
     source: &[String],
     target: &[String],
     same_crate: bool,
-) -> Result<Option<TextReplacement>> {
+) -> Result<Vec<TextReplacement>> {
     let parse = SourceFile::parse(content, Edition::CURRENT);
     if !parse.errors().is_empty() {
         bail!(
@@ -199,7 +100,7 @@ fn reference_edit(
             )
         })?;
     if matches!(token.text(), "self" | "super") {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     // A reference in the arguments of a macro call is a token, not a path
     // node. The ones that spell `crate::…` are rewritten by `macro_paths`; any
@@ -208,7 +109,7 @@ fn reference_edit(
         .parent_ancestors()
         .any(|node| ast::TokenTree::cast(node).is_some())
     {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let mut path_node = token
         .parent_ancestors()
@@ -240,7 +141,7 @@ fn reference_edit(
         .parent()
         .is_some_and(|parent| ast::PathExpr::can_cast(parent.kind()));
     if ends_the_path && is_a_value {
-        return Ok(None);
+        return Ok(Vec::new());
     }
 
     let prefix_range = TextRange::new(path_node.syntax().text_range().start(), reference.end());
@@ -271,13 +172,13 @@ fn reference_edit(
     {
         let new_name = target.last().context("Target module has no name")?;
         if *new_name == leaf[0] {
-            return Ok(None);
+            return Ok(Vec::new());
         }
-        return Ok(Some(TextReplacement::from_range(
+        return Ok(vec![TextReplacement::from_range(
             path.to_path_buf(),
             prefix_range,
             new_name.clone(),
-        )));
+        )]);
     }
 
     let mut full = inherited.clone();
@@ -285,20 +186,28 @@ fn reference_edit(
 
     let desired = desired_reference_path(&full, source, target, same_crate)?;
     let Some(desired) = desired else {
-        return Ok(None);
+        return Ok(Vec::new());
     };
     if !desired.starts_with(&inherited) {
+        // The module no longer lies below the prefix of its group: it leaves
+        // the group and gets an import of its own.
+        let rest = &content
+            [usize::from(reference.end())..usize::from(path_node.syntax().text_range().end())];
+        let new_path = format!("{}{rest}", desired.join("::"));
+        if let Some(edits) = split_leaf_from_group(path, content, &path_node, &new_path)? {
+            return Ok(edits);
+        }
         bail!(
             "Grouped use in {} cannot express the new module path without restructuring the use item; split the relative group and retry",
             path.display()
         );
     }
     let replacement = desired[inherited.len()..].join("::");
-    Ok(Some(TextReplacement::from_range(
+    Ok(vec![TextReplacement::from_range(
         path.to_path_buf(),
         prefix_range,
         replacement,
-    )))
+    )])
 }
 
 fn desired_reference_path(

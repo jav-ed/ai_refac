@@ -541,6 +541,47 @@ fn a_private_module_moved_deeper_stays_visible_to_its_old_users() {
 }
 
 #[test]
+fn a_module_leaves_the_group_of_an_import_that_can_no_longer_reach_it() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    write(
+        root,
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    write(root, "src/lib.rs", "pub mod engine;\n");
+    write(
+        root,
+        "src/engine/mod.rs",
+        "pub mod helper;\npub mod matching;\nmod user;\n",
+    );
+    write(root, "src/engine/helper.rs", "pub fn help() -> u32 { 1 }\n");
+    write(
+        root,
+        "src/engine/matching.rs",
+        "pub fn value() -> u32 { 7 }\n",
+    );
+    write(
+        root,
+        "src/engine/user.rs",
+        "use super::{helper, matching};\n\npub fn go() -> u32 { helper::help() + matching::value() }\n",
+    );
+
+    let output = run(
+        root,
+        "crate::engine::matching",
+        "crate::engine::plan::matching",
+    );
+    common::assert_move_succeeded(&output);
+
+    let user = common::read_file(root, "src/engine/user.rs");
+    assert!(
+        user.starts_with("use super::{helper};\nuse crate::engine::plan::matching;\n"),
+        "{user}"
+    );
+}
+
+#[test]
 fn a_local_variable_named_like_the_module_is_left_alone() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path();

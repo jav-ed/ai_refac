@@ -3,7 +3,7 @@ use super::{
     declarations::{insert_module_declaration, visibility_prefix},
     layout, macro_paths,
     module_graph::{self, ResolvedModule},
-    references, validation,
+    references, super_paths, validation,
     workspace::SemanticWorkspace,
 };
 use anyhow::{Context, Result, bail};
@@ -50,7 +50,7 @@ pub fn move_module(root: &Path, source_path: &str, target_path: &str) -> Result<
     {
         for (path, logical_module) in &module_files {
             let content = std::fs::read_to_string(path)?;
-            replacements.extend(references::super_path_edits(
+            replacements.extend(super_paths::super_path_edits(
                 path,
                 &content,
                 logical_module,
