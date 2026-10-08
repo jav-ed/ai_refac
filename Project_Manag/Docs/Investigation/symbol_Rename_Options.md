@@ -95,6 +95,23 @@ The Dart server renames override hierarchies, `export ... show` lists, named arg
 - **A barrier request works.** `textDocument/semanticTokens/full` on a changed document is answered only when that document is fully resolved. Asking it for every changed document before the references makes the answers deterministic. The engine's `settle` step does that for servers that declare an `analysis_barrier`; the others do nothing. After this, nine of nine passed on repeated runs and under load.
 - **`.dart_tool/package_config.json` is required.** Without it `package:` imports do not resolve and the rename silently misses every file that imports the symbol, so refac stops before any server starts and says "Run `dart pub get`".
 
+## Real projects, not only fixtures
+
+The fixtures are small, so each language was also run on real code (2026-10-07), with the project compiled or analysed before and after:
+
+| Language | Project | Rename | Cost | Result |
+| :--- | :--- | :--- | :--- | :--- |
+| Go | `golang.org/x/tools` v0.51.0 copy, 1,286 `.go` files | `astutil.PathEnclosingInterval` (a function with nine callers in other packages and test files) | 8.4 s, 935 MB | 13 edits in 7 files; `go build ./...` and `go vet` of the changed packages pass. The 25 lines still spelling the name are comments, test messages, and `loader.Program.PathEnclosingInterval`, a different method |
+| Rust | this repository | `file_uri` (a function used in six files, plus an unrelated function of the same name in `lsp_client.rs`) | 32.7 s, 1.9 GB | 12 edits in 6 files; `cargo check --lib --tests` passes; the three lines in `lsp_client.rs` were listed as untouched |
+| Python | Rope 1.15.0, 97 files | class `RefactoringError` | 2.1 s, 331 MB | 61 edits in 14 files, nothing left; basedpyright reports the same 616 errors and 20,912 warnings before and after, and the modules import |
+| Python | Rope 1.15.0 | method `get_kind`, defined in 12 classes of a mostly unannotated code base | 2.7 s, 345 MB | 5 edits; 39 lines in 17 files are listed as untouched, because their receivers have no type. The limit is real and the report says so |
+| Dart | `collection` 1.19.1 from pub.dev, 29 library files and its tests | class `HeapPriorityQueue` | 0.9 s, 170 MB | 19 edits in 2 files; `dart analyze` reports the same 5 issues and the 42 tests of that file pass |
+| Dart | the same package | `QueueList`, `ListEquality` | 3 to 6 s | refused, nothing written: other packages in the pub cache (`async`, `analyzer`) use these classes and no server edits dependencies |
+
+The last row is why the proof now treats references outside the project folder as their own failure. The first version reported "leaves 58 of the 104 places unchanged" and named a file in `~/.pub-cache`, which is correct and not obvious. The message now says the symbol is used by other packages, that the server never edits them, and that a symbol other packages use is part of the project's public interface. It is not retried (gopls gets four tries for a different problem; a file outside the project can never be edited).
+
+The shapes of project were checked too: a project below a hidden `.`-folder, a symlinked project path (Go, Python, Rust, Dart), a Cargo workspace of two crates, a Go `go.work` with two modules, and a Python `src/` layout with `pyproject.toml`. All behave. Non-ASCII text before a symbol on the same line (an emoji is two UTF-16 units) and CRLF files are covered by `tests/rename_encoding.rs`, which fails on all four languages when the UTF-16 offset code is deliberately broken.
+
 ## Server lookup, and what a missing server must say
 
 Not an engine question, but it decided how the servers are found: all four are installed by someone else, and an agent that meets "No such file" has nothing to act on. The locator ([Language servers](../Setup/language_Servers.md)) tries the environment variable (a wrong value is final), then `PATH`, then the folders installers use, requires each candidate to run its version command, records every place it looked, and prints that record with `Run refac doctor <language>`. The case that made the version check mandatory is the rustup stand-in above: a file that exists, is executable, and cannot serve.

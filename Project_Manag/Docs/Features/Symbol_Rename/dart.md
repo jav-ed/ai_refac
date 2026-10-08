@@ -27,6 +27,7 @@ refac rename --project-path /path/to/package --file lib/shapes.dart \
 - Reflection through `runtimeType` prints the new name of a renamed class; the tests expect exactly that.
 - Generated files (`*.g.dart`) are renamed only where the server sees them; regenerate afterwards.
 - A package inside a workspace needs one call per package root.
+- A class or function that other packages in the pub cache use cannot be renamed: the command stops and names those uses, because the server never edits dependencies (measured on `QueueList` of the `collection` package, used by `async`).
 
 ## Tests
 

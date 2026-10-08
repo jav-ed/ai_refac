@@ -54,6 +54,7 @@ Each language has a fixture directory and a test file:
 | Rust rename | `tests/fixtures/rust/rename_crate/` | `tests/rust_rename.rs` | trait methods, shorthand fields, enum variants, `macro_rules!` note, module refusal, `cargo check` after each rename |
 | Python rename | `tests/fixtures/python/rename_project/` | `tests/python_rename.rs` | override family, `__all__`, keyword arguments, untyped receiver note, module refusal; the program and its checks are run after each rename |
 | Dart rename | `tests/fixtures/dart/rename_package/` | `tests/dart_rename.rs` | overrides, `export show`, field formals, named parameters, missing `package_config.json`; `dart analyze --fatal-infos` after each rename |
+| Encoding | the four rename fixtures | `tests/rename_encoding.rs` | CRLF files and wide characters before the symbol on the same line, in Go, Rust, Python, and Dart; the project builds, the text and every line ending are intact |
 | Doctor | none (temporary folders) | `tests/doctor.rs` | overview, per-language report, `--json`, wrong variable, rename and move without a server |
 | Kotlin (JVM) | `tests/fixtures/kotlin/jvm_project/` | `tests/kotlin_moves.rs`, `tests/kotlin_rename.rs`, `tests/kotlin_server.rs`, `tests/kotlin_dispatch.rs` | package moves, directory moves, rollback, symbol renames, clash and shadowing refusals, dispatch through the CLI entry points |
 | Kotlin (Android) | `tests/fixtures/kotlin/android_project/` | `tests/kotlin_android.rs` | class moves and renames with manifest, layout and navigation XML, `R` and `BuildConfig` imports, compiled with a real Android Gradle Plugin |
@@ -81,7 +82,7 @@ Each language has a fixture directory and a test file:
 These scenarios start the real language server, so they are `#[ignore]`d and a plain `cargo test` skips them. A server that is not installed does not skip them: they fail with refac's own missing-server explanation (where it looked, the environment variable, `Run refac doctor <language>`), so the same message that teaches an agent also teaches the test runner. Each successful scenario ends by running the renamed project, because a rename is right when the project still behaves.
 
 ```bash
-cargo test --test go_rename --test rust_rename --test python_rename --test dart_rename -- --ignored
+cargo test --test go_rename --test rust_rename --test python_rename --test dart_rename --test rename_encoding -- --ignored
 ```
 
 The Dart suite also has one normal test (a project without `package_config.json`), so use `--include-ignored` there. Needs `gopls`, `rust-analyzer` (a toolchain that has it; the tests copy `rust-toolchain.toml`), `basedpyright`, and the Dart SDK on `PATH` or through `REFAC_GOPLS`, `REFAC_RUST_ANALYZER`, `REFAC_PYTHON_SERVER`, `REFAC_DART`. `tests/doctor.rs` needs none of them: it runs the binary with an empty `PATH` and `HOME`. Under heavy CPU load gopls sometimes answers with part of the edits; the engine asks again (four attempts for Go), and the nine Go scenarios passed 16 of 16 runs under load. `REFAC_LSP_TRACE=1` prints every message exchanged with the server when a scenario misbehaves.

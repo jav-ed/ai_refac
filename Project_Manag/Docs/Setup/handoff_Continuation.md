@@ -26,6 +26,7 @@ Written on 2026-10-07 at the end of the session that added the Kotlin backend, r
 ## Known limits and untested corners
 
 - Symbol rename: Python calls on untyped receivers, Rust `macro_rules!` bodies, code behind inactive `cfg` or build constraints, and generated files are reported, not renamed. Package, module, and file names are `move` operations. gopls can answer with part of the edits under heavy load (the engine asks up to four times). Dart needs `dart pub get`. The real-server suites for Go, Rust, Python, and Dart were run on this session's tool versions (see [Tool versions](tool_Versions.md)); they are not part of plain `cargo test`.
+- Checked on real code (x/tools, this repository, Rope, the Dart `collection` package), in workspaces, behind symlinks and hidden folders, and with wide characters and CRLF: see the end of [Symbol rename options](../Investigation/symbol_Rename_Options.md). There is no CI in the repository, so none of the suites runs automatically; the real-server suites need the four servers installed.
 - Ideas not built: `refac move --dry-run`, Markdown heading rename, a Python rename that starts from an override and reaches the base.
 
 - Kotlin: moves between modules or source sets are refused, so cross-module moves are untested. Every Kotlin call costs about 30 seconds of Gradle import and about 1.6 GiB for the server on a tiny project; the server has no memory cap. One broken-build test hung for more than five minutes in one of nine runs and could not be reproduced; the 600 second timeout and the import log tail are the guard.

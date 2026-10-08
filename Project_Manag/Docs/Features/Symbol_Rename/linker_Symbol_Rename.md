@@ -40,7 +40,7 @@ Human text lists each changed file with its edit count, then the notes. `--json`
 
 ## Hard failures
 
-Each stops the command and leaves every file unchanged: the server missing or broken (the error lists where it looked); a symbol the server will not rename; an ambiguous name; a name clash or shadowing the proof detects; a server answer that stays incomplete after the allowed attempts; an edit outside every reference of the symbol that the language does not expect; a file that changed during planning; a rename that needs a file operation.
+Each stops the command and leaves every file unchanged: the server missing or broken (the error lists where it looked); a symbol the server will not rename; an ambiguous name; a name clash or shadowing the proof detects; a server answer that stays incomplete after the allowed attempts; a reference in a file outside the project (a dependency that uses the symbol, which no server edits); an edit outside every reference of the symbol that the language does not expect; a file that changed during planning; a rename that needs a file operation.
 
 ## Related
 

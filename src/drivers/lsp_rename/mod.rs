@@ -59,8 +59,16 @@ pub async fn rename_symbol(
     )?;
 
     let mut server = language.start(&root, &file).await?;
-    let outcome =
-        plan_and_verify(&mut *server, language, &file, text, &occurrences, &request).await;
+    let outcome = plan_and_verify(
+        &mut *server,
+        language,
+        &root,
+        &file,
+        text,
+        &occurrences,
+        &request,
+    )
+    .await;
     server.shutdown().await;
     let candidate = outcome?;
 
@@ -83,6 +91,7 @@ pub async fn rename_symbol(
 async fn plan_and_verify(
     server: &mut dyn RenameServer,
     language: &dyn Language,
+    root: &Path,
     file: &Path,
     text: &str,
     occurrences: &[symbol_scan::Occurrence],
@@ -102,7 +111,7 @@ async fn plan_and_verify(
             &request.new_name,
         )
         .await?;
-        match verify::verify(server, language, &candidate, file, &request.symbol).await {
+        match verify::verify(server, language, root, &candidate, file, &request.symbol).await {
             Ok(()) => return Ok(candidate),
             Err(error) if attempt < attempts && verify::is_unfaithful(&error) => {
                 tracing::warn!("{error}\nAsking the server again ({attempt} of {attempts})");

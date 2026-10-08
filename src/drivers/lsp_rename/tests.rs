@@ -67,7 +67,8 @@ async fn plan(language: &dyn Language, server: &mut WordServer, file: &Path) -> 
         |c| c == '_' || c.is_alphanumeric(),
         symbol_scan::line_column(SOURCE),
     )?;
-    plan_and_verify(server, language, file, SOURCE, &occurrences, &request).await
+    let root = file.parent().unwrap();
+    plan_and_verify(server, language, root, file, SOURCE, &occurrences, &request).await
 }
 
 #[tokio::test]

@@ -7,6 +7,7 @@ use lsp_types::{Position, Range, TextEdit};
 use serde_json::Value;
 
 const FILE: &str = "/tmp/refac-verify-tests/a.src";
+const ROOT: &str = "/tmp/refac-verify-tests";
 
 fn range(line: u32, from: u32, to: u32) -> Range {
     Range {
@@ -148,7 +149,8 @@ fn a_reference_that_the_server_did_not_edit_is_an_unfaithful_answer() {
     // Only the first call is edited; the second is listed but forgotten.
     let plan = plan(before, vec![edit(0, 0, 4, "surface")]);
     let group = group(vec![reference(0, 0, 4), reference(0, 8, 12)]);
-    let error = check_every_reference_is_edited(&plan, &group, "area").unwrap_err();
+    let error =
+        check_every_reference_is_edited(&plan, &group, "area", Path::new(ROOT)).unwrap_err();
     assert!(is_unfaithful(&error), "{error:#}");
     let text = error.to_string();
     assert!(text.contains("leaves 1 of the 2 places"), "{text}");
@@ -168,7 +170,7 @@ fn minimal_diff_edits_inside_the_name_count_as_edited() {
         ],
     );
     let group = group(vec![reference(0, 0, 8)]);
-    assert!(check_every_reference_is_edited(&plan, &group, "decorate").is_ok());
+    assert!(check_every_reference_is_edited(&plan, &group, "decorate", Path::new(ROOT)).is_ok());
 }
 
 #[test]
@@ -177,7 +179,35 @@ fn a_reference_that_spells_something_else_needs_no_edit() {
     let before = "impl Shape { fn new() -> Self { Self } }\n";
     let plan = plan(before, vec![edit(0, 5, 10, "Figure")]);
     let group = group(vec![reference(0, 5, 10), reference(0, 29, 33)]);
-    assert!(check_every_reference_is_edited(&plan, &group, "Shape").is_ok());
+    assert!(check_every_reference_is_edited(&plan, &group, "Shape", Path::new(ROOT)).is_ok());
+}
+
+/// A dependency in the package cache that uses the symbol: no server edits
+/// it, so the rename can never be complete, and asking again cannot help.
+#[test]
+fn a_usage_in_a_file_outside_the_project_is_named_and_is_not_retried() {
+    let project = tempfile::tempdir().unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let outside = elsewhere.path().join("dependency.src");
+    std::fs::write(&outside, "area();\n").unwrap();
+    let before = "area();\n";
+    let plan = plan(before, vec![edit(0, 0, 4, "surface")]);
+    let group = group(vec![
+        reference(0, 0, 4),
+        Reference {
+            path: outside.clone(),
+            range: range(0, 0, 4),
+        },
+    ]);
+    let error = check_every_reference_is_edited(&plan, &group, "area", project.path()).unwrap_err();
+    assert!(!is_unfaithful(&error), "{error:#}");
+    let text = error.to_string();
+    assert!(
+        text.contains("used in 1 places in files outside the project folder"),
+        "{text}"
+    );
+    assert!(text.contains("dependency.src:1"), "{text}");
+    assert!(text.contains("Nothing was changed"), "{text}");
 }
 
 #[tokio::test]

@@ -11,7 +11,7 @@ use super::language::Language;
 use super::related::{self, Group};
 use super::server::RenameServer;
 use crate::drivers::lsp_text::TextIndex;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -41,6 +41,7 @@ pub fn is_unfaithful(error: &anyhow::Error) -> bool {
 pub async fn verify(
     server: &mut dyn RenameServer,
     language: &dyn Language,
+    root: &Path,
     candidate: &Candidate,
     target: &Path,
     symbol: &str,
@@ -54,7 +55,7 @@ pub async fn verify(
     }
     server.settle().await?;
     for group in &groups {
-        check_every_reference_is_edited(plan, group, symbol)?;
+        check_every_reference_is_edited(plan, group, symbol, root)?;
         check_group(server, plan, group).await?;
     }
     Ok(())
@@ -74,7 +75,17 @@ fn touches(from: usize, to: usize, start: usize, end: usize) -> bool {
 /// touches it, its answer is incomplete. A reference that spells something
 /// else (`Self` for a type, a Java accessor for a Kotlin property) is
 /// rightly left alone.
-fn check_every_reference_is_edited(plan: &RenamePlan, group: &Group, symbol: &str) -> Result<()> {
+///
+/// A reference the server did not edit in a file outside the project (a
+/// dependency in the package cache that uses the symbol) is a different
+/// failure: no server edits those files, so asking again cannot help, and the
+/// rename could never be complete. It is reported as such, not as `Unfaithful`.
+fn check_every_reference_is_edited(
+    plan: &RenamePlan,
+    group: &Group,
+    symbol: &str,
+    root: &Path,
+) -> Result<()> {
     let mut texts: HashMap<&Path, String> = HashMap::new();
     let mut missed = Vec::new();
     for reference in &group.references {
@@ -123,22 +134,38 @@ fn check_every_reference_is_edited(plan: &RenamePlan, group: &Group, symbol: &st
     if missed.is_empty() {
         return Ok(());
     }
-    let places: Vec<String> = missed
+    let places = |references: &[&Reference]| -> String {
+        references
+            .iter()
+            .take(6)
+            .map(|reference| {
+                format!(
+                    "{}:{}",
+                    reference.path.display(),
+                    reference.range.start.line + 1
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let outside: Vec<&Reference> = missed
         .iter()
-        .take(6)
-        .map(|reference| {
-            format!(
-                "{}:{}",
-                reference.path.display(),
-                reference.range.start.line + 1
-            )
-        })
+        .filter(|reference| !reference.path.starts_with(root))
+        .copied()
         .collect();
+    if !outside.is_empty() {
+        bail!(
+            "The symbol is also used in {} places in files outside the project folder {} (first: {}). Those files belong to other packages, such as dependencies in the package cache, and the language server never edits them, so after this rename they would still use the old name and stop building. Nothing was changed. A symbol that other packages use is part of this project's public interface: rename it in those packages together with this one, or keep the name.",
+            outside.len(),
+            root.display(),
+            places(&outside)
+        );
+    }
     Err(Unfaithful(format!(
         "The server's rename leaves {} of the {} places that refer to the symbol unchanged (first: {}), so the renamed program would not mean the same. Nothing was changed.",
         missed.len(),
         group.references.len(),
-        places.join(", ")
+        places(&missed)
     ))
     .into())
 }
