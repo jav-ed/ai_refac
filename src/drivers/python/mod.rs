@@ -1,4 +1,4 @@
-use super::RefactorDriver;
+use super::{MovePreview, RefactorDriver};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::result::Result::Ok;
@@ -60,6 +60,24 @@ impl RefactorDriver for PythonDriver {
 
         // Fallback to Pyrefly
         self.pyrefly.move_files(file_map, root_path).await
+    }
+
+    /// The same choice as the real move: Rope when it is there and succeeds,
+    /// Pyrefly otherwise.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        if self.rope.check_availability().await.unwrap_or(false) {
+            match self.rope.plan_move(file_map.clone(), root_path).await {
+                Ok(preview) => return Ok(preview),
+                Err(e) => {
+                    tracing::warn!("Rope failed, falling back to Pyrefly: {}", e);
+                }
+            }
+        }
+        self.pyrefly.plan_move(file_map, root_path).await
     }
 }
 

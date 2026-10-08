@@ -3,7 +3,8 @@
 //! references); refac wraps it with ordering, verification, rollback and the
 //! Android parts the server does not touch.
 
-use super::RefactorDriver;
+use super::preview::copy::{CopyPlan, preview_on_copy};
+use super::{MovePreview, RefactorDriver};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -49,5 +50,28 @@ impl RefactorDriver for KotlinDriver {
         root_path: Option<&std::path::Path>,
     ) -> Result<Vec<String>> {
         Ok(moves::move_files(&file_map, root_path).await?.notes)
+    }
+
+    /// A Kotlin move runs in groups, each asked of the server after the one
+    /// before was written, and then the Android layer reads the moved files. It
+    /// is previewed by the real move on a copy of the project. The server
+    /// imports the copy with Gradle, which takes as long as for a real move.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        preview_on_copy(
+            root_path,
+            &file_map,
+            CopyPlan {
+                tool_state: &[".gradle", ".kotlin"],
+                scratch: &["build"],
+            },
+            |pairs, copy| async move {
+                Ok(moves::move_files(&pairs, Some(copy.as_path())).await?.notes)
+            },
+        )
+        .await
     }
 }

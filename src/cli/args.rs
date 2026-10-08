@@ -29,6 +29,16 @@ pub(super) struct MoveArgs {
     #[arg(long, required = true, num_args = 1.., value_name = "PATH", value_hint = ValueHint::AnyPath)]
     pub(super) target_path: Vec<String>,
 
+    /// Plan the move, print what it would do, and change no file.
+    ///
+    /// Lists, per language, the paths that would move (also the files that move with a Go package)
+    /// and the edits per file, and refuses what the real move refuses. Language servers start
+    /// as for a real move and stop afterwards. Python and Kotlin are planned by moving a throw-away
+    /// copy of the project (limit 500 MiB, REFAC_DRY_RUN_COPY_MAX_MB). The checks that follow a real
+    /// move (the resolver, the compiler) run only on a real move.
+    #[arg(long)]
+    pub(super) dry_run: bool,
+
     /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,

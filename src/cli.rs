@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use crate::logic::{RefactorRequest, handle_refactor};
+use crate::logic::{RefactorRequest, handle_refactor, plan_refactor};
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::generate;
@@ -16,7 +16,10 @@ mod output;
 mod rename;
 
 use args::{CompletionsArgs, MoveArgs, MoveModuleArgs, RenameArgs};
-use output::{ErrorOutput, MoveModuleSuccessOutput, MoveSuccessOutput, MovedPath, RenamedFile};
+use output::{
+    ErrorOutput, MoveDryRunOutput, MoveModuleSuccessOutput, MoveSuccessOutput, MovedPath,
+    RenamedFile,
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -125,6 +128,10 @@ async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
             .map(|path| path.to_string_lossy().into_owned()),
     };
 
+    if args.dry_run {
+        return execute_move_dry_run(&args, req).await;
+    }
+
     match handle_refactor(req).await {
         Ok(result) => {
             if args.json {
@@ -152,6 +159,50 @@ async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
             error,
         }),
     }
+}
+
+async fn execute_move_dry_run(args: &MoveArgs, req: RefactorRequest) -> Result<(), CliError> {
+    let plan = plan_refactor(req).await.map_err(|error| CliError {
+        json: args.json,
+        error,
+    })?;
+    if !args.json {
+        println!("{}", plan.text);
+        return Ok(());
+    }
+    let payload = MoveDryRunOutput {
+        status: "ok",
+        operation: "move",
+        dry_run: true,
+        project_path: args
+            .project_path
+            .as_deref()
+            .and_then(std::path::Path::to_str),
+        source_path: &args.source_path,
+        target_path: &args.target_path,
+        moved_paths: plan.moves.len(),
+        edited_files: plan.files.len(),
+        edits: plan.files.iter().map(|(_, edits)| edits).sum(),
+        files: plan
+            .files
+            .iter()
+            .map(|(path, edits)| RenamedFile {
+                path: path.clone(),
+                edits: *edits,
+            })
+            .collect(),
+        moves: plan
+            .moves
+            .iter()
+            .map(|(from, to)| MovedPath {
+                from: from.clone(),
+                to: to.clone(),
+            })
+            .collect(),
+        notes: &plan.notes,
+        result: &plan.text,
+    };
+    write_json(io::stdout(), &payload).map_err(|error| CliError { json: true, error })
 }
 
 fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> {

@@ -1,12 +1,16 @@
-use super::RefactorDriver;
-use super::complete_filesystem_moves;
-use crate::drivers::lsp::client::LspClient;
-use crate::drivers::lsp::client::SymbolRenameRequest;
+use super::{MovePreview, RefactorDriver, complete_filesystem_moves};
+use crate::drivers::lsp::client::{LspClient, SymbolRenameRequest, summarize};
 use crate::servers;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
-use lsp_types::Position;
 use std::path::{Path, PathBuf};
+
+mod requests;
+
+use requests::{
+    GoPackageRenameRequest, build_go_package_rename_request, build_go_post_lsp_source_path,
+    resolve_abs_path, resolve_root_dir,
+};
 
 #[derive(Default)]
 pub struct GoDriver;
@@ -38,37 +42,7 @@ impl RefactorDriver for GoDriver {
         let binary = servers::executable("go", &root_dir)?;
         let client = LspClient::new(&binary.to_string_lossy());
 
-        // Pass 1: collect one LSP request per unique source package (directory).
-        // Go's package-per-directory model means gopls renames the entire package
-        // when any file moves cross-directory, so one representative rename per
-        // unique source dir is sufficient.  Same logic as before: a source dir is
-        // only marked "seen" when we actually obtain an LSP request for it, so
-        // same-dir moves (which return None from build_go_package_rename_request)
-        // do not suppress a later cross-dir move from the same directory.
-        let mut seen_source_dirs: std::collections::HashSet<PathBuf> =
-            std::collections::HashSet::new();
-        // (source_dir, target_abs, request)
-        let mut lsp_package_requests: Vec<(PathBuf, PathBuf, GoPackageRenameRequest)> = Vec::new();
-
-        for (source, target) in &file_map {
-            let source_abs = resolve_abs_path(&root_dir, Path::new(source));
-            let target_abs = resolve_abs_path(&root_dir, Path::new(target));
-            let source_dir = match source_abs.parent() {
-                Some(d) => d.to_path_buf(),
-                None => continue,
-            };
-
-            if seen_source_dirs.contains(&source_dir) {
-                continue;
-            }
-
-            if let Some(request) =
-                build_go_package_rename_request(&root_dir, &source_abs, &target_abs)?
-            {
-                seen_source_dirs.insert(source_dir.clone());
-                lsp_package_requests.push((source_dir, target_abs, request));
-            }
-        }
+        let lsp_package_requests = package_requests(&root_dir, &file_map)?;
 
         // Pass 2: run all cross-dir package renames in one gopls session.
         // Maps source_dir → Vec<(old_abs, new_abs)> of file renames gopls reported.
@@ -76,26 +50,11 @@ impl RefactorDriver for GoDriver {
             std::collections::HashMap::new();
 
         if !lsp_package_requests.is_empty() {
-            let symbol_requests: Vec<SymbolRenameRequest> = lsp_package_requests
-                .iter()
-                .map(|(_, target_abs, request)| {
-                    let source_abs = resolve_abs_path(&root_dir, &request.document_path);
-                    let mut pending_moves = std::collections::HashMap::new();
-                    pending_moves.insert(target_abs.clone(), source_abs);
-                    SymbolRenameRequest {
-                        document_path: request.document_path.clone(),
-                        position: request.position,
-                        new_name: request.new_name.clone(),
-                        pending_moves,
-                    }
-                })
-                .collect();
-
             let all_file_renames = client
                 .initialize_and_rename_symbols_batch(
                     &[],
                     Some(root_dir.as_path()),
-                    symbol_requests,
+                    symbol_requests(&root_dir, &lsp_package_requests),
                     "go",
                 )
                 .await?;
@@ -141,147 +100,110 @@ impl RefactorDriver for GoDriver {
 
         Ok(())
     }
-}
 
-struct GoPackageRenameRequest {
-    document_path: PathBuf,
-    position: Position,
-    new_name: String,
-}
+    /// The package renames gopls proposes, each answered against the files as
+    /// they are now. A move to another directory renames the whole package, so
+    /// the files that travel with it are listed too.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        let root_dir = resolve_root_dir(root_path)?;
+        let binary = servers::executable("go", &root_dir)?;
+        let client = LspClient::new(&binary.to_string_lossy());
 
-fn build_go_package_rename_request(
-    root_dir: &Path,
-    source_abs: &Path,
-    target_abs: &Path,
-) -> Result<Option<GoPackageRenameRequest>> {
-    if source_abs.parent() == target_abs.parent() {
-        return Ok(None);
-    }
+        let requests = package_requests(&root_dir, &file_map)?;
+        let plans = client
+            .plan_symbol_renames(
+                &[],
+                Some(root_dir.as_path()),
+                symbol_requests(&root_dir, &requests),
+                "go",
+            )
+            .await?;
 
-    let source_content = std::fs::read_to_string(source_abs)?;
-    let position = find_go_package_name_position(&source_content)
-        .context("Could not find a package declaration in the Go source file")?;
-    let new_name = build_go_target_package_path(root_dir, target_abs)?;
-
-    Ok(Some(GoPackageRenameRequest {
-        document_path: source_abs.to_path_buf(),
-        position,
-        new_name,
-    }))
-}
-
-fn build_go_target_package_path(root_dir: &Path, target_abs: &Path) -> Result<String> {
-    let go_mod = std::fs::read_to_string(root_dir.join("go.mod")).context(
-        "Go refactors that move files across directories require go.mod at project root",
-    )?;
-    let module_path =
-        parse_go_module_path(&go_mod).context("Could not parse module path from go.mod")?;
-    let target_dir = target_abs
-        .parent()
-        .context("Go target path is missing a parent directory")?;
-    let rel_target_dir = target_dir.strip_prefix(root_dir).with_context(|| {
-        format!(
-            "Go target directory {:?} is outside project root",
-            target_dir
-        )
-    })?;
-
-    let rel = rel_target_dir
-        .components()
-        .map(|component| component.as_os_str().to_string_lossy().into_owned())
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>()
-        .join("/");
-
-    if rel.is_empty() {
-        Ok(module_path)
-    } else {
-        Ok(format!("{module_path}/{rel}"))
-    }
-}
-
-fn build_go_post_lsp_source_path(
-    source_abs: &Path,
-    target_abs: &Path,
-    did_invoke_package_rename: bool,
-) -> Option<PathBuf> {
-    if !did_invoke_package_rename || source_abs.parent() == target_abs.parent() {
-        return None;
-    }
-
-    let source_name = source_abs.file_name()?;
-    Some(target_abs.parent()?.join(source_name))
-}
-
-fn parse_go_module_path(content: &str) -> Option<String> {
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("//") {
-            continue;
-        }
-
-        if let Some(value) = trimmed.strip_prefix("module ") {
-            return Some(value.trim().trim_matches('"').to_string());
-        }
-    }
-
-    None
-}
-
-fn find_go_package_name_position(content: &str) -> Option<Position> {
-    for (line_index, line) in content.lines().enumerate() {
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with("package ") {
-            continue;
-        }
-
-        let indent = line.len() - trimmed.len();
-        let name_start = indent + "package ".len();
-        let name_end = go_identifier_end(line, name_start);
-        if name_end > name_start {
-            return Some(Position::new(
-                line_index as u32,
-                utf16_len(&line[..name_start]) as u32,
+        let mut preview = MovePreview {
+            moves: file_map
+                .iter()
+                .map(|(from, to)| {
+                    (
+                        resolve_abs_path(&root_dir, Path::new(from)),
+                        resolve_abs_path(&root_dir, Path::new(to)),
+                    )
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let requested = preview.moves.len();
+        summarize(&plans)?.apply_to(&mut preview, "gopls");
+        if preview.moves.len() > requested {
+            let travelling: Vec<String> = preview.moves[requested..]
+                .iter()
+                .map(|(from, _)| from.display().to_string())
+                .collect();
+            preview.notes.push(format!(
+                "Go moves entire packages. These files would also be relocated as part of the package rename: {}.",
+                travelling.join(", ")
             ));
         }
+        Ok(preview)
     }
-
-    None
 }
 
-fn go_identifier_end(line: &str, start: usize) -> usize {
-    let bytes = line.as_bytes();
-    let mut end = start;
+/// Pass 1: one request per unique source package (directory). Go's
+/// package-per-directory model means gopls renames the entire package when any
+/// file moves cross-directory, so one representative rename per unique source
+/// dir is sufficient. A source dir is only marked "seen" when a request was
+/// obtained for it, so same-dir moves (which return None from
+/// `build_go_package_rename_request`) do not suppress a later cross-dir move
+/// from the same directory. The tuple is (source_dir, target_abs, request).
+fn package_requests(
+    root_dir: &Path,
+    file_map: &[(String, String)],
+) -> Result<Vec<(PathBuf, PathBuf, GoPackageRenameRequest)>> {
+    let mut seen_source_dirs: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    let mut requests = Vec::new();
 
-    while end < bytes.len() {
-        let byte = bytes[end];
-        if byte.is_ascii_alphanumeric() || byte == b'_' {
-            end += 1;
-        } else {
-            break;
+    for (source, target) in file_map {
+        let source_abs = resolve_abs_path(root_dir, Path::new(source));
+        let target_abs = resolve_abs_path(root_dir, Path::new(target));
+        let source_dir = match source_abs.parent() {
+            Some(d) => d.to_path_buf(),
+            None => continue,
+        };
+
+        if seen_source_dirs.contains(&source_dir) {
+            continue;
+        }
+
+        if let Some(request) = build_go_package_rename_request(root_dir, &source_abs, &target_abs)?
+        {
+            seen_source_dirs.insert(source_dir.clone());
+            requests.push((source_dir, target_abs, request));
         }
     }
-
-    end
+    Ok(requests)
 }
 
-fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
-}
-
-fn resolve_root_dir(root_path: Option<&Path>) -> Result<PathBuf> {
-    match root_path {
-        Some(root) => Ok(root.to_path_buf()),
-        None => Ok(std::env::current_dir()?),
-    }
-}
-
-fn resolve_abs_path(root_dir: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        root_dir.join(path)
-    }
+fn symbol_requests(
+    root_dir: &Path,
+    requests: &[(PathBuf, PathBuf, GoPackageRenameRequest)],
+) -> Vec<SymbolRenameRequest> {
+    requests
+        .iter()
+        .map(|(_, target_abs, request)| {
+            let source_abs = resolve_abs_path(root_dir, &request.document_path);
+            let mut pending_moves = std::collections::HashMap::new();
+            pending_moves.insert(target_abs.clone(), source_abs);
+            SymbolRenameRequest {
+                document_path: request.document_path.clone(),
+                position: request.position,
+                new_name: request.new_name.clone(),
+                pending_moves,
+            }
+        })
+        .collect()
 }
 
 async fn complete_go_filesystem_move(source_abs: &Path, target_abs: &Path) -> Result<()> {

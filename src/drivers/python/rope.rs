@@ -1,4 +1,5 @@
-use super::super::RefactorDriver;
+use super::super::preview::copy::{CopyPlan, preview_on_copy};
+use super::super::{MovePreview, RefactorDriver};
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
@@ -88,6 +89,28 @@ impl RefactorDriver for RopeDriver {
         tracing::info!("Rope batch output: {}", stdout);
 
         Ok(())
+    }
+
+    /// Rope applies the moves one after the other and reads the files it has
+    /// moved, so the plan is the real move on a copy of the project.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        preview_on_copy(
+            root_path,
+            &file_map,
+            CopyPlan {
+                tool_state: &[".ropeproject"],
+                scratch: &[],
+            },
+            |pairs, copy| async move {
+                self.move_files(pairs, Some(copy.as_path())).await?;
+                Ok(Vec::new())
+            },
+        )
+        .await
     }
 }
 

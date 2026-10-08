@@ -1,6 +1,5 @@
-use super::super::RefactorDriver;
-use super::super::complete_filesystem_moves;
-use crate::drivers::lsp::client::LspClient;
+use super::super::{MovePreview, RefactorDriver, complete_filesystem_moves};
+use crate::drivers::lsp::client::{LspClient, PendingChange, apply_pending_changes, summarize};
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 
@@ -37,6 +36,43 @@ impl RefactorDriver for PyreflyDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
+        let changes = self.plan(&file_map, root_path).await?;
+        apply_pending_changes(changes).await?;
+
+        complete_filesystem_moves(&file_map, root_path).await?;
+
+        Ok(())
+    }
+
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        let changes = self.plan(&file_map, root_path).await?;
+        let root = match root_path {
+            Some(root) => std::path::absolute(root)?,
+            None => std::env::current_dir()?,
+        };
+        let mut preview = MovePreview {
+            moves: file_map
+                .iter()
+                .map(|(from, to)| (root.join(from), root.join(to)))
+                .collect(),
+            ..Default::default()
+        };
+        summarize(&[changes])?.apply_to(&mut preview, "Pyrefly server");
+        Ok(preview)
+    }
+}
+
+impl PyreflyDriver {
+    /// The server's plan for the moves; nothing is written.
+    async fn plan(
+        &self,
+        file_map: &[(String, String)],
+        root_path: Option<&std::path::Path>,
+    ) -> Result<Vec<PendingChange>> {
         let bin = &self.bin_path;
 
         // Ensure init - check if pyrefly.toml exists in the project root.
@@ -56,12 +92,8 @@ impl RefactorDriver for PyreflyDriver {
 
         // Use generic client with batch support
         self.client
-            .initialize_and_rename_files(&["lsp"], file_map.clone(), root_path, "python", &["py"])
-            .await?;
-
-        complete_filesystem_moves(&file_map, root_path).await?;
-
-        Ok(())
+            .plan_file_renames(&["lsp"], file_map.to_vec(), root_path, "python", &["py"])
+            .await
     }
 }
 

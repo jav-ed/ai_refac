@@ -1,15 +1,19 @@
-use crate::validation::initial_sanity_check;
 use anyhow::{Result, bail};
+use prepare::{Prepared, prepare};
 use report::{FailedGroup, MoveOutcome, Pairs};
 use std::collections::{BTreeMap, HashMap};
 
+mod dry_run;
 mod go_collaterals;
 mod markdown_links;
+mod prepare;
 pub mod rename;
 mod report;
 mod route;
 mod typescript;
 mod unavailable;
+
+pub use dry_run::{DryRun, plan_refactor};
 
 /// Parameters for a refactoring request.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -34,44 +38,17 @@ pub struct RefactorRequest {
 ///
 /// # Internal Docs
 /// This function acts as the **Orchestrator**.
-/// 1. Runs validation.
-/// 2. Determines which driver to use (TODO).
-/// 3. Dispatches the request.
+/// 1. Runs validation and groups the paths by language (`prepare`).
+/// 2. Dispatches each group to its driver.
+/// 3. Fixes the Markdown links to what the other languages moved.
 pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
-    // 1. Validation
-    initial_sanity_check(
-        &req.source_path,
-        &req.operation,
-        req.target_path.as_ref(),
-        req.project_path.as_deref(),
-    )?;
+    let Prepared {
+        root,
+        groups,
+        skipped,
+        typescript_source_count,
+    } = prepare(&req).await?;
 
-    // 2. Group files by language
-    let targets = req
-        .target_path
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Target path required for move"))?;
-
-    // Map: Language -> Vec<(Source, Target)>
-    let mut batch_map: std::collections::HashMap<String, Vec<(String, String)>> =
-        std::collections::HashMap::new();
-    let mut skipped_files = Vec::new();
-
-    for (src, tgt) in req.source_path.iter().zip(targets.iter()) {
-        let root = req.project_path.as_deref().map(std::path::Path::new);
-        let Some(lang) = route::language_of(src, root)? else {
-            tracing::warn!("Skipping file with unsupported extension: {}", src);
-            skipped_files.push(src.clone());
-            continue;
-        };
-        batch_map
-            .entry(lang.to_string())
-            .or_default()
-            .push((src.clone(), tgt.clone()));
-    }
-
-    // 3. Dispatch Batches — sorted for deterministic output order
-    let root = req.project_path.as_ref().map(std::path::Path::new);
     // Folders are gone once moved, so ask now for the Markdown link pass later.
     let directories = markdown_links::directories(&req.source_path, root);
     let mut moved: BTreeMap<String, Pairs> = BTreeMap::new();
@@ -79,36 +56,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     let mut notes: HashMap<String, Vec<String>> = HashMap::new();
     let mut failed: Vec<FailedGroup> = Vec::new();
 
-    let mut dispatch_order: Vec<(String, Pairs)> = batch_map.into_iter().collect();
-    dispatch_order.sort_by(|a, b| a.0.cmp(&b.0));
-
-    // Enforce the documented limit before any language batch mutates the project.
-    let typescript_source_count = dispatch_order
-        .iter()
-        .find(|(lang, _)| lang == "typescript")
-        .map(|(_, files)| typescript::count_source_files(files, root))
-        .transpose()?
-        .unwrap_or(0);
-    if typescript_source_count > typescript::MAX_FILES_PER_MOVE {
-        bail!(
-            "TypeScript/JavaScript move contains {} source files; the maximum is {}. Split the move into smaller batches.",
-            typescript_source_count,
-            typescript::MAX_FILES_PER_MOVE
-        );
-    }
-
-    // Every language server and tool a group needs must be there before the
-    // first group moves, or a missing one would stop the command half way.
-    let mut drivers = Vec::new();
-    for (lang, files) in dispatch_order {
-        let driver = route::driver_for(&lang)?;
-        if !driver.check_availability().await? {
-            bail!("{}", unavailable::message(&lang, root));
-        }
-        drivers.push((lang, files, driver));
-    }
-
-    for (lang, files, driver) in drivers {
+    for (lang, files, driver) in groups {
         match driver.move_files_with_notes(files.clone(), root).await {
             Ok(driver_notes) => {
                 notes.insert(lang.clone(), driver_notes);
@@ -129,7 +77,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         markdown_links::update(&moved, &directories, root).await?
     };
 
-    // 4. Build response. A request that was not carried out in full is an
+    // Build response. A request that was not carried out in full is an
     // error with the whole report as its text, so the exit code says so.
     let outcome = MoveOutcome {
         root,
@@ -137,7 +85,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         notes,
         link_notes,
         failed,
-        skipped: skipped_files,
+        skipped,
         typescript_source_count,
     };
     let report = outcome.render();

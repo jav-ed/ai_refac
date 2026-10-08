@@ -1,5 +1,4 @@
-use super::RefactorDriver;
-use super::complete_filesystem_moves;
+use super::{MovePreview, RefactorDriver, complete_filesystem_moves};
 use crate::drivers::lsp::client::{
     LspClient, PendingChange, apply_pending_changes, collect_workspace_documents,
 };
@@ -34,40 +33,82 @@ impl RefactorDriver for DartDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        let root = match root_path {
-            Some(root) => std::path::absolute(root)?,
-            None => std::env::current_dir()?,
-        };
-
-        // The command to start LSP is `dart language-server`
-        let dart = crate::servers::executable("dart", &root)?;
-        let client = LspClient::new(&dart.to_string_lossy());
-        let changes = client
-            .plan_file_renames(
-                &["language-server"],
-                file_map.clone(),
-                Some(root.as_path()),
-                "dart",
-                &["dart"],
-            )
-            .await?;
-
-        // Nothing has been written yet: a plan that leaves imports pointing at
-        // files that will not exist is refused here, not discovered later.
-        let dangling = dangling_imports(&root, &file_map, &changes)?;
-        if !dangling.is_empty() {
-            bail!(
-                "The Dart server's plan would leave {} import(s) pointing at files that do not exist after the move. Nothing was changed. The server answers with a partial plan when it has not finished analysing (run the move again), and rewrites `package:` imports only when `.dart_tool/package_config.json` exists (run `dart pub get`).\n  {}",
-                dangling.len(),
-                dangling.join("\n  ")
-            );
-        }
+        let (root, changes) = plan(&file_map, root_path).await?;
         apply_pending_changes(changes).await?;
 
         complete_filesystem_moves(&file_map, Some(root.as_path())).await?;
 
         Ok(())
     }
+
+    /// The same server answer the real move uses, checked for dangling imports,
+    /// and not written.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        let (root, changes) = plan(&file_map, root_path).await?;
+        Ok(preview_of(&root, &file_map, &changes))
+    }
+}
+
+/// Asks the Dart server for the edits and refuses a plan that would break
+/// imports. Nothing has been written yet when this returns.
+async fn plan(
+    file_map: &[(String, String)],
+    root_path: Option<&std::path::Path>,
+) -> Result<(PathBuf, Vec<PendingChange>)> {
+    let root = match root_path {
+        Some(root) => std::path::absolute(root)?,
+        None => std::env::current_dir()?,
+    };
+
+    // The command to start LSP is `dart language-server`
+    let dart = crate::servers::executable("dart", &root)?;
+    let client = LspClient::new(&dart.to_string_lossy());
+    let changes = client
+        .plan_file_renames(
+            &["language-server"],
+            file_map.to_vec(),
+            Some(root.as_path()),
+            "dart",
+            &["dart"],
+        )
+        .await?;
+
+    // Nothing has been written yet: a plan that leaves imports pointing at
+    // files that will not exist is refused here, not discovered later.
+    let dangling = dangling_imports(&root, file_map, &changes)?;
+    if !dangling.is_empty() {
+        bail!(
+            "The Dart server's plan would leave {} import(s) pointing at files that do not exist after the move. Nothing was changed. The server answers with a partial plan when it has not finished analysing (run the move again), and rewrites `package:` imports only when `.dart_tool/package_config.json` exists (run `dart pub get`).\n  {}",
+            dangling.len(),
+            dangling.join("\n  ")
+        );
+    }
+    Ok((root, changes))
+}
+
+/// The moves and the text edits per file the server's plan holds.
+fn preview_of(
+    root: &Path,
+    file_map: &[(String, String)],
+    changes: &[PendingChange],
+) -> MovePreview {
+    let mut preview = MovePreview {
+        moves: file_map
+            .iter()
+            .map(|(from, to)| (root.join(from), root.join(to)))
+            .collect(),
+        ..Default::default()
+    };
+    for change in changes {
+        if let PendingChange::TextEdit { path, edits } = change {
+            preview.add_edits(path.clone(), edits.len());
+        }
+    }
+    preview
 }
 
 /// The imports the plan would break, for the whole project as it will be.

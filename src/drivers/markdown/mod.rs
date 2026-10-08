@@ -7,7 +7,7 @@
 //! (`parser/`), changed only in their destination, and written the way the
 //! author wrote them (`href.rs`).
 
-use super::RefactorDriver;
+use super::{MovePreview, RefactorDriver};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
@@ -60,6 +60,25 @@ impl RefactorDriver for MarkdownDriver {
     ) -> Result<Vec<String>> {
         documents::move_documents(file_map, root_path).await
     }
+
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&Path>,
+    ) -> Result<MovePreview> {
+        documents::preview_documents(file_map, Vec::new(), root_path).await
+    }
+}
+
+/// The preview of a whole `move` as far as Markdown is concerned: the pairs the
+/// Markdown backend moves, and the links to the pairs of every other language.
+/// Either list may be empty.
+pub async fn plan_move_with_links(
+    file_map: Vec<(String, String)>,
+    others: Vec<(String, String)>,
+    root_path: Option<&Path>,
+) -> Result<MovePreview> {
+    documents::preview_documents(file_map, others, root_path).await
 }
 
 /// A path another backend moved: where it was, where it is, and whether it was

@@ -26,8 +26,12 @@ pub(crate) enum When {
 
 /// A Markdown file whose text changes.
 pub(crate) struct FileWrite {
+    /// Where the file is before the moves.
+    pub original: PathBuf,
     /// Where the file is once the moves are done.
     pub destination: PathBuf,
+    /// How many links the new text changes.
+    pub links: usize,
     pub before: String,
     pub after: String,
 }
@@ -62,7 +66,9 @@ pub(crate) async fn plan(moves: MoveSet, root: &Path, when: When) -> Result<Link
         links_updated += rewritten.links_updated;
         if rewritten.content != file.content {
             writes.push(FileWrite {
+                original,
                 destination,
+                links: rewritten.links_updated,
                 before: file.content,
                 after: rewritten.content,
             });

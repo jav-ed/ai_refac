@@ -7,6 +7,7 @@ mod common;
 mod batch;
 mod dart;
 mod dart_package_config;
+mod dry_run;
 mod go;
 mod python;
 mod rust;

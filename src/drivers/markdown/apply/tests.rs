@@ -15,7 +15,9 @@ fn file_move(root: &Path, from: &str, to: &str) -> Move {
 
 fn write(root: &Path, at: &str, before: &str, after: &str) -> FileWrite {
     FileWrite {
+        original: root.join(at),
         destination: root.join(at),
+        links: 1,
         before: before.to_string(),
         after: after.to_string(),
     }

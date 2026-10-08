@@ -37,6 +37,7 @@ ra_ap_load-cargo = "=0.0.357"
 ra_ap_project_model = "=0.0.357"
 ra_ap_syntax = "=0.0.357"
 ra_ap_vfs = "=0.0.357"
+similar = "3"
 
 
 # Build size, in disk. The library embeds rust-analyzer, and every file directly in

@@ -12,6 +12,24 @@ pub(super) struct MoveSuccessOutput<'a> {
     pub(super) result: &'a str,
 }
 
+/// What `move --dry-run --json` prints.
+#[derive(Debug, Serialize)]
+pub(super) struct MoveDryRunOutput<'a> {
+    pub(super) status: &'static str,
+    pub(super) operation: &'static str,
+    pub(super) dry_run: bool,
+    pub(super) project_path: Option<&'a str>,
+    pub(super) source_path: &'a [String],
+    pub(super) target_path: &'a [String],
+    pub(super) moved_paths: usize,
+    pub(super) edited_files: usize,
+    pub(super) edits: usize,
+    pub(super) files: Vec<RenamedFile>,
+    pub(super) moves: Vec<MovedPath>,
+    pub(super) notes: &'a [String],
+    pub(super) result: &'a str,
+}
+
 #[derive(Debug, Serialize)]
 pub(super) struct MoveModuleSuccessOutput<'a> {
     pub(super) status: &'static str,

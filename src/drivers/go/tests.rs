@@ -1,3 +1,4 @@
+use super::requests::*;
 use super::*;
 use std::fs;
 

@@ -8,12 +8,13 @@
 
 mod changes;
 mod documents;
+mod plan;
 mod resource_ops;
 mod server;
 
 use crate::drivers::lsp::session::{LspSession, RpcError, SessionConfig};
 use anyhow::{Context, Result, bail};
-pub use changes::{PendingChange, apply_pending_changes};
+pub use changes::{PendingChange, PlanSummary, apply_pending_changes, summarize};
 use changes::{apply_workspace_edit, collect_pending_changes};
 pub use documents::collect_workspace_documents;
 use lsp_types::WorkspaceEdit;
@@ -202,36 +203,11 @@ async fn rename_in_session(
     started: &mut Started,
     renames: Vec<SymbolRenameRequest>,
 ) -> Result<Vec<Vec<(PathBuf, PathBuf)>>> {
-    // Open all unique document paths so the LSP has them in its view
-    // before we start sending rename requests.
-    let mut opened: Vec<PathBuf> = Vec::new();
-    for rename in &renames {
-        let path = resolve_abs_path(&started.root_dir, &rename.document_path);
-        if !opened.contains(&path) {
-            let text = tokio::fs::read_to_string(&path)
-                .await
-                .with_context(|| format!("Cannot read {}", path.display()))?;
-            started.session.sync_document(&path, &text).await?;
-            opened.push(path);
-        }
-    }
-    started
-        .server
-        .wait_ready(&mut started.session, started.timeout, &opened)
-        .await?;
+    show_documents(started, &renames).await?;
 
     let mut all_file_renames = Vec::new();
     for rename in renames {
-        let document = resolve_abs_path(&started.root_dir, &rename.document_path);
-        let params = json!({
-            "textDocument": { "uri": file_uri(&document)? },
-            "position": rename.position,
-            "newName": rename.new_name,
-        });
-        let answer = rename_with_retries(started, params).await?;
-        let Some(edit) = workspace_edit(answer, "textDocument/rename")? else {
-            bail!("textDocument/rename returned no workspace edit");
-        };
+        let edit = rename_edit(started, &rename).await?;
         let (file_renames, modified_paths) =
             apply_workspace_edit(edit, &rename.pending_moves).await?;
 
@@ -251,6 +227,41 @@ async fn rename_in_session(
         all_file_renames.push(file_renames);
     }
     Ok(all_file_renames)
+}
+
+/// Opens every document the renames start from, so the server has them in its
+/// view before the first request, and waits until it has loaded the project.
+async fn show_documents(started: &mut Started, renames: &[SymbolRenameRequest]) -> Result<()> {
+    let mut opened: Vec<PathBuf> = Vec::new();
+    for rename in renames {
+        let path = resolve_abs_path(&started.root_dir, &rename.document_path);
+        if !opened.contains(&path) {
+            let text = tokio::fs::read_to_string(&path)
+                .await
+                .with_context(|| format!("Cannot read {}", path.display()))?;
+            started.session.sync_document(&path, &text).await?;
+            opened.push(path);
+        }
+    }
+    started
+        .server
+        .wait_ready(&mut started.session, started.timeout, &opened)
+        .await
+}
+
+/// The edit the server proposes for one rename.
+async fn rename_edit(started: &mut Started, rename: &SymbolRenameRequest) -> Result<WorkspaceEdit> {
+    let document = resolve_abs_path(&started.root_dir, &rename.document_path);
+    let params = json!({
+        "textDocument": { "uri": file_uri(&document)? },
+        "position": rename.position,
+        "newName": rename.new_name,
+    });
+    let answer = rename_with_retries(started, params).await?;
+    let Some(edit) = workspace_edit(answer, "textDocument/rename")? else {
+        bail!("textDocument/rename returned no workspace edit");
+    };
+    Ok(edit)
 }
 
 /// A server that is still working answers "content modified"; that is the one

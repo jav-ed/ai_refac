@@ -118,17 +118,7 @@ impl MoveOutcome<'_> {
     }
 
     fn render_failed(&self, response: &mut String) {
-        response.push_str("\n// Failed:\n");
-        for group in &self.failed {
-            response.push_str(&format!(
-                "\n// {} — {}\n\n",
-                capitalize(&group.lang),
-                group.error
-            ));
-            for (src, tgt) in &group.files {
-                response.push_str(&format!("{} -> {}  \n", self.show(src), self.show(tgt)));
-            }
-        }
+        render_failed(response, &self.failed, |path| self.show(path));
     }
 
     /// A path relative to the project root when it lies below it.
@@ -143,7 +133,27 @@ impl MoveOutcome<'_> {
     }
 }
 
-fn capitalize(word: &str) -> String {
+/// The groups that could not be moved (or planned), each with its error and
+/// the pairs it held; `show` writes a path the way the report does.
+pub(super) fn render_failed(
+    response: &mut String,
+    failed: &[FailedGroup],
+    show: impl Fn(&str) -> String,
+) {
+    response.push_str("\n// Failed:\n");
+    for group in failed {
+        response.push_str(&format!(
+            "\n// {} — {}\n\n",
+            capitalize(&group.lang),
+            group.error
+        ));
+        for (src, tgt) in &group.files {
+            response.push_str(&format!("{} -> {}  \n", show(src), show(tgt)));
+        }
+    }
+}
+
+pub(super) fn capitalize(word: &str) -> String {
     let mut chars = word.chars();
     match chars.next() {
         None => String::new(),

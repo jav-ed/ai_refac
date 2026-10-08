@@ -2,6 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::io::ErrorKind;
 
+pub mod preview;
+pub use preview::MovePreview;
+
 /// Represents a generic refactoring driver.
 ///
 /// # Internal Docs
@@ -26,6 +29,16 @@ pub trait RefactorDriver: Send + Sync {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()>;
+
+    /// Plans the same move as `move_files` and changes nothing the caller can
+    /// see: the paths that would move, the edits per file, and the notes. It
+    /// refuses what the real move refuses. Required, not defaulted, so a new
+    /// driver cannot forget to support `--dry-run`.
+    async fn plan_move(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview>;
 
     /// Like `move_files`, and returns what the caller should be told besides
     /// success: a rename that rode along, names left behind in files the driver

@@ -156,3 +156,90 @@ pub fn uri_to_path(uri: &Uri) -> Result<PathBuf> {
     url.to_file_path()
         .map_err(|_| anyhow::anyhow!("Cannot convert URI to file path"))
 }
+
+/// What a plan holds, for a dry run: the file renames the server asked for and
+/// the number of text edits per file. A create or delete is named in `other`.
+#[derive(Debug, Default)]
+pub struct PlanSummary {
+    pub renames: Vec<(PathBuf, PathBuf)>,
+    pub edits: std::collections::BTreeMap<PathBuf, usize>,
+    pub other: Vec<String>,
+}
+
+impl PlanSummary {
+    /// Puts the plan into a dry-run preview. A file the plan renames may be
+    /// edited under its new name; the preview names it by the path it has now.
+    pub fn apply_to(self, preview: &mut crate::drivers::MovePreview, server: &str) {
+        preview.add_server_renames(&self.renames);
+        for (path, count) in &self.edits {
+            let now = self
+                .renames
+                .iter()
+                .find_map(|(old, new)| {
+                    let rest = path.strip_prefix(new).ok()?;
+                    Some(if rest.as_os_str().is_empty() {
+                        old.clone()
+                    } else {
+                        old.join(rest)
+                    })
+                })
+                .unwrap_or_else(|| path.clone());
+            preview.add_edits(now, *count);
+        }
+        preview.notes.extend(
+            self.other
+                .iter()
+                .map(|step| format!("The {server} would also {step}.")),
+        );
+    }
+}
+
+/// Summarises the changes of one or more plans. Several plans (one per rename
+/// of a batch) were each made against the files as they are now, so their
+/// edits must not touch the same text: a range two plans both edit would be
+/// counted twice and the second plan would be wrong after the first. That is
+/// refused, not guessed.
+pub fn summarize(plans: &[Vec<PendingChange>]) -> Result<PlanSummary> {
+    let mut summary = PlanSummary::default();
+    let mut ranges: HashMap<PathBuf, Vec<lsp_types::Range>> = HashMap::new();
+    for changes in plans {
+        for change in changes {
+            match change {
+                PendingChange::TextEdit { path, edits } => {
+                    *summary.edits.entry(path.clone()).or_insert(0) += edits.len();
+                    ranges
+                        .entry(path.clone())
+                        .or_default()
+                        .extend(edits.iter().map(|edit| edit.range));
+                }
+                PendingChange::ResourceOp(ResourceOp::Rename(operation)) => {
+                    summary.renames.push((
+                        uri_to_path(&operation.old_uri)?,
+                        uri_to_path(&operation.new_uri)?,
+                    ));
+                }
+                PendingChange::ResourceOp(ResourceOp::Create(operation)) => summary
+                    .other
+                    .push(format!("create {}", uri_to_path(&operation.uri)?.display())),
+                PendingChange::ResourceOp(ResourceOp::Delete(operation)) => summary
+                    .other
+                    .push(format!("delete {}", uri_to_path(&operation.uri)?.display())),
+            }
+        }
+    }
+    if plans.len() > 1 {
+        for (path, mut list) in ranges {
+            list.sort_by_key(|range| (range.start.line, range.start.character));
+            let overlap = list.windows(2).any(|pair| {
+                (pair[1].start.line, pair[1].start.character)
+                    < (pair[0].end.line, pair[0].end.character)
+            });
+            anyhow::ensure!(
+                !overlap,
+                "A dry run plans every rename against the files as they are now, and two of these renames edit the same text in {}. Run them as separate commands (each dry run then sees the result of the one before), or without --dry-run.",
+                path.display()
+            );
+        }
+    }
+    Ok(summary)
+}

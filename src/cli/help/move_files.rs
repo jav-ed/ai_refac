@@ -45,7 +45,18 @@ WHAT YOU GET BACK
   did not change (strings, build scripts, ProGuard rules) or changed beyond the request (Go package
   files). If one language's group fails while another succeeded, the successful groups stay moved and
   the failure is listed under `// Failed:`. Within one group the move is all or nothing: the files are
-  put back and the message says so. Exit code 0 means every group moved."#;
+  put back and the message says so. Exit code 0 means every group moved.
+
+PREVIEW (--dry-run)
+  Plans the same move and changes no file: per language the paths that would move, then one
+  `// <file> (N edits)` line per file that would be edited (an edit is one rewritten import, module
+  line, package line or link), and the notes. It runs the same checks and refuses what the move
+  refuses (exit 1, same report). Language servers start as for a real move and stop afterwards.
+  TypeScript, Markdown, Dart, Go, Rust and Pyrefly are planned from the plan the tool makes before it
+  writes; Python (Rope) and Kotlin cannot plan without moving, so they run the real move on a
+  throw-away copy of the project (limit 500 MiB, REFAC_DRY_RUN_COPY_MAX_MB) and report the
+  difference; every path must then lie inside the project. The checks that need the moved files
+  (the TypeScript resolver, the Kotlin package checks on disk) run only on a real move."#;
 
 pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   # One file
@@ -64,9 +75,14 @@ pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   # A Markdown folder: every link into it and out of it follows
   refac move --project-path /my/docs --source-path guides --target-path handbook/guides
 
+  # See what a move would do, change nothing
+  refac move --dry-run --project-path /my/project --source-path src/old/name.ts --target-path src/new/name.ts
+
   # Machine-readable result
   refac move --json --project-path /my/project --source-path a.go --target-path pkg/a.go
 
 JSON (--json): {"status":"ok","operation":"move","project_path":...,"source_path":[...],"target_path":[...],
-"result":"<the text above>"}. A failure prints {"status":"error","error":"..."} on stderr and exits 1.
+"result":"<the text above>"}. With --dry-run it adds "dry_run":true, "moved_paths", "edited_files",
+"edits", "files":[{"path","edits"}], "moves":[{"from","to"}] and "notes":[...] (paths relative to the
+project path). A failure prints {"status":"error","error":"..."} on stderr and exits 1.
 A language server that is missing is named with the places looked at: run `refac doctor <language>`."#;

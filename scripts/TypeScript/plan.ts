@@ -11,6 +11,8 @@ export interface FileChange {
     target: string;
     before: string;
     after: string;
+    /** How many import specifiers the plan rewrites in this file. */
+    edits: number;
     checks: Check[];
 }
 export interface Plan { moves: MoveSet; changes: FileChange[]; }
@@ -49,7 +51,7 @@ export function planMoves(project: ProjectConfig, moves: MoveSet): Plan {
         for (const edit of edits.sort((a, b) => b.start - a.start)) {
             after = after.slice(0, edit.start) + edit.text + after.slice(edit.end);
         }
-        changes.push({ file, target, before, after, checks });
+        changes.push({ file, target, before, after, edits: edits.length, checks });
     }
     return { moves, changes };
 }
