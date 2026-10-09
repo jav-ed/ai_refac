@@ -24,7 +24,8 @@ use output::ErrorOutput;
     about = help::top::ABOUT,
     long_about = help::top::LONG_ABOUT,
     after_long_help = help::top::AFTER_LONG_HELP,
-    version,
+    // The release build adds the commit it was built from (see build.rs).
+    version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("REFAC_BUILD"), ")"),
     arg_required_else_help = true
 )]
 pub struct Cli {

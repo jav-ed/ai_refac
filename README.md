@@ -101,21 +101,12 @@ Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.
 ```bash
 git clone https://github.com/jav-ed/ai_refac.git
 cd ai_refac
-cargo build --release
+scripts/install.sh
 ```
 
-Add the binary to your PATH. From inside the repo directory:
+`scripts/install.sh` builds the release binary, links it as `~/.local/bin/refac`, and checks that the `refac` on your PATH is that build and was built from the commit that is checked out. It prints `installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)` or stops with the reason. Run it again after every pull, checkout or source change: it takes seconds when nothing changed. `refac --version` shows the same stamp at any time (`+dirty` means the sources differ from that commit). The install needs only the release build, about 1.5 GB in `target/`; test builds are separate (see `Project_Manag/Docs/Setup/resource_Use.md`).
 
-```bash
-# symlink — rebuilding updates it automatically
-ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac
-
-# or copy a fixed snapshot
-cp target/release/refac ~/.local/bin/refac
-
-# or install from the local checkout
-cargo install --path .
-```
+By hand, the same is `cargo build --release` plus `ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac`; `cargo install --path .` or `cp target/release/refac ~/.local/bin/refac` give a fixed snapshot that does not follow rebuilds.
 
 The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds them next to the binary (`target/release`), or in the checkout it was built from, so keep the checkout where you built it. When it cannot find one, the error lists every place it looked.
 
@@ -303,7 +294,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Run `dart pub get` to generate it. Without it, a move that would leave a `package:` import pointing at a file that no longer exists is refused before anything is written, and the error lists the imports.
 
 **Kotlin / Android**
-- Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call (repeat `--source-path` and `--target-path`) and several renames into one `rename --batch`. A single Kotlin file moved, or a single Kotlin rename, ends with a note that says how many seconds it took and shows the batch form. `REFAC_KOTLIN_BATCH_ONLY=1` goes further: it refuses a single Kotlin move or rename (dry runs included) before anything starts, writes the batch command for that request into the error, and `--allow-single` lets the one change through. The variable is `1`, `0` or unset; any other value is an error, so a typo cannot switch the protection off.
+- Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call (repeat `--source-path` and `--target-path`) and several renames into one `rename --batch`. So a single Kotlin file moved, or a single Kotlin rename, is refused by default (dry runs included) before anything starts, and the error writes the batch command for that request. `--allow-single` lets the one change through, and it then ends with a note that says how many seconds it took and shows the batch form. `REFAC_KOTLIN_BATCH_ONLY=0` turns the refusal off for the whole environment. The variable is `1` (the default, also when empty or unset) or `0`; any other value is an error, so a typo cannot switch the protection off.
 - `.java` files, directories containing Java sources, and moves between modules or source sets are refused. Kotlin Multiplatform is not supported.
 - Old class names in ProGuard rules, build scripts, service lists, and string literals are reported, not rewritten.
 

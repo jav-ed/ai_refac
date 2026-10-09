@@ -10,6 +10,7 @@ This repository is small: about 3 MB of tracked files and an 8 MB `.git`. Everyt
 | --- | --- | --- | --- |
 | tracked files | 3 MB | git | no |
 | `.git` | 8 MB | git | no |
+| `target/release` (all the install needs: `scripts/install.sh`) | 1.5 GB | `cargo build --release` | yes, rebuilds in about 4 minutes; the installed `refac` is a link into it |
 | `target/` after a fresh build | 2.1 GB | `cargo build`, `cargo test` | yes, rebuilds in about 2.5 minutes |
 | `target/` after weeks of builds | 4.4 GB or more | stale copies of dependencies and old test programs | yes, same |
 | `~/.rustup` | 2.1 GB | the Rust toolchain | only to reinstall |

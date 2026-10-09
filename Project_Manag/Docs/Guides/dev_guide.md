@@ -23,7 +23,13 @@ Main outputs:
 
 The expected local setup is that `refac` is reachable via `~/.local/bin/refac`.
 
-Preferred during development: create a symlink to the release binary.
+Preferred during development: `scripts/install.sh`. It builds the release binary, creates the symlink, and verifies the result (see section 6).
+
+```bash
+scripts/install.sh
+```
+
+By hand the same is a symlink to the release binary:
 
 ```bash
 mkdir -p ~/.local/bin
@@ -100,8 +106,8 @@ Each sample project has internal references so file moves can be verified agains
 
 ## 5. Basic Local Workflow
 
-1. Build the release binary: `cargo build --release`
-2. Ensure `~/.local/bin/refac` points to it, preferably via symlink
+1. Install the release binary: `scripts/install.sh` (builds, links, verifies)
+2. If you only built it by hand, ensure `~/.local/bin/refac` points to it, preferably via symlink
 3. Run tests when changing behavior: `cargo test`
 4. Generate fresh samples if needed: `cargo run --bin create_testbed`
 5. Run `refac move ...` against a concrete language project
@@ -109,21 +115,16 @@ Each sample project has internal references so file moves can be verified agains
 
 ## 6. Keep the Global Install Current
 
-**Every source change must be followed by a rebuild so the globally installed binary stays in sync.**
+**Run `scripts/install.sh` after every pull, checkout or source change.** It is one command and idempotent: it runs `cargo build --release` (seconds when nothing changed), points `~/.local/bin/refac` at `target/release/refac`, and then checks three things, stopping with exit code 1 and the reason when one fails:
 
-The symlink at `~/.local/bin/refac` points directly to `target/release/refac`, so the only required step after any code change is:
+1. a `refac` is found on the PATH (otherwise `~/.local/bin` is missing from the PATH);
+2. that `refac` is this checkout's `target/release/refac` and not another copy that shadows it;
+3. `refac --version` names the commit that is checked out.
 
-```bash
-cargo build --release
+```text
+installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)
 ```
 
-No reinstall or re-link needed — the symlink picks up the new binary automatically.
+The stamp comes from `build.rs` and exists in the release profile only, so debug and test builds do not recompile after every commit (they print `dev build`). `+dirty` after the commit means a file under `src/`, `scripts/`, `Cargo.toml`, `Cargo.lock` or `build.rs` differs from that commit. To check without building, run `refac --version` and compare it with `git rev-parse --short HEAD`.
 
-If you are unsure whether the installed binary is current, check:
-
-```bash
-ls -la ~/.local/bin/refac        # confirm symlink exists and points here
-ls -lt target/release/refac      # check build timestamp
-```
-
-An outdated or missing `~/.local/bin/refac` means the global command does not reflect recent changes. Always rebuild before testing `refac` from outside the repo.
+The install needs only the release build: `target/release` is about 1.5 GB. The much larger debug and test programs are a by-product of `cargo test`; keep them in check as described in [Resource use](../Setup/resource_Use.md).
