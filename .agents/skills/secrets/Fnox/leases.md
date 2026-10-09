@@ -1,4 +1,4 @@
-# Fnox — Credential Leases
+# Fnox: Credential Leases
 
 Leases vend short-lived credentials from cloud providers (AWS STS, GCP, Vault, Azure). Instead of storing long-lived access keys, fnox creates temporary credentials on demand that expire automatically.
 

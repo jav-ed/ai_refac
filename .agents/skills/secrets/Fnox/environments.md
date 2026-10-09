@@ -1,4 +1,4 @@
-# Fnox — Environments and Overrides
+# Fnox: Environments and Overrides
 
 ## Profiles (dev / staging / prod)
 

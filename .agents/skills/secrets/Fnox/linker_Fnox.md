@@ -4,12 +4,7 @@ Fnox stores encrypted secrets in `fnox.toml`, committed to git. Encrypted with n
 
 ## Setup (per machine)
 
-```bash
-age-keygen -o ~/.config/fnox/age.txt
-chmod 600 ~/.config/fnox/age.txt
-```
-
-Fnox auto-discovers the key at `~/.config/fnox/age.txt`. No env var needed. The `age1...` public key printed by `age-keygen` is what goes into `recipients`.
+Fnox reads the machine's age key at `~/.config/fnox/age.txt`, a symlink to the canonical `~/.config/age/age.txt`. Create the key and the symlinks once as described in [Age keys and recipients](../Age/keys_And_Recipients.md). No env var is needed. The `age1...` public key printed by `age-keygen` is what goes into `recipients`.
 
 ```bash
 fnox doctor   # verify identity is wired up
@@ -34,14 +29,16 @@ fnox reencrypt -p age               # re-encrypt all (required after adding/remo
 Fnox defaults to discovering a file named `fnox.toml` by walking up the directory tree. Use `-c <path>` or `--config <path>` when the file has another name or when a repository contains multiple independent secret sets. The selected file can have any filename; pass the option on every command that should use it.
 
 ```bash
-fnox list -c rishta_Worker_Mails.toml
-fnox get -c rishta_Worker_Mails.toml MARIA_BUTT_EMAIL_PASSWORD
-fnox set -c rishta_Worker_Mails.toml MARIA_BUTT_EMAIL_PASSWORD
-fnox exec -c rishta_Worker_Mails.toml -- <command>
-fnox reencrypt -c rishta_Worker_Mails.toml -p age
+fnox list -c worker_Mails.toml
+fnox get -c worker_Mails.toml MAIL_PASSWORD
+fnox set -c worker_Mails.toml MAIL_PASSWORD
+fnox exec -c worker_Mails.toml -- <command>
+fnox reencrypt -c worker_Mails.toml -p age
 ```
 
 Prefer an explicit config path in services and scripts. This prevents Fnox from silently selecting a different parent-directory `fnox.toml` when a command runs from another working directory.
+
+**Known gotcha:** `fnox exec -- curl -H "Authorization: Bearer $TOKEN" ...` sends an empty token and the service answers 401. Your own shell expands `$TOKEN` before fnox injects anything. Start a shell inside fnox so it reads the variable: `fnox exec -- sh -c 'curl -H "Authorization: Bearer $TOKEN" ...'`. A script that reads the variable from its environment needs no wrapper. Verified against Woodpecker 2026-10-03.
 
 **Known gotcha:** passing `--description` alongside stdin silently drops the value — fnox writes the entry without encrypting anything. Verified 2026-05-08. Do not combine `--description` with stdin. Add context as a comment in the file instead (comments survive fnox writes — see below).
 
@@ -91,19 +88,20 @@ age = { type = "age", recipients = ["age1...", "age1..."] }
 MY_SECRET = { provider = "age", value = "<encrypted blob>" }
 ```
 
-See [installation.md](installation.md) for the known `age1...` public keys for both devices.
+See [Age keys and recipients](../Age/keys_And_Recipients.md) for the known public keys of both devices.
 
 ## Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
 | `no identity matched any of the recipients` | Key mismatch | Confirm your `age1...` public key is in `recipients` |
-| `failed to decrypt` | Key file missing | Check `~/.config/fnox/age.txt` exists with `chmod 600` |
+| `failed to decrypt` | Key file missing or broken symlink | Check that `ls -L ~/.config/fnox/age.txt` resolves to the canonical key and that the key has `chmod 600` |
 | Secret not found | Wrong directory or config | Run inside the intended `fnox.toml` tree, or select the file explicitly with `-c <path>` |
-| `fnox doctor` fails | Identity not found | Re-run `age-keygen -o ~/.config/fnox/age.txt`, add public key to recipients |
+| `fnox doctor` fails | Identity not found | Recreate the key and symlinks ([Age keys and recipients](../Age/keys_And_Recipients.md)), then add the public key to recipients |
 
 ## References
 
-- [Installation and key setup](installation.md) — age-keygen, known recipients, init, add/remove a recipient
-- [Environments and overrides](environments.md) — profiles (dev/staging/prod), hierarchical config, `fnox.local.toml`
-- [Leases](leases.md) — short-lived cloud credentials (AWS STS, GCP, Vault); skip unless using cloud providers
+- [Installation and key setup](installation.md): installing the binary, `fnox init` for a new project, adding or removing a recipient, and where to read the upstream docs. Open when setting fnox up in a project or on a new machine.
+- [Environments and overrides](environments.md): profiles (dev, staging, prod), hierarchical config for monorepos, and the gitignored `fnox.local.toml`. Open when one repo needs different secrets per environment.
+- [Leases](leases.md): short-lived cloud credentials (AWS STS, GCP, Vault). Skip unless a cloud provider issues the credentials.
+- [Age keys and recipients](../Age/keys_And_Recipients.md): key location, symlinks and the public keys of our devices, shared with sops and raw age.

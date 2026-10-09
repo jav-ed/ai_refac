@@ -2,7 +2,7 @@
 
 hk is a git hook runner by jdx. It defines hooks per repository in `hk.pkl`. Use it to run checks, formatting, or scripts at Git events such as `pre-commit`, `pre-push`, and `post-merge`.
 
-Install hk and Pkl through [Platform Essentials](../../../../Project_Manag/Docs/Architecture/Platform_Essentials/git_Workflow.md), then run `hk install --global`.
+Install hk and Pkl as shared system tools (tool names `hk` and `pkl`, procedure in [Mise](../Mise/linker_Mise.md); GitHub CLI `gh` comes from the same group), then run `hk install --global` once. Do not wrap hooks with `mise x`: hook commands must resolve through stable system paths.
 
 ## Two install modes
 

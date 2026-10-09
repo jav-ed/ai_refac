@@ -1,24 +1,16 @@
-# Fnox — Installation and Key Setup
+# Fnox: Installation and Key Setup
 
 ## Install fnox
 
+Fnox is installed as a shared mise system tool (tool name `fnox`) and linked at `/usr/local/bin/fnox`; the `default-tools` skill describes the install procedure. Verify:
+
 ```bash
-just system-tools-install
 fnox --version
 ```
 
-Expose the binary through `/usr/local/bin/fnox` according to [Platform tool management](../../../../../Project_Manag/Docs/Architecture/Platform_Essentials/tool_Management.md).
-
 ## Configure decryption (per machine)
 
-Generate a native age key — do this once per machine:
-
-```bash
-age-keygen -o ~/.config/fnox/age.txt
-chmod 600 ~/.config/fnox/age.txt
-```
-
-Fnox auto-discovers the key at `~/.config/fnox/age.txt`. No env var needed. The `age1...` public key printed by `age-keygen` is what goes into `recipients`.
+Create the machine's age key and the symlinks once, as described in [Age keys and recipients](../Age/keys_And_Recipients.md). Fnox auto-discovers the key at `~/.config/fnox/age.txt`; no env var is needed. The `age1...` public key printed by `age-keygen` is what goes into `recipients`.
 
 Verify everything is wired up:
 
@@ -28,15 +20,7 @@ fnox doctor
 
 ## Known recipients (our devices)
 
-These are the native age public keys for the two managed devices. Any new `fnox.toml` should include both so secrets are decryptable on either machine.
-
-```toml
-[providers]
-age = { type = "age", recipients = [
-    "age1uy9ps3p4460de20v8fgvt6gyg5ml0wscesd32m4693567aaumgnsspt8x5",  # jav (local)
-    "age1areaucgxqcwvnsnr3mpz46g27pc9gf8qqcvaaa3k5fn3fluvde3s27cql9",  # g12 (server)
-] }
-```
+Any new `fnox.toml` should include the public keys of both managed devices so secrets are decryptable on either machine. The ready-to-paste `[providers]` block lives in [Age keys and recipients](../Age/keys_And_Recipients.md).
 
 ## Initialize a new project
 
@@ -45,11 +29,11 @@ cd your-project
 fnox init
 ```
 
-Then replace the generated `[providers.age]` block with the known recipients above.
+Then replace the generated `[providers.age]` block with the block from [Age keys and recipients](../Age/keys_And_Recipients.md).
 
 ## Adding a new recipient (new machine or server)
 
-1. On the new machine, generate a native age key: `age-keygen -o ~/.config/fnox/age.txt` — it prints the `age1...` public key
+1. On the new machine, create the age key and symlinks ([Age keys and recipients](../Age/keys_And_Recipients.md)); `age-keygen` prints the `age1...` public key
 2. Add that `age1...` public key to `recipients` in `fnox.toml`
 3. Re-encrypt all secrets so the new key can decrypt:
    ```bash
@@ -72,7 +56,7 @@ Clone the fnox source repo into `Repos/` at the repo root. `Repos/` is gitignore
 
 ```bash
 # From the repo root
-git clone --depth 1 https://github.com/jdx/fnox.git Repos/Tool_Manag/fnox
+git clone --depth 1 https://github.com/jdx/fnox.git Repos/fnox
 ```
 
 If `Repos/` doesn't exist yet, create it and add it to `.gitignore` first:
@@ -82,7 +66,9 @@ mkdir -p Repos
 echo "Repos/" >> .gitignore
 ```
 
-Docs are under `Repos/Tool_Manag/fnox/docs/`:
+Record the clone in the project's `Project_Manag/Docs/Setup/repos_List.md` (doc-start convention) so it can be restored on another machine.
+
+Docs are under `Repos/fnox/docs/`:
 - `guide/` — quick-start, how-it-works, profiles, hierarchical config, shell integration, leases
 - `cli/` — per-command reference (get, set, exec, list, export, etc.)
 - `providers/` — provider-specific setup (`age.md` is ours)
