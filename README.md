@@ -104,7 +104,7 @@ cd ai_refac
 scripts/install.sh
 ```
 
-`scripts/install.sh` builds the release binary, links it as `~/.local/bin/refac`, and checks that the `refac` on your PATH is that build and was built from the commit that is checked out. It prints `installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)` or stops with the reason. Run it again after every pull, checkout or source change: it takes seconds when nothing changed. `refac --version` shows the same stamp at any time (`+dirty` means the sources differ from that commit). The install needs only the release build, about 1.5 GB in `target/`; test builds are separate (see `Project_Manag/Docs/Setup/resource_Use.md`).
+`scripts/install.sh` builds the release binary, links it as `~/.local/bin/refac`, and checks that the `refac` on your PATH is that build and was built from the commit that is checked out. It prints `installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)` or stops with the reason. Run it again after every pull, checkout or source change: it takes seconds when nothing changed. `refac --version` shows the same stamp at any time (`+dirty` means the sources differ from that commit). The binary is one 36 MB file in `target/release`; the 1.5 GB around it is build cache (compiled dependencies) that keeps repeat builds fast. Test builds add a separate cache under `target/debug` (see `Project_Manag/Docs/Setup/resource_Use.md`).
 
 By hand, the same is `cargo build --release` plus `ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac`; `cargo install --path .` or `cp target/release/refac ~/.local/bin/refac` give a fixed snapshot that does not follow rebuilds.
 

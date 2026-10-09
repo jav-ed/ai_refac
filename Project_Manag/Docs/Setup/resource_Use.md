@@ -10,9 +10,9 @@ This repository is small: about 3 MB of tracked files and an 8 MB `.git`. Everyt
 | --- | --- | --- | --- |
 | tracked files | 3 MB | git | no |
 | `.git` | 8 MB | git | no |
-| `target/release` (all the install needs: `scripts/install.sh`) | 1.5 GB | `cargo build --release` | yes, rebuilds in about 4 minutes; the installed `refac` is a link into it |
+| `target/release` (the installed binary, 36 MB, plus 1.5 GB of build cache) | 1.5 GB | `cargo build --release`, `scripts/install.sh` | only to reinstall: it holds the binary the `~/.local/bin/refac` link points to; `scripts/install.sh` rebuilds it in about 4 minutes |
 | `target/` after a fresh build | 2.1 GB | `cargo build`, `cargo test` | yes, rebuilds in about 2.5 minutes |
-| `target/` after weeks of builds | 4.4 GB or more | stale copies of dependencies and old test programs | yes, same |
+| `target/debug` after weeks of builds | 4.4 GB or more (6.3 GB measured on 2026-10-09) | dead cache: old dependency copies after a toolchain or Cargo.lock change, and one more copy of every test program after each source change | yes, `cargo clean -p refac` removes this crate's old copies, `rm -rf target/debug` removes everything; the next test build takes about 2.5 minutes |
 | `~/.rustup` | 2.1 GB | the Rust toolchain | only to reinstall |
 | `~/.gradle` | 2.0 GB | Kotlin and Android tests | keep: the Maven mirror of a sandbox can answer 429 when everything is downloaded again |
 | `~/.cache/go-build` | 0.74 GB | gopls, Go tests | yes: `go clean -cache` |

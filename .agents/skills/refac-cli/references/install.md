@@ -12,7 +12,7 @@ cd ai_refac
 scripts/install.sh
 ```
 
-`scripts/install.sh` builds the release binary (about 1.5 GB in `target/`), links it as `~/.local/bin/refac`, and checks that the `refac` on the PATH is that build and comes from the checked-out commit. Run it again after every pull; `refac --version` shows the commit the installed binary was built from (`+dirty` means local changes).
+`scripts/install.sh` builds the release binary (a 36 MB file; the 1.5 GB around it in `target/release` is build cache that keeps repeat builds fast), links it as `~/.local/bin/refac`, and checks that the `refac` on the PATH is that build and comes from the checked-out commit. Run it again after every pull; `refac --version` shows the commit the installed binary was built from (`+dirty` means local changes).
 
 ## Add to PATH by hand
 
