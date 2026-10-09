@@ -15,11 +15,11 @@ Sections, so you can jump to the one that applies:
 
 ## Go: whole-package moves
 
-Moving any `.go` file cross-directory causes gopls to rename the **entire package**. All files in the source directory move together. If `pkg/` contains `a.go`, `b.go`, and `c.go`, asking to move `pkg/a.go` will cause all three to end up in the target directory. Partial-package moves are not supported.
+Moving any `.go` file cross-directory causes gopls to rename the **entire package**. All files in the source directory move together. If `pkg/` contains `a.go`, `b.go`, and `c.go`, asking to move `pkg/a.go` moves all three into the target directory. Partial-package moves are not supported.
 
 Same-directory renames (file rename with no directory change) are a filesystem-only operation, so gopls is not involved and no import paths change.
 
-Requires `go.mod` at the project root for any cross-directory move. Without it the move will error.
+Requires `go.mod` at the project root for any cross-directory move. Without it the move fails with an error.
 
 ## Rust: semantic module moves
 
