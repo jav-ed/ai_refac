@@ -20,6 +20,8 @@ impl Project {
         env: &[(&str, &str)],
     ) -> std::process::Output {
         let mut command = Command::new(cli_binary());
+        // A dry run of one Kotlin file is refused by default; these tests plan it.
+        command.env("REFAC_KOTLIN_BATCH_ONLY", "0");
         command.envs(env.iter().copied());
         command
             .args(["move", "--dry-run", "--json", "--project-path"])

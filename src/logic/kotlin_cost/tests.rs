@@ -23,11 +23,13 @@ fn rename(file: &str) -> RenameRequest {
 }
 
 #[test]
-fn the_variable_is_one_zero_or_empty_and_anything_else_is_an_error() {
-    assert!(!parse(None).unwrap());
-    assert!(!parse(Some(OsStr::new(""))).unwrap());
-    assert!(!parse(Some(OsStr::new("0"))).unwrap());
+fn the_refusal_is_on_unless_the_variable_is_zero_and_anything_else_is_an_error() {
+    // On by default: unset and empty refuse, only 0 allows.
+    assert!(parse(None).unwrap());
+    assert!(parse(Some(OsStr::new(""))).unwrap());
     assert!(parse(Some(OsStr::new("1"))).unwrap());
+    assert!(!parse(Some(OsStr::new("0"))).unwrap());
+    assert!(!parse(Some(OsStr::new(" 0 "))).unwrap());
     let error = parse(Some(OsStr::new("yes"))).unwrap_err().to_string();
     assert!(
         error.contains(BATCH_ONLY_ENV) && error.contains("yes"),

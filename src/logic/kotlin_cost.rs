@@ -1,11 +1,12 @@
-//! What a single Kotlin change costs, said to the caller, and the opt-in
-//! refusal of it. Every Kotlin command starts the language server and imports
+//! What a single Kotlin change costs, said to the caller, and the refusal of
+//! it, which is on unless the caller turns it off. Every Kotlin command starts the language server and imports
 //! the Gradle build first, however few files it changes, so a series of single
 //! changes pays that over and over. A command cannot know it is the twentieth:
 //! each is a process of its own and nothing stays resident. What it can do is
-//! tell the one it sees what the batch form is (`note`), and, when
-//! `REFAC_KOTLIN_BATCH_ONLY` is set, refuse a single change unless the caller
-//! adds `--allow-single` (`refuse_single_move`, `refuse_single_rename`).
+//! tell the one it sees what the batch form is (`note`), and refuse a single
+//! change before anything starts unless the caller adds `--allow-single` or
+//! sets `REFAC_KOTLIN_BATCH_ONLY=0` (`refuse_single_move`,
+//! `refuse_single_rename`).
 
 use super::RefactorRequest;
 use super::grouping::route;
@@ -14,7 +15,7 @@ use anyhow::{Result, bail};
 use std::path::Path;
 use std::time::Duration;
 
-/// `1` makes refac refuse a single Kotlin change; `0` or unset allows it.
+/// `1`, empty or unset makes refac refuse a single Kotlin change; `0` allows it.
 pub const BATCH_ONLY_ENV: &str = "REFAC_KOTLIN_BATCH_ONLY";
 /// The argument that lets one single Kotlin change through.
 pub const ALLOW_FLAG: &str = "--allow-single";
@@ -25,17 +26,19 @@ fn batch_only() -> Result<bool> {
     parse(std::env::var_os(BATCH_ONLY_ENV).as_deref())
 }
 
-/// The value of `REFAC_KOTLIN_BATCH_ONLY`. Anything but 1, 0 or empty is an
-/// error: a typo must not silently switch the protection off.
+/// The value of `REFAC_KOTLIN_BATCH_ONLY`. The refusal is the default, so an
+/// unset or empty variable means on and only `0` switches it off. Anything but
+/// 1, 0 or empty is an error: a typo must not silently switch the protection
+/// off.
 fn parse(value: Option<&std::ffi::OsStr>) -> Result<bool> {
     let Some(value) = value else {
-        return Ok(false);
+        return Ok(true);
     };
     match value.to_str().map(str::trim) {
-        Some("") | Some("0") => Ok(false),
-        Some("1") => Ok(true),
+        Some("") | Some("1") => Ok(true),
+        Some("0") => Ok(false),
         _ => bail!(
-            "{BATCH_ONLY_ENV} must be 1 (refuse a single Kotlin change) or 0 (allow it), got {value:?}"
+            "{BATCH_ONLY_ENV} must be 1 (refuse a single Kotlin change, the default) or 0 (allow it), got {value:?}"
         ),
     }
 }
@@ -65,13 +68,13 @@ pub(super) fn is_single_move<'a>(
         .is_some_and(|(_, files)| single_file(files, root).is_some())
 }
 
-/// Refuses a move of one Kotlin file when `REFAC_KOTLIN_BATCH_ONLY` is set and
-/// `--allow-single` is not given. Nothing has been started or changed.
+/// Refuses a move of one Kotlin file unless `--allow-single` is given or
+/// `REFAC_KOTLIN_BATCH_ONLY=0`. Nothing has been started or changed.
 pub fn refuse_single_move(req: &RefactorRequest, allow_single: bool) -> Result<()> {
     check_move(req, allow_single || !batch_only()?)
 }
 
-/// `allowed`: the caller said so, or the protection is off.
+/// `allowed`: the caller said so, or the refusal is switched off.
 fn check_move(req: &RefactorRequest, allowed: bool) -> Result<()> {
     if allowed {
         return Ok(());
@@ -88,7 +91,7 @@ fn check_move(req: &RefactorRequest, allowed: bool) -> Result<()> {
         return Ok(());
     };
     bail!(
-        "This is a single Kotlin move, and {BATCH_ONLY_ENV}=1 refuses those.\n{COST}. Run one after the other, each change pays that again.\n\nSeveral moves: do them in one call, repeating the flags:\n  refac move --source-path {source} --source-path <next.kt> --target-path {target} --target-path <next target>\nIf this one move is really all there is, run the same command again with {ALLOW_FLAG}.\nNothing was changed."
+        "This is a single Kotlin move, and refac refuses those by default ({BATCH_ONLY_ENV}=0 turns the refusal off).\n{COST}. Run one after the other, each change pays that again.\n\nSeveral moves: do them in one call, repeating the flags:\n  refac move --source-path {source} --source-path <next.kt> --target-path {target} --target-path <next target>\nIf this one move is really all there is, run the same command again with {ALLOW_FLAG}.\nNothing was changed."
     )
 }
 
@@ -103,7 +106,7 @@ fn check_rename(request: &RenameRequest, allowed: bool) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "This is a single Kotlin rename, and {BATCH_ONLY_ENV}=1 refuses those.\n{COST}. Run one after the other, each change pays that again.\n\nSeveral renames: do them in one call, a JSON list on stdin (or in a file with --batch renames.json):\n  echo '[{{\"file\": \"{}\", \"symbol\": \"{}\", \"new_name\": \"{}\"}}, {{\"file\": \"<next.kt>\", \"symbol\": \"<name>\", \"new_name\": \"<new name>\"}}]' | refac rename --batch -\nIf this one rename is really all there is, run the same command again with {ALLOW_FLAG}.\nNothing was changed.",
+        "This is a single Kotlin rename, and refac refuses those by default ({BATCH_ONLY_ENV}=0 turns the refusal off).\n{COST}. Run one after the other, each change pays that again.\n\nSeveral renames: do them in one call, a JSON list on stdin (or in a file with --batch renames.json):\n  echo '[{{\"file\": \"{}\", \"symbol\": \"{}\", \"new_name\": \"{}\"}}, {{\"file\": \"<next.kt>\", \"symbol\": \"<name>\", \"new_name\": \"<new name>\"}}]' | refac rename --batch -\nIf this one rename is really all there is, run the same command again with {ALLOW_FLAG}.\nNothing was changed.",
         request.file.display(),
         request.symbol,
         request.new_name
@@ -119,7 +122,7 @@ pub fn note(what: &str, elapsed: Duration, dry_run: bool) -> String {
         ""
     };
     format!(
-        "This Kotlin {what} took {} s. {COST}; a series of single changes pays that every time. With more than one Kotlin change, do them in one call: moves repeat the flags (`refac move --source-path a.kt --source-path b.kt --target-path pkg/a.kt --target-path pkg/b.kt`), renames take a list (`refac rename --batch renames.json`). {BATCH_ONLY_ENV}=1 makes refac refuse a single Kotlin change unless you add {ALLOW_FLAG}.{dry}",
+        "This Kotlin {what} took {} s. {COST}; a series of single changes pays that every time. With more than one Kotlin change, do them in one call: moves repeat the flags (`refac move --source-path a.kt --source-path b.kt --target-path pkg/a.kt --target-path pkg/b.kt`), renames take a list (`refac rename --batch renames.json`). refac refuses a single Kotlin change unless you add {ALLOW_FLAG} (or set {BATCH_ONLY_ENV}=0), so add it only when one change is all there is.{dry}",
         elapsed.as_secs()
     )
 }

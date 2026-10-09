@@ -57,6 +57,9 @@ impl Project {
     /// `refac move --project-path <project>` for the pairs, from any directory.
     pub fn run(&self, moves: &[(&str, &str)]) -> Output {
         let mut command = Command::new(cli_binary());
+        // These helpers move one Kotlin file on purpose; the refusal of a
+        // single Kotlin change has its own tests in tests/cli/kotlin_cost.rs.
+        command.env("REFAC_KOTLIN_BATCH_ONLY", "0");
         command.args(["move", "--project-path"]).arg(self.path());
         command.arg("--source-path");
         command.args(moves.iter().map(|(source, _)| source));
@@ -71,6 +74,7 @@ impl Project {
     pub fn run_from_parent(&self, moves: &[(&str, &str)], extra: &[&str]) -> Output {
         let name = self.path().file_name().expect("the project has a name");
         let mut command = Command::new(cli_binary());
+        command.env("REFAC_KOTLIN_BATCH_ONLY", "0");
         command
             .current_dir(self.path().parent().expect("the project has a parent"))
             .arg("move")

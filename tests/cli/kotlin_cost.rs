@@ -1,7 +1,7 @@
-//! `REFAC_KOTLIN_BATCH_ONLY=1` refuses a single Kotlin change before any server
-//! starts, and `--allow-single` lets it through. These tests need no Kotlin
-//! server: a refused command never gets that far, and one that is let through
-//! stops at a source file that does not exist.
+//! A single Kotlin change is refused by default, before any server starts;
+//! `--allow-single` and `REFAC_KOTLIN_BATCH_ONLY=0` let it through. These tests
+//! need no Kotlin server: a refused command never gets that far, and one that
+//! is let through stops at a source file that does not exist.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -46,7 +46,8 @@ fn a_single_kotlin_move_is_refused_with_the_batch_command_and_the_way_through() 
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("A.kt"), "class A\n").unwrap();
 
-    let output = refac(dir.path(), Some("1"), MOVE);
+    // The variable is not set: the refusal is the default.
+    let output = refac(dir.path(), None, MOVE);
 
     assert_eq!(output.status.code(), Some(1));
     let message = text(&output);
@@ -56,6 +57,7 @@ fn a_single_kotlin_move_is_refused_with_the_batch_command_and_the_way_through() 
         "{message}"
     );
     assert!(message.contains("--allow-single"), "{message}");
+    assert!(message.contains("REFAC_KOTLIN_BATCH_ONLY=0"), "{message}");
     assert!(message.contains("Nothing was changed"), "{message}");
     assert!(dir.path().join("A.kt").exists());
     assert!(!dir.path().join("pkg").exists());
@@ -65,7 +67,7 @@ fn a_single_kotlin_move_is_refused_with_the_batch_command_and_the_way_through() 
 fn a_single_kotlin_rename_is_refused_and_the_error_is_json_with_json() {
     let dir = tempfile::tempdir().unwrap();
 
-    let output = refac(dir.path(), Some("1"), &with(RENAME, &["--json"]));
+    let output = refac(dir.path(), None, &with(RENAME, &["--json"]));
 
     assert_eq!(output.status.code(), Some(1));
     let error: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
@@ -80,19 +82,21 @@ fn a_dry_run_of_a_single_kotlin_change_is_refused_too() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("A.kt"), "class A\n").unwrap();
 
-    for command in [with(MOVE, &["--dry-run"]), with(RENAME, &["--dry-run"])] {
-        let output = refac(dir.path(), Some("1"), &command);
-        assert_eq!(output.status.code(), Some(1));
-        assert!(
-            text(&output).contains("--allow-single"),
-            "{}",
-            text(&output)
-        );
+    for value in [None, Some("1"), Some("")] {
+        for command in [with(MOVE, &["--dry-run"]), with(RENAME, &["--dry-run"])] {
+            let output = refac(dir.path(), value, &command);
+            assert_eq!(output.status.code(), Some(1), "{value:?} {command:?}");
+            assert!(
+                text(&output).contains("--allow-single"),
+                "{}",
+                text(&output)
+            );
+        }
     }
 }
 
 #[test]
-fn allow_single_the_unset_variable_zero_and_a_batch_get_past_the_refusal() {
+fn allow_single_zero_and_a_batch_get_past_the_refusal() {
     let dir = tempfile::tempdir().unwrap();
     let two = [
         "move",
@@ -106,10 +110,12 @@ fn allow_single_the_unset_variable_zero_and_a_batch_get_past_the_refusal() {
         "p/B.kt",
     ];
     let cases: Vec<(Option<&str>, Vec<&str>)> = vec![
+        (None, with(MOVE, &["--allow-single"])),
+        (None, with(RENAME, &["--allow-single"])),
         (Some("1"), with(MOVE, &["--allow-single"])),
-        (Some("1"), with(RENAME, &["--allow-single"])),
-        (None, MOVE.to_vec()),
         (Some("0"), MOVE.to_vec()),
+        (Some("0"), RENAME.to_vec()),
+        (None, two.to_vec()),
         (Some("1"), two.to_vec()),
     ];
     for (value, args) in cases {
@@ -127,7 +133,7 @@ fn other_languages_are_not_refused() {
     let dir = tempfile::tempdir().unwrap();
     let output = refac(
         dir.path(),
-        Some("1"),
+        None,
         &["move", "--source-path", "a.py", "--target-path", "p/a.py"],
     );
     assert!(

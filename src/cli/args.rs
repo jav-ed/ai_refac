@@ -40,13 +40,14 @@ pub(super) struct MoveArgs {
     #[arg(long)]
     pub(super) dry_run: bool,
 
-    /// Kotlin only: let a single Kotlin change through when REFAC_KOTLIN_BATCH_ONLY=1 refuses it.
+    /// Kotlin only: let a single Kotlin change through; refac refuses it by default.
     ///
     /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
-    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. With
-    /// REFAC_KOTLIN_BATCH_ONLY=1 a single Kotlin move is refused with the command that does several
-    /// in one call; this argument says that the one change is all there is. It has no effect on
-    /// other languages, on a batch, or when the variable is not set.
+    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. So a
+    /// single Kotlin move is refused, dry runs included, with the command that does several in one
+    /// call; this argument says that the one change is all there is. REFAC_KOTLIN_BATCH_ONLY=0
+    /// turns the refusal off for the whole environment. It has no effect on other languages or on
+    /// a batch.
     #[arg(long)]
     pub(super) allow_single: bool,
 
@@ -151,13 +152,14 @@ pub(super) struct RenameArgs {
     #[arg(long)]
     pub(super) dry_run: bool,
 
-    /// Kotlin only: let a single Kotlin change through when REFAC_KOTLIN_BATCH_ONLY=1 refuses it.
+    /// Kotlin only: let a single Kotlin change through; refac refuses it by default.
     ///
     /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
-    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. With
-    /// REFAC_KOTLIN_BATCH_ONLY=1 a single Kotlin rename is refused with the command that does several
-    /// in one call; this argument says that the one change is all there is. It has no effect on
-    /// other languages, on a batch, or when the variable is not set.
+    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. So a
+    /// single Kotlin rename is refused, dry runs included, with the command that does several in one
+    /// call; this argument says that the one change is all there is. REFAC_KOTLIN_BATCH_ONLY=0
+    /// turns the refusal off for the whole environment. It has no effect on other languages or on
+    /// a batch.
     #[arg(long)]
     pub(super) allow_single: bool,
 

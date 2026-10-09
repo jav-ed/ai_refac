@@ -35,10 +35,11 @@ KOTLIN: A SINGLE CHANGE SAYS WHAT IT COST
     - a single Kotlin file moved, or a single Kotlin rename, ends with a note: the seconds it took
       and the batch form (`move` repeating --source-path/--target-path, `rename --batch`). A dry run
       says that the real run pays the start again. A folder, several files, or a batch get no note.
-    - REFAC_KOTLIN_BATCH_ONLY=1 (set it in the environment of an agent or script that should batch)
-      refuses a single Kotlin move or rename, dry runs included, before anything starts, with the
-      batch command written out for that request. If that one change is all there is, run the same
-      command again with --allow-single. The variable is 1, 0 or unset; anything else is an error.
+    - a single Kotlin move or rename is refused by default, dry runs included, before anything
+      starts, with the batch command written out for that request. If that one change is all there
+      is, run the same command again with --allow-single. REFAC_KOTLIN_BATCH_ONLY=0 (set it in the
+      environment of a person who wants single changes) turns the refusal off. The variable is 1,
+      empty or unset (refuse), or 0 (allow); anything else is an error.
 
 AN ORDER THAT WORKS FOR A REFACTOR
   1. `refac doctor` once, to see every server is ready.
