@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installed at Code/Development/Scratch/clean.sh; all Scratch contents are disposable.
+# Installed at Code/Just/Scripts/clean_Scratch.sh; all Scratch contents are disposable.
 set -euo pipefail
 
 fail() {
@@ -9,7 +9,7 @@ fail() {
 
 [[ "$#" -eq 0 ]] || fail 'Use just scratch-clean; no paths or options are accepted.'
 CLEANUP_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-[[ "$CLEANUP_SCRIPT_DIR" == */Code/Development/Scratch ]] || fail 'Install this helper at Code/Development/Scratch/clean.sh before invoking it.'
+[[ "$CLEANUP_SCRIPT_DIR" == */Code/Just/Scripts ]] || fail 'Install this helper at Code/Just/Scripts/clean_Scratch.sh before invoking it.'
 CLEANUP_PROJECT_ROOT="$(cd -- "$CLEANUP_SCRIPT_DIR/../../.." && pwd -P)"
 CLEANUP_SCRATCH_DIR="$CLEANUP_PROJECT_ROOT/Scratch"
 

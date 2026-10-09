@@ -13,7 +13,7 @@ An agent works best when it can quickly tell what in its context is relevant to 
 
 1. Give enough orientation upfront that the agent understands the domain.
 2. Inline the common case so the most-used path needs no follow-up reads.
-3. Route the long tail through clearly-labeled links, so the agent can decide what to load without opening the file.
+3. Route the long tail through clearly-labeled links, so the agent can decide what to load without opening the file. For a tool, name the command that lists the rest (`--help`, `just --list`) instead of copying its whole catalog.
 
 The load-bearing piece is the labels, not the file split. A flat doc with sharp labels beats a deeply nested doc with murky ones every time.
 
@@ -42,6 +42,45 @@ If unsure about `.md` file or folder naming, see the `coding` skill, which docum
 
 A skill that fits the common case in 30 lines does not need a `References/` folder at all. Splitting is a tool, not a virtue.
 
+## Audience separation: operator and developer
+
+Many skills serve two readers:
+
+- the operator agent needs to use an existing tool safely and complete the normal task;
+- the developer or maintainer needs to change, debug, or extend how that tool works.
+
+Keep the operator path in the parent page. It should contain the commands, required inputs, safety boundary, expected result, and actionable failures needed for ordinary use. Do not make the operator load implementation history, internal architecture, library rationale, schemas, or maintenance invariants.
+
+When deeper developer material belongs to one operational area, place it in a singular `Detail/` folder beside that area's parent page:
+
+```text
+Application/Integration/
+├── existing_Tool.md
+└── Detail/
+    └── existing_Tool_Architecture.md
+```
+
+The parent page must state the boundary near its opening and link with a decision-ready label such as:
+
+```markdown
+Do not load the developer detail for normal operation. Read
+[Tool architecture](Detail/tool_Architecture.md) only when changing the
+protocol, state machine, report contract, or implementation.
+```
+
+The detail page must reciprocate: open by saying it is developer background, name the exact change/debug tasks that require it, and route ordinary use back to the operator page.
+
+`Detail/` is contextual long-tail material, not a mandatory folder for every skill. If architecture is a major first-class domain used independently across the skill, create a purpose-shaped `Architecture/` folder instead. If operator and developer information are always needed together, keep them together rather than splitting by title alone.
+
+## Independence
+
+A skill is copied into many repositories and read by an agent that knows nothing about the one it was written in. Test every link, command and path: does it still work after the folder is copied into an unrelated repository?
+
+- No links or paths into one repository's docs, scripts or recipes, and no instruction to run a recipe only one repository defines (`just some-recipe`). Put the policy, the commands and the verification steps inside the skill.
+- Machine facts may stay (hostnames, `/usr/local/bin`, device keys). Repository facts may not (folder layout, recipe names, project and customer names): those belong in that repository's docs.
+- Name other skills ("the `coding` skill"), do not path-link them, and keep the common case completable without opening one. A pointer to a convention of the current project (`Project_Manag/Docs/doc_Start.md`) is fine.
+- Examples use neutral names (`my-service`).
+
 ## SKILL.md shape
 
 Three layers, in order: orientation (one or two paragraphs on what the skill does and why), the common case (the most-used path, fully explained inline), and navigation (links to purpose folders or references for the long tail).
@@ -67,7 +106,7 @@ description: One sentence on what the skill does. Use when [specific triggers].
 - [Background context](References/background_Context.md): misc reference only when no better purpose folder exists
 ````
 
-Frontmatter: max 1024 chars, third person, two sentences (what it does, when to use it). The description is the only thing the agent sees when deciding whether to load the skill, so vague phrasing kills it.
+Frontmatter: max 1024 chars, third person, two sentences (what it does, when to use it). Quote the description when it contains `: `, otherwise strict YAML parsers reject the file. The description is the only thing the agent sees when deciding whether to load the skill, so vague phrasing kills it. The limit is a maximum, not a target: procedures, command lists and gotchas belong in the body.
 
 Link descriptions are the load-bearing piece. The text after the colon must say what kinds of tasks or questions belong behind the link, rich enough that the agent can decide whether to follow without opening the file. A bare filename or topic name is not a description. Length follows need: one line when one line covers it, five lines when the topic genuinely needs five. Optimize for clarity, not brevity.
 
@@ -87,6 +126,8 @@ Before declaring the skill done:
 - Folder structure is domain-shaped: coherent purpose areas are top-level folders, not buried under `References/`.
 - `References/` is absent unless there is real miscellaneous long-tail material.
 - Each linked reference or domain file follows the same orientation + common case + links pattern. No linked file is a dump.
+- Operator pages contain normal usage without requiring developer internals; contextual maintainer material lives under singular `Detail/` with explicit read/skip labels in both directions.
+- Independent: the common case still works after the folder is copied into an unrelated repository.
 - Self-test: if the agent only reads SKILL.md, can it do the common case end-to-end?
 
 ## References

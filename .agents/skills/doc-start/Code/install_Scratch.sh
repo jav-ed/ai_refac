@@ -33,15 +33,15 @@ else
   justfile_path='justfile'
 fi
 
-for directory in Code Code/Development Code/Development/Scratch; do
+for directory in Code Code/Just Code/Just/Scripts; do
   [[ ! -L "$directory" ]] || fail "Helper directory must not be a symlink: $directory"
 done
-helper_path='Code/Development/Scratch/clean.sh'
+helper_path='Code/Just/Scripts/clean_Scratch.sh'
 if [[ -e "$helper_path" || -L "$helper_path" ]]; then
   [[ -f "$helper_path" && ! -L "$helper_path" ]] || fail "$helper_path must be a regular file."
   cmp -s "$INSTALL_TEMPLATE" "$helper_path" || fail "Existing $helper_path differs from the template; review it before installation."
 else
-  mkdir -p Code/Development/Scratch
+  mkdir -p Code/Just/Scripts
   cp -- "$INSTALL_TEMPLATE" "$helper_path"
 fi
 
@@ -53,6 +53,6 @@ cat >> "$justfile_path" <<'EOF'
 
 [doc('Delete all Scratch contents and recreate empty Agent_Tasks, Audit, Design, and Screenshots folders.')]
 scratch-clean:
-    bash Code/Development/Scratch/clean.sh
+    bash Code/Just/Scripts/clean_Scratch.sh
 EOF
 printf '  installed: scratch-clean in %s (cleanup not run).\n' "$justfile_path"

@@ -88,7 +88,7 @@ class Scratch_Tests(unittest.TestCase):
         self.write_File("tools.just", "scratch-clean:\n    @echo existing-cleaner\n")
         self.install()
         self.assertEqual(justfile.read_text(), contents)
-        self.assertFalse((self.project / "Code/Development/Scratch/clean.sh").exists())
+        self.assertFalse((self.project / "Code/Just/Scripts/clean_Scratch.sh").exists())
         self.assertIn("existing-cleaner", self.run_Command("just", "scratch-clean").stdout)
 
     def test_Hidden_Justfile_Is_Extended(self):
@@ -108,7 +108,7 @@ class Scratch_Tests(unittest.TestCase):
         self.assert_Empty_Scratch()
 
     def test_Conflicting_Helper_Is_Not_Overwritten(self):
-        helper = self.write_File("Code/Development/Scratch/clean.sh", "custom implementation\n")
+        helper = self.write_File("Code/Just/Scripts/clean_Scratch.sh", "custom implementation\n")
         result = self.install(succeeds=False)
         self.assertIn("differs from the template", result.stderr)
         self.assertEqual(helper.read_text(), "custom implementation\n")
@@ -119,7 +119,7 @@ class Scratch_Tests(unittest.TestCase):
             self.write_File(name, "greet:\n    @echo keep\n")
         result = self.install(succeeds=False)
         self.assertIn("Multiple Justfiles", result.stderr)
-        self.assertFalse((self.project / "Code/Development/Scratch/clean.sh").exists())
+        self.assertFalse((self.project / "Code/Just/Scripts/clean_Scratch.sh").exists())
 
     def test_Symlinked_And_File_Scratch_Roots_Are_Refused(self):
         self.install()
@@ -143,7 +143,7 @@ class Scratch_Tests(unittest.TestCase):
         self.install()
         note = self.write_File("Scratch/task.md")
         self.run_Command(
-            "bash", str(self.project / "Code/Development/Scratch/clean.sh"), "unexpected",
+            "bash", str(self.project / "Code/Just/Scripts/clean_Scratch.sh"), "unexpected",
             succeeds=False,
         )
         self.assertTrue(note.exists())

@@ -33,3 +33,17 @@ If a reference file is itself a dump of every related fact, the pattern was push
 ## Marketing prose
 
 Skill files do not need to sell the skill. The agent has already loaded it. Cut sentences that describe how powerful, flexible, or important the skill is. Replace with what it does and how it is used.
+
+## Mixed operator and developer paths
+
+A normal-use page that also explains implementation architecture, library selection, state-machine internals, and historical decisions forces every operator to load maintainer context. Keep the executable operator contract in the parent page and route contextual developer material to singular `Detail/`. The split is incomplete if the parent link says only "more details"; label the exact debugging or change tasks that justify loading it.
+
+Do not create `Detail/` mechanically. When the alleged detail is required for every use, keep it in the parent. When architecture is a large independent domain, use a first-class `Architecture/` folder instead.
+
+## Repo-bound skill
+
+The skill links to one repository's docs, tells the agent to run a recipe only that repository defines, or names that repository's projects. Copied elsewhere, the links are dead and the recipes fail. Move the knowledge into the skill (policy, exact commands, verification), or into that repository's docs. See Independence in [SKILL.md](../SKILL.md).
+
+## Gotcha dump
+
+Every pitfall anyone hit once is added to the skill, until the few that change decisions drown. Record a new gotcha beside the affected code and in that repository's docs first, and promote it to the skill only when it keeps changing decisions.

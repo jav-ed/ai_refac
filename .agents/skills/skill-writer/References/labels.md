@@ -8,7 +8,7 @@ The only thing the agent sees when deciding whether to load the skill. It is sur
 
 ### Format
 
-- Max 1024 characters.
+- Max 1024 characters, a limit and not a target.
 - Third person.
 - First sentence: what the skill does.
 - Second sentence: `Use when [specific triggers: keywords, contexts, file types, user phrases].`
