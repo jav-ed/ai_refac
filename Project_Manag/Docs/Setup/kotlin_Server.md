@@ -14,7 +14,7 @@ tar -xzf kotlin-server-263.6379.0.tar.gz -C ~/.local/share/refac
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 ```
 
-`REFAC_KOTLIN_SERVER` must name the folder that holds `bin/intellij-server` and `build.txt`, and `build.txt` must start with `ILS-`. Put the export in the shell profile of whoever runs `refac`, including an agent's environment.
+`REFAC_KOTLIN_SERVER` must name the folder that holds `bin/intellij-server` and `build.txt`, and `build.txt` must start with `ILS-`. Put the export in the shell profile of whoever runs `refac`, including an agent's environment. The folder can be anywhere: the install above uses `~/.local/share/refac`, and a machine that keeps its tools elsewhere (for example `/home/jav/Progs/kotlin-lsp/kotlin-server-263.6379.0`) only changes the path in the export. `refac doctor kotlin` prints `[ready]` and the found build when the variable is right.
 
 A JDK 17 or newer must be on `PATH` for the Gradle import that the server runs. For Android projects `ANDROID_HOME` (or `local.properties`) must point at an SDK, exactly as for a normal Gradle build.
 
@@ -33,7 +33,8 @@ The tests that use the server are `#[ignore]`d so a plain `cargo test` stays fas
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # only the Android tests need it
-cargo test --test kotlin -- --ignored --test-threads=2
+# ONE test is enough to prove the server works with refac (about 2 minutes):
+cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
 ```
 
-Without the variable these tests panic with this page's path instead of passing silently. See [Testing & Debugging](../Guides/Testing_and_Debugging.md) for the full test map.
+Run a single test, and only when a change touches the Kotlin path or the server build changes. Every test starts the server and imports a Gradle project (about 40 seconds each, longer on the first run while Gradle fetches dependencies); on 2026-10-09 the three `dispatch::` tests took 385 seconds in total, which proved nothing the first one had not. Do not run the whole group (`--test-threads=2` over every Kotlin test) unless a Kotlin backend change needs it. Without the variable these tests panic with this page's path instead of passing silently. See [Testing & Debugging](../Guides/Testing_and_Debugging.md) for the full test map.

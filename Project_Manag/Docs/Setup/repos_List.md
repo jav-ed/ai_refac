@@ -10,7 +10,7 @@ Shallow clones of upstream projects kept under the gitignored `Repos/` folder at
 - **tools**: Go tools repository containing gopls, the engine behind Go moves.
   - URL: https://github.com/golang/tools
   - Clone: `git clone --depth 1 https://github.com/golang/tools Repos/tools`
-- **kotlin-lsp**: JetBrains' official Kotlin language server (read-only mirror, partly closed-source). Candidate engine for Kotlin file moves and symbol rename; its source shows the `workspace/willRenameFiles` handler that runs IntelliJ's move refactoring. See the Kotlin options investigation.
+- **kotlin-lsp**: JetBrains' official Kotlin language server (read-only mirror, partly closed-source). The engine behind Kotlin file moves and symbol rename (the server binary itself is a download, see [Kotlin server setup](kotlin_Server.md), not this clone); its source shows the `workspace/willRenameFiles` handler that runs IntelliJ's move refactoring. See the Kotlin options investigation.
   - URL: https://github.com/Kotlin/kotlin-lsp
   - Clone: `git clone --depth 1 https://github.com/Kotlin/kotlin-lsp Repos/kotlin-lsp`
 - **kotlin-language-server**: community Kotlin language server, deprecated in favour of the official one. Cloned only to document why it was rejected.
