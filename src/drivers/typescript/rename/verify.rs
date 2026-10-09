@@ -109,8 +109,8 @@ fn text_after_rename(plan: &Plan, path: &Path) -> Result<String> {
     if let Some(file) = plan.files.iter().find(|file| file.path == path) {
         return Ok(file.new.clone());
     }
-    let text =
-        std::fs::read_to_string(path).with_context(|| format!("Cannot read {}", path.display()))?;
+    let text = crate::drivers::symbol::view::read_to_string(path)
+        .with_context(|| format!("Cannot read {}", path.display()))?;
     Ok(text
         .strip_prefix('\u{FEFF}')
         .map_or(text.clone(), str::to_string))

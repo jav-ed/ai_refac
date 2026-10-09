@@ -60,7 +60,7 @@ struct Located {
 fn locate(language: &dyn Language, root: &Path, request: &RenameRequest) -> Result<Located> {
     let file =
         crate::drivers::lsp::rename::plan::names::resolve_file(language, &request.file, root)?;
-    let raw = std::fs::read_to_string(&file)
+    let raw = crate::drivers::symbol::view::read_to_string(&file)
         .with_context(|| format!("Cannot read {}", file.display()))?;
     // The server counts positions from the first real character.
     let text = raw.strip_prefix(BOM).unwrap_or(&raw).to_string();

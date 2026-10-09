@@ -153,7 +153,7 @@ pub fn ensure_editable(path: &Path, project_root: &Path) -> Result<()> {
 
 impl FileEdits {
     pub fn build(path: PathBuf, raw: &[RawEdit]) -> Result<Self> {
-        let text = std::fs::read_to_string(&path)
+        let text = crate::drivers::symbol::view::read_to_string(&path)
             .with_context(|| format!("Cannot read {}", path.display()))?;
         let (bom, old) = match text.strip_prefix('\u{FEFF}') {
             Some(rest) => (true, rest.to_string()),

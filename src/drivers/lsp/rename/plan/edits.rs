@@ -154,7 +154,7 @@ pub fn plan_files(
     let mut planned = Vec::new();
     for file in edits {
         let path = locate(&file.path);
-        let raw = std::fs::read_to_string(&path).with_context(|| {
+        let raw = crate::drivers::symbol::view::read_to_string(&path).with_context(|| {
             format!("The server edited {}, which cannot be read", path.display())
         })?;
         // The server counts positions from the first real character.

@@ -6,6 +6,7 @@ mod common;
 
 mod batch;
 mod dart;
+mod dry_run_batch;
 mod encoding;
 mod go;
 mod python;

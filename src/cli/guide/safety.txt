@@ -33,14 +33,20 @@ WHAT IS REFUSED, AND WHY IT IS BETTER THAN GUESSING
 
 PREVIEW
   `refac rename ... --dry-run` runs steps 1 to 4 and prints the edits. It starts the server (so it
-  costs the same time) and writes nothing. A dry run of a batch plans every rename against the files as
-  they are on disk.
+  costs the same time) and writes nothing. A dry run of a batch plans every rename on the files as the
+  ones before it would leave them, so it accepts and refuses what the real batch does (a Kotlin batch
+  runs on a throw-away copy of the project, because a class rename moves its file).
   `refac move ... --dry-run` plans the move and prints, per language, the paths that would move and
   the edits per file (`--json`: dry_run, moves, files, edits, notes). The language servers start as for a
-  real move. Python (Rope) and Kotlin cannot plan without moving, so they run the real move on a
-  throw-away copy of the project (500 MiB limit) and report the difference; a real move is still
-  protected by the validation above and the undo journal. `refac move-module ... --dry-run` does the same
-  for a Rust module move.
+  real move. TypeScript resolves every rewritten import against the files as they will be after the
+  move, as the real move does. Python (Rope) and Kotlin cannot plan without moving, so they run the
+  real move, with its own checks, on a throw-away copy of the project (500 MiB limit; Rope copies only
+  .py and .pyi files) and report the difference; a real move is still protected by the validation above
+  and the undo journal. Go and Rust moves of several packages are planned one after the other; two
+  plans that edit the same text are refused with the command to run instead.
+  `refac move-module ... --dry-run` plans a Rust module move; add `--check` to also run
+  `cargo check` on a throw-away copy of the workspace (it builds into a folder of its own, so it
+  takes as long as a first build). The project is not touched.
 
 WHAT IS NOT PROTECTED
   refac changes references a language server can see. Names inside strings and comments, reflection,

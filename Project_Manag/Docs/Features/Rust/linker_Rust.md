@@ -20,7 +20,7 @@ refac move-module --project-path /path/to/cargo-workspace \
   crate::domain::matching
 ```
 
-`--dry-run` plans the move and writes nothing: it prints the paths that would move and the edits per file (`--json` adds `files` and `moves`), refuses what the real move refuses (a target that exists, an unsupported layout), and removes a `Cargo.lock` that Cargo wrote while the workspace loaded. It does not run the final Cargo check, which needs the moved files on disk.
+`--dry-run` plans the move and writes nothing: it prints the paths that would move and the edits per file (`--json` adds `files` and `moves`), refuses what the real move refuses (a target that exists, an unsupported layout), and removes a `Cargo.lock` that Cargo wrote while the workspace loaded (a real move that fails removes it too; one that succeeds keeps it, as Cargo does after any build). It does not run the final Cargo check unless `--check` is added: then `drivers/rust/compile_check.rs` carries the move out on a throw-away copy of the workspace (`ProjectRoot::copy` with `CopyPlan.skip = ["target"]`, 500 MiB limit, a build folder of its own), runs the real move there with its `cargo check --workspace --all-targets`, and reports the same moves and edits with `"compiled": true`. The cost is a first build of the workspace; a path dependency outside the workspace folder is not in the copy. `--check` without `--dry-run` is refused by the command line. Tests: `tests/moves/rust_module/dry_run.rs`.
 
 Structural source and target arguments always begin with `crate::`. They identify modules in the same crate, not filesystem paths. If the source path matches multiple workspace crates, Refac stops and reports the matching declaration files.
 

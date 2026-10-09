@@ -61,9 +61,10 @@ impl RefactorDriver for TypeScriptDriver {
     }
 
     /// The helper plans the whole move before it writes anything; with
-    /// `--dry-run` it prints that plan instead of applying it. The check that
-    /// each rewritten specifier resolves needs the moved files, so it runs
-    /// only on a real move.
+    /// `--dry-run` it prints that plan instead of applying it. It also checks
+    /// that each rewritten specifier resolves, against a model of the files as
+    /// they will be after the move, so a dry run refuses what the real move
+    /// would roll back.
     async fn plan_move(
         &self,
         file_map: Vec<(String, String)>,
@@ -120,11 +121,13 @@ async fn run_helper(
 }
 
 /// The plan the helper prints with `--dry-run`: `{"moves": [{from, to}],
-/// "files": [{path, edits}]}`, one JSON line.
+/// "files": [{path, edits}], "unchecked": n}`, one JSON line. `unchecked` counts
+/// the rewritten imports the helper could not resolve without the moved files.
 #[derive(serde::Deserialize)]
 struct HelperPlan {
     moves: Vec<HelperMove>,
     files: Vec<HelperFile>,
+    unchecked: usize,
 }
 
 #[derive(serde::Deserialize)]
@@ -157,6 +160,12 @@ fn parse_plan(stdout: &str) -> Result<MovePreview> {
     };
     for file in plan.files {
         preview.add_edits(file.path, file.edits);
+    }
+    if plan.unchecked > 0 {
+        preview.notes.push(format!(
+            "{} rewritten import(s) of asset files through an alias could not be checked against the moved files in a dry run; the move itself checks them.",
+            plan.unchecked
+        ));
     }
     Ok(preview)
 }

@@ -236,7 +236,7 @@ pub fn summarize(plans: &[Vec<PendingChange>]) -> Result<PlanSummary> {
             });
             anyhow::ensure!(
                 !overlap,
-                "A dry run plans every rename against the files as they are now, and two of these renames edit the same text in {}. Run them as separate commands (each dry run then sees the result of the one before), or without --dry-run.",
+                "These moves cannot be planned together: a dry run plans each rename against the files as they are now, and two of them edit the same text in {}, so the second plan would be wrong once the first is carried out. Move them in separate commands (carry out the first, then plan the second), or run the move itself without --dry-run.",
                 path.display()
             );
         }

@@ -1,5 +1,5 @@
 use crate::common::dry_run::assert_plan_matches_move;
-use crate::common::project::Project;
+use crate::common::project::{Project, assert_same_tree};
 
 fn project() -> Project {
     let project = Project::empty();
@@ -75,4 +75,53 @@ fn the_text_report_has_the_shape_of_a_real_move() {
     );
     assert!(text.contains("// src/app.ts (1 edit)"), "{text}");
     assert!(project.exists("src/utils/format.ts"));
+}
+
+#[test]
+fn a_dry_run_refuses_a_move_whose_new_place_another_module_answers() {
+    let project = Project::empty();
+    project.write(
+        "tsconfig.json",
+        r#"{"compilerOptions":{"target":"es2020","module":"commonjs","moduleResolution":"node"},"include":["src/**/*"]}"#,
+    );
+    project.write("src/old.ts", "export const old = 1;\n");
+    project.write("src/lib.ts", "export const lib = 2;\n");
+    project.write(
+        "src/main.ts",
+        "import { old } from \"./old\";\nimport { lib } from \"./lib\";\nconsole.log(old, lib);\n",
+    );
+    // main.ts would import the moved module as "./lib", and "./lib" answers
+    // with src/lib.ts before it looks into a folder. The real move rolls this
+    // back, so the dry run must refuse it too.
+    let moves = [("src/old.ts", "src/lib/index.ts")];
+    let before = project.tree();
+
+    let dry = project.dry_run_json(&moves);
+    let dry_text = crate::common::stderr_text(&dry);
+    assert!(!dry.status.success(), "{dry_text}");
+    assert!(
+        dry_text.contains("Moved module resolves incorrectly"),
+        "{dry_text}"
+    );
+    assert_same_tree(&before, &project.tree());
+
+    let real = project.move_err(&moves);
+    assert!(real.contains("Moved module resolves incorrectly"), "{real}");
+    assert_same_tree(&before, &project.tree());
+}
+
+#[test]
+fn a_dry_run_checks_imports_that_use_an_alias_against_the_moved_files() {
+    let project = Project::empty();
+    project.write(
+        "tsconfig.json",
+        r#"{"compilerOptions":{"target":"es2020","module":"commonjs","moduleResolution":"node","baseUrl":".","paths":{"@lib/*":["src/lib/*"]}},"include":["src/**/*"]}"#,
+    );
+    project.write("src/lib/util.ts", "export const util = 1;\n");
+    project.write(
+        "src/app.ts",
+        "import { util } from \"@lib/util\";\nconsole.log(util);\n",
+    );
+    let plan = assert_plan_matches_move(&project, &[("src/lib/util.ts", "src/lib/tools/util.ts")]);
+    assert_eq!(plan["edited_files"], 1, "{plan}");
 }

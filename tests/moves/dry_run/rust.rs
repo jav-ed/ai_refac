@@ -29,3 +29,19 @@ fn a_lock_file_cargo_writes_while_the_project_loads_is_removed_again() {
     assert!(project.exists("src/shapes.rs"));
     assert!(!project.exists("src/figures.rs"));
 }
+
+#[test]
+#[ignore = "needs rust-analyzer (run `refac doctor rust`)"]
+fn a_batch_of_module_renames_is_planned_as_the_real_move_does_it() {
+    let project = Project::from_fixture("rust/rename_crate");
+    // `report` uses `shapes`, `main.rs` and the integration test use both:
+    // the second rename edits files the first one edits.
+    assert_plan_matches_move_ignoring(
+        &project,
+        &[
+            ("src/shapes.rs", "src/figures.rs"),
+            ("src/report.rs", "src/summary.rs"),
+        ],
+        &["target"],
+    );
+}

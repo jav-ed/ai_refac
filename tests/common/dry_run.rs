@@ -10,7 +10,17 @@ use std::process::Command;
 impl Project {
     /// `refac move --dry-run --json` for the pairs.
     pub fn dry_run_json(&self, moves: &[(&str, &str)]) -> std::process::Output {
+        self.dry_run_json_with_env(moves, &[])
+    }
+
+    /// The same with environment variables set for the command.
+    pub fn dry_run_json_with_env(
+        &self,
+        moves: &[(&str, &str)],
+        env: &[(&str, &str)],
+    ) -> std::process::Output {
         let mut command = Command::new(cli_binary());
+        command.envs(env.iter().copied());
         command
             .args(["move", "--dry-run", "--json", "--project-path"])
             .arg(self.path());

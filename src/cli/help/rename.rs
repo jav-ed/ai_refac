@@ -44,7 +44,13 @@ SEVERAL RENAMES AT ONCE: --batch <FILE> (or `-` for stdin)
   stopped after the last rename. Entries run in order and each one sees the files as the one before
   left them, so a later entry can name a symbol by the name an earlier entry gave it. All or nothing:
   if entry 3 of 5 fails, entries 1 and 2 are taken back and the error names entry 3. One language per
-  batch; TypeScript/JavaScript renames run one per command. --dry-run applies to the whole batch.
+  batch (TypeScript/JavaScript included): a batch that mixes languages is refused before anything runs,
+  naming the first entry of another language; run one batch per language. --dry-run applies to the
+  whole batch and plans each entry on the files as the ones before it would leave them, so entries
+  that depend on each other work in a dry run exactly as they do for real and entries that clash are
+  refused with the same error. A Kotlin dry run of several entries runs the batch on a throw-away
+  copy of the project (a class rename moves its file and edits Android XML); it takes as long as the
+  batch.
 
 WHAT YOU GET BACK
   The `old -> new` line, then one `// path (N edits)` line per changed file and the totals. `// Note:`

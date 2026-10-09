@@ -80,12 +80,13 @@ fn spells(
     symbol: &str,
 ) -> Result<bool> {
     if !texts.contains_key(&reference.path) {
-        let raw = std::fs::read_to_string(&reference.path).with_context(|| {
-            format!(
-                "Cannot read {}, which the server lists as an implementation",
-                reference.path.display()
-            )
-        })?;
+        let raw =
+            crate::drivers::symbol::view::read_to_string(&reference.path).with_context(|| {
+                format!(
+                    "Cannot read {}, which the server lists as an implementation",
+                    reference.path.display()
+                )
+            })?;
         texts.insert(
             reference.path.clone(),
             raw.strip_prefix('\u{FEFF}').unwrap_or(&raw).to_string(),

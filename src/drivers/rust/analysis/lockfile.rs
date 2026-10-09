@@ -1,6 +1,8 @@
 //! Cargo writes a missing `Cargo.lock` while the workspace loads. A dry run
-//! promises to change no file, so it removes the lock files its own load
-//! created (and only those) when it ends, also when it ends in an error.
+//! promises to change no file, and a move that fails promises to leave the
+//! project as it was, so both remove the lock files their own load created (and
+//! only those) when they end. A move that succeeds keeps the lock, as Cargo
+//! does after any build.
 
 use std::path::{Path, PathBuf};
 
@@ -20,6 +22,11 @@ impl NewLockfiles {
             .filter(|lock| !lock.exists())
             .collect();
         Self { missing }
+    }
+
+    /// The move succeeded: the lock files stay.
+    pub fn keep(&mut self) {
+        self.missing.clear();
     }
 }
 

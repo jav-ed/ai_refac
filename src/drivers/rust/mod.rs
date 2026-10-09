@@ -6,13 +6,14 @@ use async_trait::async_trait;
 use std::path::Path;
 
 mod analysis;
+mod compile_check;
 mod edits;
 mod planner;
 mod rename;
 mod target_parent;
 mod transaction;
 
-pub use planner::move_module;
+pub use planner::{MoveMode, move_module};
 
 use rename::{RustSymbolRenameRequest, build_symbol_rename_request};
 

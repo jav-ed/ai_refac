@@ -144,6 +144,51 @@ async fn a_batch_follows_a_class_file_that_an_earlier_rename_moved() {
     common::kotlin::assert_compiles(project.path(), COMPILE);
 }
 
+/// A dry run of several renames carries the batch out on a copy of the project
+/// (a class rename moves its file and edits Android XML, which no in-memory
+/// view follows): the plan names the files the batch then edits, a rename that
+/// depends on the one before it works, and the project is not touched.
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_dry_run_of_a_batch_plans_what_the_batch_does() {
+    let greeter = format!("{K}/app/Greeter.kt");
+    let welcomer = format!("{K}/app/Welcomer.kt");
+    let batch = |project: &Path, dry_run: bool| {
+        let mut requests = vec![
+            request(project, &greeter, "Greeter", "Welcomer"),
+            request(project, &welcomer, "greet", "welcome"),
+            request(project, HELPER, "decorate", "embellish"),
+        ];
+        for request in &mut requests {
+            request.dry_run = dry_run;
+        }
+        requests
+    };
+
+    let planned = setup();
+    let before = common::kotlin::snapshot(planned.path());
+    let plan = rename_all_symbols(batch(planned.path(), true))
+        .await
+        .unwrap_or_else(|error| panic!("the dry run failed: {error:#}"));
+    assert_eq!(common::kotlin::snapshot(planned.path()), before);
+    assert!(plan.iter().all(|report| report.dry_run));
+
+    let carried_out = setup();
+    let done = rename_all_symbols(batch(carried_out.path(), false))
+        .await
+        .unwrap_or_else(|error| panic!("the batch failed: {error:#}"));
+
+    assert_eq!(plan.len(), done.len());
+    for (index, (planned, done)) in plan.iter().zip(&done).enumerate() {
+        assert_eq!(planned.files, done.files, "rename {}", index + 1);
+        assert_eq!(planned.edits, done.edits, "rename {}", index + 1);
+    }
+    // No note names the folder of the copy.
+    for note in plan.iter().flat_map(|report| &report.notes) {
+        assert!(!note.contains("refac-dry-run-"), "{note}");
+    }
+}
+
 /// The failing rename comes after one that moved a file: the move is undone
 /// as well as the edits.
 #[tokio::test]

@@ -13,10 +13,25 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// How far `move_module` goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoveMode {
+    /// Move the module, check that the workspace still compiles, and put
+    /// everything back when it does not.
+    Apply,
+    /// Plan the move and write nothing; the compile check is not made.
+    Plan,
+    /// Plan the move by carrying it out on a copy of the workspace, compile the
+    /// copy, and write nothing to the project.
+    PlanAndCompile,
+}
+
 pub struct MoveModuleReport {
-    /// True when nothing was written: the plan was made and checked for
-    /// conflicts, but the compile check only runs on a real move.
+    /// True when nothing was written to the project.
     pub dry_run: bool,
+    /// True when the moved workspace passed `cargo check`: always after a real
+    /// move, and in a dry run only when `MoveMode::PlanAndCompile` asked for it.
+    pub compiled: bool,
     pub moved_paths: usize,
     pub edited_files: usize,
     /// Text edits in total, and per file (paths relative to the workspace).
@@ -30,18 +45,22 @@ pub fn move_module(
     root: &Path,
     source_path: &str,
     target_path: &str,
-    dry_run: bool,
+    mode: MoveMode,
 ) -> Result<MoveModuleReport> {
+    if mode == MoveMode::PlanAndCompile {
+        return super::compile_check::plan_on_copy(root, source_path, target_path);
+    }
+    let dry_run = mode == MoveMode::Plan;
     let source_segments = module_graph::parse_module_path(source_path)?;
     let target_segments = module_graph::parse_module_path(target_path)?;
     validation::validate_paths(&source_segments, &target_segments)?;
 
     // Cargo writes a missing Cargo.lock while the workspace loads; a dry run
-    // leaves the folder as it found it.
+    // and a move that fails leave the folder as they found it.
     let root = root
         .canonicalize()
         .with_context(|| format!("Could not resolve Cargo workspace at {}", root.display()))?;
-    let _lockfiles = dry_run.then(|| NewLockfiles::watch(&root));
+    let mut lockfiles = NewLockfiles::watch(&root);
     let workspace = SemanticWorkspace::load(&root)?;
     let source = module_graph::resolve_source(&workspace, &source_segments)?;
     module_graph::collect_subtree(&workspace, &source)?;
@@ -144,6 +163,7 @@ pub fn move_module(
         apply_transaction(plan, || {
             validation::validate_result(workspace.root(), &source_segments, &target_segments)
         })?;
+        lockfiles.keep();
     }
     tracing::info!(
         edits,
@@ -155,6 +175,7 @@ pub fn move_module(
 
     Ok(MoveModuleReport {
         dry_run,
+        compiled: !dry_run,
         moved_paths,
         edited_files,
         edits,

@@ -6,7 +6,9 @@ use crate::drivers::lsp::rename::{
     rename_symbol as rename_with, rename_symbols as rename_all_with,
 };
 use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
-use crate::drivers::typescript::rename::rename_symbol as rename_typescript_symbol;
+use crate::drivers::typescript::rename::{
+    rename_symbol as rename_typescript_symbol, rename_symbols as rename_all_typescript,
+};
 use anyhow::{Result, bail};
 use std::path::Path;
 
@@ -92,9 +94,7 @@ pub async fn handle_rename_batch(requests: Vec<RenameRequest>) -> Result<Vec<Ren
         }
     }
     match backend {
-        Backend::TypeScript => bail!(
-            "A batch is available for Kotlin, Go, Rust, Python and Dart. The TypeScript/JavaScript rename has its own engine and takes one rename per command."
-        ),
+        Backend::TypeScript => rename_all_typescript(requests).await,
         Backend::Kotlin => rename_all_kotlin(requests).await,
         Backend::Go => rename_all_with(&Go, requests).await,
         Backend::Rust => rename_all_with(&Rust, requests).await,

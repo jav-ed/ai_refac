@@ -31,6 +31,21 @@ pub struct RefactorRequest {
     pub project_path: Option<String>,
 }
 
+/// The request with an absolute project path. The drivers join the relative
+/// source and target paths onto it, and a project path that is relative to the
+/// current directory (`--project-path sub`) would be joined a second time by
+/// the ones that start a server in that folder.
+fn absolute_project(req: RefactorRequest) -> Result<RefactorRequest> {
+    let project_path = match req.project_path.as_deref() {
+        Some(root) => Some(std::path::absolute(root)?.to_string_lossy().into_owned()),
+        None => None,
+    };
+    Ok(RefactorRequest {
+        project_path,
+        ..req
+    })
+}
+
 /// Central entry point for handling refactor requests.
 ///
 /// # Internal Docs
@@ -39,6 +54,7 @@ pub struct RefactorRequest {
 /// 2. Dispatches each group to its driver.
 /// 3. Fixes the Markdown links to what the other languages moved.
 pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
+    let req = absolute_project(req)?;
     let Prepared {
         root,
         groups,

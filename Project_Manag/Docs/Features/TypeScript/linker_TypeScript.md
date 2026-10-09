@@ -29,7 +29,7 @@ Aliases in `compilerOptions.paths` retain their spelling when the destination fi
 
 ## Dry run (`move --dry-run`)
 
-`scripts/ts_refactor.ts` builds the whole plan (every moved file, every rewritten specifier) before it writes anything; with `--dry-run` it prints that plan as one JSON line (`moves`, and `files` with the number of rewritten specifiers) and stops. The check that each rewritten specifier resolves from the new place needs the moved files, so it runs only on a real move.
+`scripts/ts_refactor.ts` builds the whole plan (every moved file, every rewritten specifier) before it writes anything; with `--dry-run` it prints that plan as one JSON line (`moves`, `files` with the number of rewritten specifiers, and `unchecked`) and stops. The check that each rewritten specifier resolves from the new place also runs in a dry run: `scripts/TypeScript/virtual.ts` (`afterMoves`) gives the resolver a model of the files as they will be after the moves (a moved file exists at its target and no longer at its source), so a move whose new place another module answers (`src/old.ts` to `src/lib/index.ts` next to a `src/lib.ts`) is refused in the dry run with the message of the real move. The asset resolver reads the real disk, so an asset import is checkable only when it is written relative to the importer; a rewritten import of an asset through an alias is counted in `unchecked` and named in a note, and the real move checks it.
 
 ## Key limits
 

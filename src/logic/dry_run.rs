@@ -26,16 +26,7 @@ pub struct DryRun {
 /// full is an error with the whole report as its text, like a real move.
 pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
     // Relative paths in the plan are made from one absolute project path.
-    let root_buf = match req.project_path.as_deref() {
-        Some(root) => Some(std::path::absolute(root)?),
-        None => None,
-    };
-    let req = RefactorRequest {
-        project_path: root_buf
-            .as_ref()
-            .map(|root| root.to_string_lossy().into_owned()),
-        ..req
-    };
+    let req = super::absolute_project(req)?;
     let Prepared {
         root,
         groups,
@@ -205,9 +196,7 @@ fn render(
         }
     }
     if failed.is_empty() && !planned.is_empty() {
-        text.push_str(
-            "\n// The checks that follow a real move (the compiler, the resolver) run only on a real move.\n// Run the same command without --dry-run to apply the move.\n",
-        );
+        text.push_str("\n// Run the same command without --dry-run to apply the move.\n");
     }
     text
 }

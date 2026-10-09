@@ -33,3 +33,17 @@ fn a_folder_without_a_manifest_is_not_watched() {
             .all(|lock| lock.parent().unwrap().join("Cargo.toml").exists())
     );
 }
+
+#[test]
+fn a_kept_lock_file_stays() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("Cargo.toml"), "").unwrap();
+
+    {
+        let mut watch = NewLockfiles::watch(temp.path());
+        std::fs::write(temp.path().join("Cargo.lock"), "new").unwrap();
+        watch.keep();
+    }
+
+    assert!(temp.path().join("Cargo.lock").exists());
+}

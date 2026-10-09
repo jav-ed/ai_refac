@@ -53,10 +53,13 @@ PREVIEW (--dry-run)
   line, package line or link), and the notes. It runs the same checks and refuses what the move
   refuses (exit 1, same report). Language servers start as for a real move and stop afterwards.
   TypeScript, Markdown, Dart, Go, Rust and Pyrefly are planned from the plan the tool makes before it
-  writes; Python (Rope) and Kotlin cannot plan without moving, so they run the real move on a
-  throw-away copy of the project (limit 500 MiB, REFAC_DRY_RUN_COPY_MAX_MB) and report the
-  difference; every path must then lie inside the project. The checks that need the moved files
-  (the TypeScript resolver, the Kotlin package checks on disk) run only on a real move."#;
+  writes; TypeScript also resolves every rewritten import against the files as they will be after the
+  move (an import of an asset through an alias, which only the real move can check, is counted in a
+  note). Python (Rope) and Kotlin cannot plan without moving, so they run the real move, with its own
+  checks, on a throw-away copy of the project (limit 500 MiB, REFAC_DRY_RUN_COPY_MAX_MB; Rope copies
+  only .py and .pyi files) and report the difference; every path must then lie inside the project.
+  Go and Rust moves of several packages are planned one after the other; two plans that edit the same
+  text are refused, with the advice to move them in separate commands."#;
 
 pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   # One file

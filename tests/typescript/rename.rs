@@ -100,6 +100,7 @@ async fn assert_typechecks(project: &Path) {
     );
 }
 
+mod batch;
 mod choosing;
 mod encoding;
 mod imports;

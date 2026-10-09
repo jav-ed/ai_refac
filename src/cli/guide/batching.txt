@@ -24,7 +24,9 @@ MANY RENAMES: one `rename --batch`
   Write the list once:  [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...]
   Run:                  refac rename --project-path P --batch renames.json     (or --batch - for stdin)
   One server start, each rename proven and written against the files the one before left, all or
-  nothing. One language per batch. TypeScript renames run one per command.
+  nothing. One language per batch (TypeScript included); a batch that mixes languages is refused
+  before anything runs and names the entry: run one batch per language. `--dry-run` plans the whole
+  batch the same way, each entry on the files as the ones before it would leave them.
 
 AN ORDER THAT WORKS FOR A REFACTOR
   1. `refac doctor` once, to see every server is ready.

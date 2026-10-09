@@ -65,6 +65,25 @@ impl Project {
         command.output().expect("failed to execute CLI binary")
     }
 
+    /// `refac move` for the pairs with `--project-path` written the way people
+    /// and scripts write it: relative to the working directory, which here is
+    /// the folder that holds the project.
+    pub fn run_from_parent(&self, moves: &[(&str, &str)], extra: &[&str]) -> Output {
+        let name = self.path().file_name().expect("the project has a name");
+        let mut command = Command::new(cli_binary());
+        command
+            .current_dir(self.path().parent().expect("the project has a parent"))
+            .arg("move")
+            .args(extra)
+            .args(["--project-path"])
+            .arg(name);
+        command.arg("--source-path");
+        command.args(moves.iter().map(|(source, _)| source));
+        command.arg("--target-path");
+        command.args(moves.iter().map(|(_, target)| target));
+        command.output().expect("failed to execute CLI binary")
+    }
+
     /// Run the move, require success, and return what the tool printed.
     pub fn move_ok(&self, moves: &[(&str, &str)]) -> String {
         let output = self.run(moves);

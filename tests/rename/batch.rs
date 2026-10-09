@@ -49,7 +49,7 @@ fn missing(project: &Path, file: &str) -> RenameRequest {
 const GO_SHAPE: &str = "shape/shape.go";
 const GO_REPORT: &str = "internal/report/report.go";
 
-fn go_batch(project: &Path) -> Vec<RenameRequest> {
+pub(super) fn go_batch(project: &Path) -> Vec<RenameRequest> {
     vec![
         at_line(request(project, GO_SHAPE, "Area", "Surface"), 8),
         request(project, GO_SHAPE, "NewRect", "MakeRect"),
@@ -105,32 +105,12 @@ async fn go_batch_with_a_missing_symbol_changes_nothing() {
     assert_unchanged(root, &before);
 }
 
-#[tokio::test]
-#[ignore = "needs gopls (run `refac doctor go`)"]
-async fn go_batch_dry_runs_are_planned_one_independent_of_the_other() {
-    require_server("go");
-    let project = common::setup_fixture("go/rename_module");
-    let root = project.path();
-    let before = snapshot(root);
-    let mut first = at_line(request(root, GO_SHAPE, "Area", "Surface"), 8);
-    let mut second = at_line(request(root, GO_SHAPE, "Area", "Extent"), 8);
-    first.dry_run = true;
-    second.dry_run = true;
-
-    let reports = batch(vec![first, second]).await;
-
-    // Both find all the places: the second is not planned on the first's text.
-    assert_eq!(reports[0].files, reports[1].files);
-    assert_eq!(reports[0].edits, reports[1].edits);
-    assert_unchanged(root, &before);
-}
-
 // ---- Rust: src/shapes.rs line 8 SCALE, 36 variant Square, fn kind_of ---------
 
 const RUST_SHAPES: &str = "src/shapes.rs";
 const RUST_REPORT: &str = "src/report.rs";
 
-fn rust_setup() -> tempfile::TempDir {
+pub(super) fn rust_setup() -> tempfile::TempDir {
     let project = common::setup_fixture("rust/rename_crate");
     let pin = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("rust-toolchain.toml"))
         .expect("the repository pins its toolchain");
@@ -142,7 +122,7 @@ fn rust_setup() -> tempfile::TempDir {
     project
 }
 
-fn rust_batch(project: &Path) -> Vec<RenameRequest> {
+pub(super) fn rust_batch(project: &Path) -> Vec<RenameRequest> {
     vec![
         request(project, RUST_SHAPES, "SCALE", "FACTOR"),
         at_line(request(project, RUST_SHAPES, "Square", "Cube"), 36),
@@ -196,7 +176,7 @@ async fn rust_batch_with_a_missing_symbol_changes_nothing() {
 const PY_SHAPES: &str = "shop/shapes.py";
 const PY_REPORT: &str = "shop/report.py";
 
-fn python_batch(project: &Path) -> Vec<RenameRequest> {
+pub(super) fn python_batch(project: &Path) -> Vec<RenameRequest> {
     vec![
         request(project, PY_SHAPES, "total_area", "sum_area"),
         request(project, PY_SHAPES, "largest", "biggest"),
@@ -254,14 +234,14 @@ async fn python_batch_with_a_missing_symbol_changes_nothing() {
 const DART_SHAPES: &str = "lib/shapes.dart";
 const DART_REPORT: &str = "lib/report.dart";
 
-fn dart_setup() -> tempfile::TempDir {
+pub(super) fn dart_setup() -> tempfile::TempDir {
     require_server("dart");
     let project = common::setup_fixture("dart/rename_package");
     assert_runs(project.path(), "dart", &["pub", "get", "--offline"]);
     project
 }
 
-fn dart_batch(project: &Path) -> Vec<RenameRequest> {
+pub(super) fn dart_batch(project: &Path) -> Vec<RenameRequest> {
     vec![
         request(project, DART_SHAPES, "unit", "side"),
         request(project, DART_SHAPES, "totalArea", "sumArea"),

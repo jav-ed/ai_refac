@@ -199,17 +199,17 @@ async fn a_failing_rename_takes_the_earlier_ones_back() {
 }
 
 #[tokio::test]
-async fn dry_run_renames_are_planned_against_the_files_as_they_are() {
+async fn a_dry_run_rename_sees_what_the_one_before_it_would_write() {
     let dir = project(&[("a.pl", DECLARATIONS), ("b.pl", USES)]);
     let language = Disk::default();
 
-    // Both rename `area`. The second must not see the first one's proof text
-    // in b.pl, or it would find fewer places than there are.
+    // As in a real batch, the second rename names the symbol by the name the
+    // first one gave it, and finds the places in b.pl the first one edited.
     let reports = rename_all(
         &language,
         vec![
             request(dir.path(), "a.pl", "area", "surface", true),
-            request(dir.path(), "a.pl", "area", "extent", true),
+            request(dir.path(), "a.pl", "surface", "extent", true),
         ],
     )
     .await
@@ -219,9 +219,37 @@ async fn dry_run_renames_are_planned_against_the_files_as_they_are() {
     assert_eq!(reports[0].edits, 3);
     assert_eq!(reports[1].files.len(), reports[0].files.len());
     assert_eq!(reports[1].edits, 3);
+    // Nothing was written.
     assert_eq!(read(dir.path(), "a.pl"), DECLARATIONS);
     assert_eq!(read(dir.path(), "b.pl"), USES);
     assert_eq!((language.starts(), language.stops()), (1, 1));
+}
+
+#[tokio::test]
+async fn a_dry_run_refuses_what_the_real_batch_refuses() {
+    let dir = project(&[("a.pl", DECLARATIONS), ("b.pl", USES)]);
+    let language = Disk::default();
+
+    // The first rename takes the name `area` away, so the second finds nothing
+    // to rename. The real batch stops there, and so must the dry run.
+    let requests = |dry_run| {
+        vec![
+            request(dir.path(), "a.pl", "area", "surface", dry_run),
+            request(dir.path(), "a.pl", "area", "extent", dry_run),
+        ]
+    };
+    let planned = rename_all(&language, requests(true)).await.unwrap_err();
+    let real = rename_all(&language, requests(false)).await.unwrap_err();
+
+    for message in [format!("{planned:#}"), format!("{real:#}")] {
+        assert!(
+            message.contains("Rename 2 of 2 (area -> extent"),
+            "{message}"
+        );
+        assert!(message.contains("nothing was changed"), "{message}");
+    }
+    assert_eq!(read(dir.path(), "a.pl"), DECLARATIONS);
+    assert_eq!(read(dir.path(), "b.pl"), USES);
 }
 
 #[tokio::test]

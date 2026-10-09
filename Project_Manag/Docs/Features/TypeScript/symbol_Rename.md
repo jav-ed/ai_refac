@@ -1,6 +1,6 @@
 # Symbol Rename
 
-`refac rename` renames one TypeScript or JavaScript symbol (variable, function, class, interface, enum, member) and updates every reference the type system links to it. It uses the TypeScript 7 native language server for the semantic part, and adds its own planning, verification, and hard-failure rules around it. Nothing is written until the whole rename has been planned and proven faithful in memory.
+`refac rename` renames a TypeScript or JavaScript symbol (or, with `--batch`, several in one session) (variable, function, class, interface, enum, member) and updates every reference the type system links to it. It uses the TypeScript 7 native language server for the semantic part, and adds its own planning, verification, and hard-failure rules around it. Nothing is written until the whole rename has been planned and proven faithful in memory.
 
 ## Command
 
@@ -14,6 +14,7 @@ refac rename --project-path /path/to/package \
 - `--symbol` and `--new-name`: the current and the new identifier.
 - `--line` (1-based) and `--column` (1-based byte column, like `rg --column`): choose one occurrence when the name refers to several symbols in the file.
 - `--dry-run`: plan and verify, report the edits, change no file.
+- `--batch FILE` (or `-`): several renames of one project in one engine session, see below.
 - `--json`: machine-readable result with `edits`, `edited_files`, and the per-file edit counts.
 
 ## Choosing the symbol
@@ -37,6 +38,10 @@ Declarations and usages across files: named, default, aliased, namespace, and ty
 5. **Write.** Each file is re-read first and must be unchanged since planning. A failed write restores the files already written.
 
 BOM and CRLF line endings are preserved. Positions are exchanged as UTF-8 byte offsets, so multibyte text is safe.
+
+## Several renames
+
+`refac rename --batch renames.json` takes a list of `{"file", "symbol", "new_name"}` entries (each may add `line` and `column`). The engine starts once (`src/drivers/typescript/rename/batch.rs`; a single rename is a batch of one). Each entry is planned and proven in memory against the files as the entries before it have written them, and then written, so a later entry may name a symbol by the name an earlier one gave it. The engine is stopped before the last write and on every failure. A failing entry puts back the earlier ones, newest first (`apply::revert`), and the error says which entry failed (`Rename 3 of 5 (a -> b in f) failed; the 2 earlier rename(s) were undone, so nothing was changed: ...`). With `--dry-run` nothing is written; each entry is planned on the text the earlier ones would write (an in-memory overlay), so the dry run accepts and refuses what the real batch does. A batch may not mix languages: it is refused before anything runs and names the first entry of another language. Tests: `tests/typescript/rename/batch.rs`.
 
 ## Hard failures
 

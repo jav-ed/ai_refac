@@ -12,18 +12,33 @@
 
 use super::language::Language;
 use super::server::RenameServer;
-use super::{Located, locate, plan_and_verify, put_back, report};
+use super::{Located, locate, plan_and_verify, report};
 use crate::drivers::lsp::rename::check::leftovers;
+use crate::drivers::lsp::rename::plan::discover::RenamePlan;
 use crate::drivers::lsp::rename::plan::names;
 use crate::drivers::lsp::rename::write::apply;
 use crate::drivers::lsp::rename::write::journal::Journal;
+use crate::drivers::symbol::batch as batch_errors;
 use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
+use crate::drivers::symbol::view;
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 /// Run every request, in order, in one server session. The reports come back
-/// in the same order.
+/// in the same order. A dry run writes nothing, so it runs in a view that
+/// holds what the earlier renames would have written (see `symbol::view`).
 pub async fn rename_all(
+    language: &dyn Language,
+    requests: Vec<RenameRequest>,
+) -> Result<Vec<RenameReport>> {
+    if requests.first().is_some_and(|first| first.dry_run) {
+        view::scoped(rename_steps(language, requests)).await
+    } else {
+        rename_steps(language, requests).await
+    }
+}
+
+async fn rename_steps(
     language: &dyn Language,
     requests: Vec<RenameRequest>,
 ) -> Result<Vec<RenameReport>> {
@@ -72,7 +87,7 @@ fn check_requests(language: &dyn Language, requests: &[RenameRequest]) -> Result
         bail!("A batch needs at least one rename");
     };
     for (index, request) in requests.iter().enumerate() {
-        let which = |error: anyhow::Error| in_batch(error, index, requests);
+        let which = |error: anyhow::Error| batch_errors::in_batch(error, index, requests);
         names::validate(language, &request.symbol, &request.new_name).map_err(which)?;
         if request.column.is_some() && request.line.is_none() {
             return Err(which(anyhow::anyhow!("--column needs --line")));
@@ -87,7 +102,7 @@ fn check_requests(language: &dyn Language, requests: &[RenameRequest]) -> Result
     for (index, request) in requests.iter().enumerate().skip(1) {
         let other = language.project_root(&request.project_path)?;
         if other != root {
-            return Err(in_batch(
+            return Err(batch_errors::in_batch(
                 anyhow::anyhow!(
                     "a batch works in one project, but this one is in {} and the first is in {}",
                     other.display(),
@@ -136,11 +151,11 @@ async fn run_step(
             server.shutdown().await;
         }
     } else if request.dry_run {
-        // Nothing is written, so the next rename starts from the files as they
-        // are on disk: the server must forget what this one showed it.
-        if let Some(live) = server.as_deref_mut() {
-            put_back(live, plan).await?;
-        }
+        // Nothing is written, but the next rename must start from the files as
+        // this one would leave them, as in a real batch: the server already
+        // holds the renamed texts it was shown to prove the plan, and the view
+        // holds them for everything else that reads a file.
+        remember(plan)?;
     }
 
     let mut follow_ups = language.follow_ups(root, plan)?;
@@ -161,6 +176,24 @@ async fn run_step(
     Ok(report(root, plan, follow_ups, request.dry_run))
 }
 
+/// What a dry-run rename would have written, for the renames after it.
+fn remember(plan: &RenamePlan) -> Result<()> {
+    if !plan.moves.is_empty() {
+        bail!(
+            "A dry run of several renames cannot go on after a rename that moves a file ({}): the later renames would be planned against the old file. Dry-run the renames in separate commands, or run the batch itself without --dry-run: it is all or nothing, so a rename that fails takes the earlier ones back.",
+            plan.moves[0].0.display()
+        );
+    }
+    for edited in &plan.files {
+        view::remember(
+            &edited.file.path,
+            String::from_utf8(edited.file.bytes.clone())
+                .with_context(|| format!("{} is not valid UTF-8", edited.file.path.display()))?,
+        )?;
+    }
+    Ok(())
+}
+
 /// Take back the steps that were written before the failing one, newest first,
 /// and say what happened. A single rename keeps its error as it is.
 fn undo(
@@ -169,9 +202,6 @@ fn undo(
     failed: usize,
     requests: &[RenameRequest],
 ) -> anyhow::Error {
-    if requests.len() == 1 {
-        return error;
-    }
     let applied = journals.len();
     let mut failures = Vec::new();
     for journal in journals.into_iter().rev() {
@@ -179,40 +209,7 @@ fn undo(
             failures.push(format!("{failure:#}"));
         }
     }
-    let outcome = if !failures.is_empty() {
-        format!(
-            "undoing the {applied} earlier rename(s) failed too, so the project is half refactored; inspect it with git:\n{}",
-            failures.join("\n")
-        )
-    } else if applied == 0 {
-        "nothing was changed".to_string()
-    } else {
-        format!("the {applied} earlier rename(s) were undone, so nothing was changed")
-    };
-    // Reads outermost first: which rename failed and what became of the
-    // batch, then why.
-    error.context(format!("{} failed; {outcome}", label(failed, requests)))
-}
-
-/// Name the rename of a batch an error belongs to. A batch of one is a plain
-/// rename and keeps its messages as they are.
-fn in_batch(error: anyhow::Error, index: usize, requests: &[RenameRequest]) -> anyhow::Error {
-    if requests.len() == 1 {
-        return error;
-    }
-    error.context(label(index, requests))
-}
-
-fn label(index: usize, requests: &[RenameRequest]) -> String {
-    let request = &requests[index];
-    format!(
-        "Rename {} of {} ({} -> {} in {})",
-        index + 1,
-        requests.len(),
-        request.symbol,
-        request.new_name,
-        request.file.display()
-    )
+    batch_errors::step_failed(error, failed, requests, applied, failures)
 }
 
 #[cfg(test)]

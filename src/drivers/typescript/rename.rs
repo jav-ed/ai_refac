@@ -4,6 +4,7 @@
 //! without writing, proves them faithful in memory, and only then writes.
 
 mod apply;
+mod batch;
 mod edits;
 mod engine;
 mod locate;
@@ -11,11 +12,9 @@ mod plan;
 mod session;
 mod verify;
 
-use super::process::{self, Limits};
 pub use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
-use sysinfo::Pid;
 
 const RESERVED_WORDS: &[&str] = &[
     "await",
@@ -89,83 +88,15 @@ pub async fn native_executable() -> Result<PathBuf> {
     engine::locate().await
 }
 
+/// One rename: a batch of one, with its messages as they are.
 pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
-    validate_names(&request.symbol, &request.new_name)?;
-    if request.column.is_some() && request.line.is_none() {
-        bail!("--column needs --line");
-    }
-    let project = request.project_path.canonicalize().with_context(|| {
-        format!(
-            "Project path does not exist: {}",
-            request.project_path.display()
-        )
-    })?;
-    if !project.join("tsconfig.json").is_file() {
-        bail!(
-            "No tsconfig.json in {}. Symbol rename needs the package root with the authoritative tsconfig.",
-            project.display()
-        );
-    }
-    let absolute = if request.file.is_absolute() {
-        request.file.clone()
-    } else {
-        project.join(&request.file)
-    };
-    let file = absolute
-        .canonicalize()
-        .with_context(|| format!("File does not exist: {}", absolute.display()))?;
-    if !file.starts_with(&project) {
-        bail!(
-            "{} is outside the project {}",
-            file.display(),
-            project.display()
-        );
-    }
-
-    let limits = Limits::from_env()?;
-    let executable = engine::locate().await?;
-    engine::preflight(&executable, &project, &file, limits.timeout).await?;
-
-    let mut session = session::start(&executable, &project).await?;
-    let pid = session.pid().context("TypeScript engine has no PID")?;
-    // Planning and verification only read; a limit failure here leaves the
-    // working tree untouched. Writing happens after this block, uninterrupted.
-    let outcome = tokio::select! {
-        result = plan_and_verify(&mut session, &request, &file, &project) => result,
-        _ = tokio::time::sleep(limits.timeout) => Err(anyhow::anyhow!(
-            "TypeScript engine timed out after {} seconds. No files were changed", limits.timeout.as_secs_f64()
-        )),
-        exceeded = process::memory_limit(Pid::from_u32(pid), limits.rss_bytes) => Err(exceeded
-            .err()
-            .unwrap_or_else(|| anyhow::anyhow!("TypeScript RAM monitor stopped unexpectedly"))
-            .context("No files were changed")),
-    };
-    session.shutdown().await;
-    let plan = outcome?;
-
-    if !request.dry_run {
-        apply::apply(&plan)?;
-    }
-    let files = plan
-        .files
-        .iter()
-        .map(|file| {
-            (
-                file.path
-                    .strip_prefix(&project)
-                    .unwrap_or(&file.path)
-                    .to_path_buf(),
-                file.edits.len(),
-            )
-        })
-        .collect();
-    Ok(RenameReport {
-        files,
-        edits: plan.edit_count(),
-        dry_run: request.dry_run,
-        notes: Vec::new(),
-    })
+    let mut reports = rename_symbols(vec![request]).await?;
+    reports.pop().context("The rename produced no report")
 }
+
+/// Several renames of one project in one engine session, all or nothing; see
+/// `batch`. The reports come back in the order of the requests.
+pub use batch::rename_symbols;
 
 async fn plan_and_verify(
     session: &mut session::Session,
@@ -173,8 +104,8 @@ async fn plan_and_verify(
     file: &Path,
     project: &Path,
 ) -> Result<plan::Plan> {
-    let text =
-        std::fs::read_to_string(file).with_context(|| format!("Cannot read {}", file.display()))?;
+    let text = crate::drivers::symbol::view::read_to_string(file)
+        .with_context(|| format!("Cannot read {}", file.display()))?;
     // The engine reads files without their BOM, so positions must exclude it.
     let text = text.strip_prefix('\u{FEFF}').unwrap_or(&text);
     let matches = locate::occurrences(text, &request.symbol, request.line, request.column)?;

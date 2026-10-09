@@ -29,8 +29,9 @@ JSON (--json, on move, move-module, rename and doctor)
     move --dry-run  the same plus "dry_run":true,"moved_paths","edited_files","edits",
                   "files":[{"path","edits"}],"moves":[{"from","to"}],"notes":[...]
     move-module  {"status":"ok","operation":"move-module","project_path","source_module",
-                  "target_module","dry_run","moved_paths","edited_files","edits",
-                  "files":[{"path","edits"}],"moves":[{"from","to"}]}
+                  "target_module","dry_run","compiled","moved_paths","edited_files","edits",
+                  "files":[{"path","edits"}],"moves":[{"from","to"}]}   (compiled: cargo check passed;
+                  false for a plain --dry-run, true for --dry-run --check)
     rename       {"status":"ok","operation":"rename","project_path","file","symbol","new_name",
                   "dry_run","edits","edited_files","files":[{"path","edits"}],"notes":[...]}
     batch        {"status":"ok","operation":"rename-batch","project_path","dry_run","edits",

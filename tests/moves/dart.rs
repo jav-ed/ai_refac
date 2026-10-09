@@ -40,4 +40,5 @@ fn run_move(project: &std::path::Path) -> std::process::Output {
 }
 
 mod imports;
+mod package_config;
 mod untouched;

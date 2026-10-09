@@ -33,9 +33,10 @@ pub(super) struct MoveArgs {
     ///
     /// Lists, per language, the paths that would move (also the files that move with a Go package)
     /// and the edits per file, and refuses what the real move refuses. Language servers start
-    /// as for a real move and stop afterwards. Python and Kotlin are planned by moving a throw-away
-    /// copy of the project (limit 500 MiB, REFAC_DRY_RUN_COPY_MAX_MB). The checks that follow a real
-    /// move (the resolver, the compiler) run only on a real move.
+    /// as for a real move and stop afterwards. Python (Rope) and Kotlin are planned by carrying the
+    /// move out on a throw-away copy of the project, so their own checks run too (limit 500 MiB,
+    /// REFAC_DRY_RUN_COPY_MAX_MB; Rope copies only the .py and .pyi files). TypeScript resolves every
+    /// rewritten import against the files as they will be after the move, as the real move does.
     #[arg(long)]
     pub(super) dry_run: bool,
 
@@ -62,10 +63,19 @@ pub(super) struct MoveModuleArgs {
 
     /// Plan the move, print what it would do, and change no file.
     ///
-    /// The plan is checked for conflicts, but the Cargo check that proves the moved workspace
-    /// still compiles runs only on a real move.
+    /// The plan is checked for conflicts. The Cargo check that proves the moved workspace still
+    /// compiles is made only with --check.
     #[arg(long)]
     pub(super) dry_run: bool,
+
+    /// With --dry-run: also compile the moved workspace.
+    ///
+    /// Carries the move out on a throw-away copy of the workspace (without `target`, and inside
+    /// REFAC_DRY_RUN_COPY_MAX_MB, default 500) and runs `cargo check --workspace --all-targets`
+    /// there, as the real move does. The copy builds into a folder of its own, so this takes as
+    /// long as a first build. The project is not touched.
+    #[arg(long, requires = "dry_run")]
+    pub(super) check: bool,
 
     /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
@@ -121,7 +131,9 @@ pub(super) struct RenameArgs {
     /// The file holds a list: [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...];
     /// an entry may add "line" and "column". The server starts once, each rename is proven and
     /// written against the files the one before left, and one failure undoes the earlier ones.
-    /// One language per batch, not TypeScript. Replaces --file, --symbol and --new-name.
+    /// One language per batch (a mixed batch is refused, naming the entry). With --dry-run each entry
+    /// is planned on the files as the ones before it would leave them. Replaces --file, --symbol
+    /// and --new-name.
     #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath)]
     pub(super) batch: Option<std::path::PathBuf>,
 

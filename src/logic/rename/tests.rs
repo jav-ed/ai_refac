@@ -36,11 +36,26 @@ async fn a_batch_renames_in_one_language() {
 }
 
 #[tokio::test]
-async fn typescript_takes_one_rename_per_command() {
+async fn typescript_is_a_language_like_the_others() {
+    // TypeScript entries are one batch, not refused for being several; this
+    // one stops at the first check, which is about the project, not the batch.
     let message = refusal(vec![request("a.ts"), request("b.ts")]).await;
 
+    assert!(!message.contains("one batch per language"), "{message}");
+    assert!(!message.contains("one rename per command"), "{message}");
+    assert!(message.contains("Rename 1 of 2"), "{message}");
+}
+
+#[tokio::test]
+async fn typescript_and_another_language_are_not_one_batch() {
+    let message = refusal(vec![request("a.ts"), request("b.go")]).await;
+
     assert!(
-        message.contains("Kotlin, Go, Rust, Python and Dart"),
+        message.contains("rename 2 is a Go file (b.go)"),
+        "{message}"
+    );
+    assert!(
+        message.contains("rename 1 a TypeScript/JavaScript file (a.ts)"),
         "{message}"
     );
 }

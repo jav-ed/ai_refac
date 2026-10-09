@@ -34,13 +34,18 @@ SAFETY
 
 --dry-run plans the move and changes no file (a Cargo.lock that Cargo writes while the workspace
 loads is removed again if it did not exist). It lists the paths that would move and the edits per
-file, and refuses what the real move refuses, but the Cargo check runs only on a real move.
+file, and refuses what the real move refuses, but it does not compile the result.
+--dry-run --check also compiles it: the move is carried out on a throw-away copy of the workspace
+(without `target`, limit REFAC_DRY_RUN_COPY_MAX_MB, default 500) and `cargo check --workspace
+--all-targets` runs there. The copy builds into a folder of its own, so this takes as long as a first
+build, and a path dependency outside the workspace folder is not in the copy. The project is not
+touched.
 
 WHAT YOU GET BACK
   `// Alhamdulillah Rust module moved semantically:` then `old -> new`, the number of filesystem
   paths moved and source files updated. With --dry-run: `// Dry run: nothing was changed.`, the
   moves, `// <file> (<n> edits)` per file. With --json: status, operation, project_path,
-  source_module, target_module, dry_run, moved_paths, edited_files, edits, files (path, edits),
+  source_module, target_module, dry_run, compiled, moved_paths, edited_files, edits, files (path, edits),
   moves (from, to)."#;
 
 pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
@@ -49,6 +54,9 @@ pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
 
   # See what it would do first; nothing is written
   refac move-module --dry-run crate::engine::matching crate::domain::matching
+
+  # The same, and prove on a copy that the moved workspace compiles
+  refac move-module --dry-run --check crate::engine::matching crate::domain::matching
 
   # Same, from inside the workspace, machine-readable
   refac move-module --json crate::util::text crate::text

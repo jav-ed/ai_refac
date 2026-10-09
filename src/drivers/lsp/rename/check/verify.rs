@@ -97,12 +97,13 @@ fn check_every_reference_is_edited(
             Some(edited) => edited.file.before.as_str(),
             None => {
                 if !texts.contains_key(reference.path.as_path()) {
-                    let raw = std::fs::read_to_string(&reference.path).with_context(|| {
-                        format!(
-                            "Cannot read {}, a reference of the symbol",
-                            reference.path.display()
-                        )
-                    })?;
+                    let raw = crate::drivers::symbol::view::read_to_string(&reference.path)
+                        .with_context(|| {
+                            format!(
+                                "Cannot read {}, a reference of the symbol",
+                                reference.path.display()
+                            )
+                        })?;
                     texts.insert(
                         reference.path.as_path(),
                         raw.strip_prefix('\u{FEFF}').unwrap_or(&raw).to_string(),

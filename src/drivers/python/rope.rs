@@ -104,6 +104,10 @@ impl RefactorDriver for RopeDriver {
             CopyPlan {
                 tool_state: &[".ropeproject"],
                 scratch: &[],
+                // Rope reads Python files and nothing else, so a project's data
+                // files, images and models stay out of the copy.
+                only: &["py", "pyi"],
+                ..CopyPlan::default()
             },
             |pairs, copy| async move {
                 self.move_files(pairs, Some(copy.as_path())).await?;

@@ -38,6 +38,8 @@ pub(super) struct MoveModuleSuccessOutput<'a> {
     pub(super) source_module: &'a str,
     pub(super) target_module: &'a str,
     pub(super) dry_run: bool,
+    /// The moved workspace passed `cargo check` (false for a plain dry run).
+    pub(super) compiled: bool,
     pub(super) moved_paths: usize,
     pub(super) edited_files: usize,
     pub(super) edits: usize,

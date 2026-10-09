@@ -1,32 +1,30 @@
 //! A dry run for the backends that cannot plan a move without carrying it out:
 //! Rope applies one move after the other and reads the moved files, and the
 //! Kotlin server, Snapshot and Android layer need them in their new places.
-//! The real move runs on a throw-away copy of the project, and what differs
-//! between the copy and the original is the preview. The original is never
-//! touched.
+//! A dry run of several Kotlin renames (a class rename moves its file) and
+//! `move-module --dry-run --check` (a compile needs the moved files) work the
+//! same way. The real operation runs on a throw-away copy of the project, and
+//! what differs between the copy and the original is the preview. The original
+//! is never touched.
 //!
 //! The copy holds what the project's `.gitignore` does not exclude (and never
 //! `.git`), plus the few ignored files a tool needs to load the project. It is
 //! limited in size (`REFAC_DRY_RUN_COPY_MAX_MB`, default 500) so that a dry run
 //! cannot fill the disk; a project over the limit is an error that says so.
 
+mod compare;
+mod files;
+
 use super::MovePreview;
 use anyhow::{Context, Result, bail};
-use ignore::WalkBuilder;
-use std::collections::{BTreeMap, BTreeSet};
+use compare::{compare, read_tree};
+use files::{copy_project, limit_bytes};
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::path::{Component, Path, PathBuf};
 
-const LIMIT_ENV: &str = "REFAC_DRY_RUN_COPY_MAX_MB";
-const DEFAULT_LIMIT_MB: u64 = 500;
-const MIB: u64 = 1024 * 1024;
-/// Ignored by `.gitignore` in most projects, needed to load them.
-const ALWAYS_COPIED: [&str; 3] = ["local.properties", "gradle/wrapper", ".ropeproject"];
-/// Things a few created files are listed for, then counted.
-const CREATED_LISTED: usize = 5;
-
-/// What a backend says about its copy: the folders a tool fills with its own
-/// files, which are not part of the move.
+/// What a backend says about its copy.
+#[derive(Default)]
 pub struct CopyPlan<'a> {
     /// Names of folders (at any depth) whose content is the tool's own state
     /// and is left out of the comparison altogether, such as `.ropeproject`.
@@ -35,6 +33,97 @@ pub struct CopyPlan<'a> {
     /// there is not reported, a file that was already there is compared like
     /// any other (a package may be called `build`).
     pub scratch: &'a [&'a str],
+    /// File extensions (without the dot) the tool reads; the copy holds no
+    /// other file. Empty copies every file the project does not ignore.
+    pub only: &'a [&'a str],
+    /// Names of folders (at any depth) the copy never holds, such as Cargo's
+    /// `target`: build output the tool does not read.
+    pub skip: &'a [&'a str],
+}
+
+/// The project folder as the caller named it, before anything is copied.
+pub struct ProjectRoot {
+    /// The real path of the folder.
+    canonical: PathBuf,
+    /// The folder as written, which differs when it is a link to the project.
+    given: PathBuf,
+}
+
+/// A throw-away copy of a project. The folder is deleted when this is dropped.
+pub struct ProjectCopy {
+    dir: tempfile::TempDir,
+    project: PathBuf,
+    copied: BTreeSet<PathBuf>,
+}
+
+impl ProjectRoot {
+    pub fn at(root_path: Option<&Path>) -> Result<Self> {
+        let given = match root_path {
+            Some(root) => std::path::absolute(root)?,
+            None => std::env::current_dir()?,
+        };
+        let canonical = given
+            .canonicalize()
+            .with_context(|| format!("Cannot read the project folder {}", given.display()))?;
+        Ok(Self { canonical, given })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.canonical
+    }
+
+    /// `path` (relative to the project, or absolute below it) relative to the
+    /// project. The copy has the same layout, so it is the path in the copy
+    /// too. A path may be written through a link to the project folder.
+    pub fn relative(&self, path: &str) -> Result<String> {
+        let joined = if Path::new(path).is_absolute() {
+            PathBuf::from(path)
+        } else {
+            self.canonical.join(path)
+        };
+        let normalized = normalize(&joined);
+        let Some(relative) = [&self.canonical, &self.given]
+            .into_iter()
+            .find_map(|root| normalized.strip_prefix(root).ok())
+        else {
+            bail!(
+                "A dry run copies the project, so every path must lie inside {}: {path} does not. Run the operation itself to reach outside the project.",
+                self.canonical.display()
+            );
+        };
+        Ok(relative.to_string_lossy().into_owned())
+    }
+
+    /// Copies the project into a folder of its own: what `plan.only` and
+    /// `plan.skip` leave in, of what the project's `.gitignore` does not exclude.
+    pub fn copy(&self, plan: &CopyPlan) -> Result<ProjectCopy> {
+        let dir = tempfile::Builder::new()
+            .prefix("refac-dry-run-")
+            .tempdir()
+            .context("Cannot create the folder for the dry-run copy")?;
+        let copied = copy_project(&self.canonical, dir.path(), limit_bytes()?, plan)?;
+        Ok(ProjectCopy {
+            dir,
+            project: self.canonical.clone(),
+            copied,
+        })
+    }
+}
+
+impl ProjectCopy {
+    /// The root of the copy, where the real operation runs.
+    pub fn path(&self) -> &Path {
+        self.dir.path()
+    }
+
+    /// A message the real operation printed about the copy, as it reads about
+    /// the project the user named.
+    pub fn about_the_project(&self, text: &str) -> String {
+        text.replace(
+            &self.dir.path().display().to_string(),
+            &self.project.display().to_string(),
+        )
+    }
 }
 
 /// Runs `run` (the backend's real move) on a copy of the project and returns
@@ -50,60 +139,19 @@ where
     F: FnOnce(Vec<(String, String)>, PathBuf) -> Fut,
     Fut: Future<Output = Result<Vec<String>>>,
 {
-    let root = match root_path {
-        Some(root) => std::path::absolute(root)?,
-        None => std::env::current_dir()?,
-    };
-    let canonical = root
-        .canonicalize()
-        .with_context(|| format!("Cannot read the project folder {}", root.display()))?;
-    // A path may be written through a symbolic link to the project folder.
-    let pairs = relative_pairs(&[canonical.clone(), root], file_map)?;
-    let root = canonical;
-
-    let copy = tempfile::Builder::new()
-        .prefix("refac-dry-run-")
-        .tempdir()
-        .context("Cannot create the folder for the dry-run copy")?;
-    let copied = copy_project(&root, copy.path(), limit_bytes()?)?;
+    let root = ProjectRoot::at(root_path)?;
+    let pairs: Vec<(String, String)> = file_map
+        .iter()
+        .map(|(source, target)| Ok((root.relative(source)?, root.relative(target)?)))
+        .collect::<Result<_>>()?;
+    let copy = root.copy(&plan)?;
 
     let notes = run(pairs.clone(), copy.path().to_path_buf()).await?;
 
     let after = read_tree(copy.path(), plan.tool_state)?;
-    let mut preview = compare(&root, &copied, &after, &pairs, &plan)?;
+    let mut preview = compare(root.path(), &copy.copied, &after, &pairs, &plan)?;
     preview.notes.splice(0..0, notes);
     Ok(preview)
-}
-
-/// The pairs relative to the project: the copy has the same layout. `roots`
-/// are the spellings of the project folder (its real path first); a path below
-/// any of them is inside.
-fn relative_pairs(
-    roots: &[PathBuf],
-    file_map: &[(String, String)],
-) -> Result<Vec<(String, String)>> {
-    let inside = |path: &str| -> Result<String> {
-        let joined = if Path::new(path).is_absolute() {
-            PathBuf::from(path)
-        } else {
-            roots[0].join(path)
-        };
-        let normalized = normalize(&joined);
-        let Some(relative) = roots
-            .iter()
-            .find_map(|root| normalized.strip_prefix(root).ok())
-        else {
-            bail!(
-                "A dry run copies the project, so every path must lie inside {}: {path} does not. Run the move itself to move files out of the project.",
-                roots[0].display()
-            );
-        };
-        Ok(relative.to_string_lossy().into_owned())
-    };
-    file_map
-        .iter()
-        .map(|(source, target)| Ok((inside(source)?, inside(target)?)))
-        .collect()
 }
 
 fn normalize(path: &Path) -> PathBuf {
@@ -118,220 +166,6 @@ fn normalize(path: &Path) -> PathBuf {
         }
     }
     normalized
-}
-
-fn limit_bytes() -> Result<u64> {
-    match std::env::var(LIMIT_ENV) {
-        Err(_) => Ok(DEFAULT_LIMIT_MB * MIB),
-        Ok(value) => value
-            .trim()
-            .parse::<u64>()
-            .ok()
-            .filter(|megabytes| *megabytes > 0)
-            .map(|megabytes| megabytes * MIB)
-            .with_context(|| {
-                format!("{LIMIT_ENV} must be a positive number of MiB, got `{value}`")
-            }),
-    }
-}
-
-/// Copies the project and returns the relative paths of the files copied.
-fn copy_project(root: &Path, copy: &Path, limit: u64) -> Result<BTreeSet<PathBuf>> {
-    let mut size = 0u64;
-    let mut copied = BTreeSet::new();
-    let walker = WalkBuilder::new(root)
-        .hidden(false)
-        .require_git(false)
-        .filter_entry(|entry| entry.file_name() != ".git")
-        .build();
-    let mut paths: Vec<PathBuf> = Vec::new();
-    for entry in walker {
-        let entry = entry.context("Cannot read the project folder")?;
-        if entry.file_type().is_some_and(|kind| !kind.is_dir()) {
-            paths.push(entry.into_path());
-        }
-    }
-    for extra in ALWAYS_COPIED {
-        let path = root.join(extra);
-        if path.is_file() {
-            paths.push(path);
-        } else if path.is_dir() {
-            paths.extend(files_below(&path)?);
-        }
-    }
-    for path in paths {
-        let relative = path.strip_prefix(root)?.to_path_buf();
-        if copied.contains(&relative) {
-            continue;
-        }
-        let metadata = std::fs::symlink_metadata(&path)?;
-        size += metadata.len();
-        if size > limit {
-            bail!(
-                "The project is larger than the {} MiB a dry run may copy ({LIMIT_ENV} raises the limit). The dry run copies the project because this language's backend cannot plan a move without carrying it out.",
-                limit / MIB
-            );
-        }
-        let target = copy.join(&relative);
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        if metadata.file_type().is_symlink() {
-            link(&std::fs::read_link(&path)?, &target)?;
-        } else {
-            std::fs::copy(&path, &target)
-                .with_context(|| format!("Cannot copy {}", path.display()))?;
-        }
-        copied.insert(relative);
-    }
-    Ok(copied)
-}
-
-#[cfg(unix)]
-fn link(to: &Path, at: &Path) -> Result<()> {
-    Ok(std::os::unix::fs::symlink(to, at)?)
-}
-
-#[cfg(not(unix))]
-fn link(_: &Path, at: &Path) -> Result<()> {
-    bail!("The dry run cannot copy the symbolic link {}", at.display())
-}
-
-fn files_below(dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut files = Vec::new();
-    for entry in walkdir::WalkDir::new(dir) {
-        let entry = entry?;
-        if !entry.file_type().is_dir() {
-            files.push(entry.into_path());
-        }
-    }
-    Ok(files)
-}
-
-/// Every file of the copy after the move: relative path to its bytes.
-fn read_tree(copy: &Path, tool_state: &[&str]) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
-    let mut files = BTreeMap::new();
-    for entry in walkdir::WalkDir::new(copy).follow_links(false) {
-        let entry = entry?;
-        if entry.file_type().is_dir() {
-            continue;
-        }
-        let relative = entry.path().strip_prefix(copy)?.to_path_buf();
-        if has_component(&relative, tool_state) {
-            continue;
-        }
-        let bytes = if entry.file_type().is_symlink() {
-            std::fs::read_link(entry.path())?
-                .to_string_lossy()
-                .into_owned()
-                .into_bytes()
-        } else {
-            std::fs::read(entry.path())?
-        };
-        files.insert(relative, bytes);
-    }
-    Ok(files)
-}
-
-/// The preview: the requested moves, what moved with them, and the edits.
-fn compare(
-    root: &Path,
-    before: &BTreeSet<PathBuf>,
-    after: &BTreeMap<PathBuf, Vec<u8>>,
-    pairs: &[(String, String)],
-    plan: &CopyPlan<'_>,
-) -> Result<MovePreview> {
-    let mut preview = MovePreview {
-        moves: pairs
-            .iter()
-            .map(|(from, to)| (root.join(from), root.join(to)))
-            .collect(),
-        ..Default::default()
-    };
-    let mut claimed: BTreeSet<&PathBuf> = BTreeSet::new();
-    for relative in before {
-        if has_component(relative, plan.tool_state) {
-            continue;
-        }
-        let original = std::fs::read(root.join(relative))
-            .with_context(|| format!("Cannot read {}", root.join(relative).display()))?;
-        // Where the file is after the move: where a requested move put it, or
-        // where it was.
-        let expected = moved_to(relative, pairs);
-        if let Some((key, bytes)) = after.get_key_value(&expected) {
-            claimed.insert(key);
-            preview.add_edits(root.join(relative), edit_count(&original, bytes));
-            continue;
-        }
-        // Gone from the copy: moved by the tool beyond the request (a package
-        // moves with its files), or deleted.
-        let travelled = after.iter().find(|(path, bytes)| {
-            !claimed.contains(path) && !before.contains(*path) && **bytes == original
-        });
-        match travelled {
-            Some((path, _)) => {
-                claimed.insert(path);
-                preview.moves.push((root.join(relative), root.join(path)));
-            }
-            None => preview.notes.push(format!(
-                "The move would delete {}.",
-                root.join(relative).display()
-            )),
-        }
-    }
-    let created: Vec<&PathBuf> = after
-        .keys()
-        .filter(|path| {
-            !before.contains(*path) && !claimed.contains(path) && !has_component(path, plan.scratch)
-        })
-        .collect();
-    for path in created.iter().take(CREATED_LISTED) {
-        preview.notes.push(format!(
-            "The move would create {}.",
-            root.join(path).display()
-        ));
-    }
-    if created.len() > CREATED_LISTED {
-        preview.notes.push(format!(
-            "The move would create {} more files that are not listed.",
-            created.len() - CREATED_LISTED
-        ));
-    }
-    Ok(preview)
-}
-
-fn has_component(path: &Path, names: &[&str]) -> bool {
-    path.components().any(|component| {
-        names
-            .iter()
-            .any(|name| component.as_os_str() == std::ffi::OsStr::new(name))
-    })
-}
-
-/// Where `relative` ends up when the pairs move it, directly or inside a moved
-/// folder.
-fn moved_to(relative: &Path, pairs: &[(String, String)]) -> PathBuf {
-    for (from, to) in pairs {
-        if let Ok(rest) = relative.strip_prefix(from) {
-            return Path::new(to).join(rest);
-        }
-    }
-    relative.to_path_buf()
-}
-
-/// How many separate changed passages the move made in a file: a changed text
-/// file counts its hunks, a changed binary file counts one.
-fn edit_count(before: &[u8], after: &[u8]) -> usize {
-    if before == after {
-        return 0;
-    }
-    match (std::str::from_utf8(before), std::str::from_utf8(after)) {
-        (Ok(old), Ok(new)) => similar::TextDiff::from_lines(old, new)
-            .grouped_ops(0)
-            .len()
-            .max(1),
-        _ => 1,
-    }
 }
 
 #[cfg(test)]

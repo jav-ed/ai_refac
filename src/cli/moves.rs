@@ -5,6 +5,7 @@ use super::output::{
     MoveDryRunOutput, MoveModuleSuccessOutput, MoveSuccessOutput, MovedPath, RenamedFile,
 };
 use super::{CliError, write_json};
+use crate::drivers::rust::MoveMode;
 use crate::logic::{RefactorRequest, handle_refactor, plan_refactor};
 use anyhow::Result;
 use std::io;
@@ -118,11 +119,16 @@ pub(super) fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> 
             json: args.json,
             error: error.into(),
         })?;
+    let mode = match (args.dry_run, args.check) {
+        (false, _) => MoveMode::Apply,
+        (true, false) => MoveMode::Plan,
+        (true, true) => MoveMode::PlanAndCompile,
+    };
     let report = crate::drivers::rust::move_module(
         &project_path,
         &args.source_module,
         &args.target_module,
-        args.dry_run,
+        mode,
     )
     .map_err(|error| CliError {
         json: args.json,
@@ -138,6 +144,7 @@ pub(super) fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> 
             source_module: &args.source_module,
             target_module: &args.target_module,
             dry_run: report.dry_run,
+            compiled: report.compiled,
             moved_paths: report.moved_paths,
             edited_files: report.edited_files,
             edits: report.edits,
@@ -181,9 +188,15 @@ pub(super) fn execute_move_module(args: MoveModuleArgs) -> Result<(), CliError> 
             report.files.len(),
             report.moved_paths
         );
-        println!(
-            "// The Cargo check that proves the result still compiles runs only on a real move."
-        );
+        if report.compiled {
+            println!(
+                "// The moved workspace compiled (cargo check --workspace --all-targets, on a copy of the workspace)."
+            );
+        } else {
+            println!(
+                "// The Cargo check that proves the result still compiles was not made: add --check to make it on a copy of the workspace (as slow as a first build), or it runs on the real move."
+            );
+        }
         println!("// Run the same command without --dry-run to apply the move.");
     } else {
         println!(

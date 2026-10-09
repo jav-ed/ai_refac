@@ -52,10 +52,11 @@ pub async fn locate() -> Result<PathBuf> {
 /// failed file listing is the authoritative guard: hard-fail instead of
 /// guessing. The listing must also contain the target, otherwise the engine
 /// would rename inside a different tsconfig than the one the caller named.
+/// A batch checks every file it renames in, with the one listing.
 pub async fn preflight(
     executable: &Path,
     project_root: &Path,
-    target: &Path,
+    targets: &[PathBuf],
     timeout: Duration,
 ) -> Result<()> {
     let output = tokio::time::timeout(
@@ -84,23 +85,25 @@ pub async fn preflight(
             }
         );
     }
-    let name = target.file_name();
-    let listed = stdout
-        .lines()
-        .map(Path::new)
-        .filter(|path| path.file_name() == name)
-        .any(|path| {
-            path == target
-                || path
-                    .canonicalize()
-                    .is_ok_and(|canonical| canonical == target)
-        });
-    if !listed {
-        bail!(
-            "{} is not part of the tsconfig in {}. Point --project-path at the package whose tsconfig includes the file.",
-            target.display(),
-            project_root.display()
-        );
+    for target in targets {
+        let name = target.file_name();
+        let listed = stdout
+            .lines()
+            .map(Path::new)
+            .filter(|path| path.file_name() == name)
+            .any(|path| {
+                path == target
+                    || path
+                        .canonicalize()
+                        .is_ok_and(|canonical| canonical == *target)
+            });
+        if !listed {
+            bail!(
+                "{} is not part of the tsconfig in {}. Point --project-path at the package whose tsconfig includes the file.",
+                target.display(),
+                project_root.display()
+            );
+        }
     }
     Ok(())
 }

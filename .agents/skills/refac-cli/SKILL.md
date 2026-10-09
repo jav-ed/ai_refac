@@ -122,8 +122,8 @@ Use one `--batch` call whenever you have two or more renames in the same project
 - The batch is a JSON list of `{"file", "symbol", "new_name"}` objects, each with an optional `"line"` and `"column"` (same meaning as `--line` and `--column`), read from a file or from stdin with `--batch -`. `--dry-run` and `--json` apply to the whole batch. `--batch` cannot be combined with `--file`, `--symbol`, `--new-name`, `--line` or `--column`.
 - All or nothing: if rename 3 of 5 fails, renames 1 and 2 are undone and the message says `Rename 3 of 5 (...) failed; the 2 earlier rename(s) were undone, so nothing was changed`. Fix the entry and run the whole batch again.
 - Requests that can be refused beforehand (bad name, keyword, unknown file in the first entry, two projects, two languages, dry-run mixed with real runs) are refused before the server starts.
-- One language and one project per batch. Run one batch per language. TypeScript/JavaScript has no batch: run its renames one by one.
-- Dry-run entries are planned independently, each against the files as they are on disk.
+- One language and one project per batch (TypeScript/JavaScript included). Run one batch per language; a batch that mixes languages is refused before anything runs, and the message names the first entry of the other language.
+- A dry-run batch is planned the way the real batch runs: each entry on the files as the entries before it would leave them. So entries that depend on each other (the second names the symbol by the name the first gave it) work in a dry run, and an entry that clashes with an earlier one is refused with the same `Rename N of M` message. A Kotlin dry run of several entries runs the batch on a throw-away copy of the project and takes as long as the real batch. A dry run of several LSP renames stops with a clear message if an entry would move a file, because the next entry could not be planned.
 
 Exit codes: `0` = all succeeded, `1` = one or more failed.
 

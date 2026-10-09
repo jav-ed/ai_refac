@@ -1,3 +1,5 @@
+use super::compare::{edit_count, moved_to};
+use super::files::LIMIT_ENV;
 use super::*;
 use std::fs;
 use tempfile::tempdir;
@@ -60,6 +62,7 @@ async fn the_difference_between_the_copy_and_the_project_is_the_preview() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         fake_move,
     )
@@ -91,6 +94,7 @@ async fn the_project_itself_is_not_touched() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         fake_move,
     )
@@ -113,6 +117,7 @@ async fn a_failing_move_is_the_error_of_the_dry_run() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         |_, _| async { anyhow::bail!("the backend refuses this") },
     )
@@ -133,6 +138,7 @@ async fn a_path_outside_the_project_is_refused() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         fake_move,
     )
@@ -150,6 +156,7 @@ async fn state_a_tool_writes_into_the_copy_is_not_a_change() {
         CopyPlan {
             tool_state: &[".ropeproject"],
             scratch: &[],
+            ..CopyPlan::default()
         },
         |pairs, copy| async move {
             fs::create_dir_all(copy.join(".ropeproject"))?;
@@ -171,6 +178,7 @@ async fn files_the_move_creates_or_deletes_are_named() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         |_, copy| async move {
             fs::write(copy.join("new.py"), "x")?;
@@ -195,7 +203,7 @@ async fn files_the_move_creates_or_deletes_are_named() {
 fn a_project_over_the_limit_is_refused_with_the_way_to_raise_it() {
     let dir = project();
     let copy = tempdir().unwrap();
-    let error = copy_project(dir.path(), copy.path(), 10).unwrap_err();
+    let error = copy_project(dir.path(), copy.path(), 10, &CopyPlan::default()).unwrap_err();
     let text = error.to_string();
     assert!(text.contains(LIMIT_ENV), "{text}");
 }
@@ -229,6 +237,7 @@ async fn build_output_the_tool_creates_is_not_reported() {
         CopyPlan {
             tool_state: &[],
             scratch: &["build"],
+            ..CopyPlan::default()
         },
         |pairs, copy| async move {
             fs::create_dir_all(copy.join("build/out"))?;
@@ -263,6 +272,7 @@ async fn a_path_written_through_a_link_to_the_project_is_inside() {
         CopyPlan {
             tool_state: &[],
             scratch: &[],
+            ..CopyPlan::default()
         },
         fake_move,
     )
@@ -270,4 +280,41 @@ async fn a_path_written_through_a_link_to_the_project_is_inside() {
     .unwrap();
     assert_eq!(preview.moves.len(), 1);
     assert_eq!(preview.edits.len(), 2);
+}
+
+#[test]
+fn only_the_named_extensions_are_copied() {
+    let dir = project();
+    fs::write(dir.path().join("data.csv"), "1,2\n").unwrap();
+    let copy = tempdir().unwrap();
+    let copied = copy_project(
+        dir.path(),
+        copy.path(),
+        u64::MAX,
+        &CopyPlan {
+            only: &["py"],
+            ..CopyPlan::default()
+        },
+    )
+    .unwrap();
+    assert!(copied.contains(Path::new("lib/db/database.py")));
+    assert!(!copied.contains(Path::new("data.csv")));
+    assert!(!copy.path().join("data.csv").exists());
+    assert!(copy.path().join("main.py").exists());
+}
+
+#[test]
+fn a_message_about_the_copy_reads_about_the_project() {
+    let dir = project();
+    let copy = ProjectRoot::at(Some(dir.path()))
+        .unwrap()
+        .copy(&CopyPlan::default())
+        .unwrap();
+    let text = format!("Cannot read {}/lib/a.py", copy.path().display());
+    let said = copy.about_the_project(&text);
+    assert!(!said.contains("refac-dry-run-"), "{said}");
+    assert!(
+        said.contains(&dir.path().canonicalize().unwrap().display().to_string()),
+        "{said}"
+    );
 }

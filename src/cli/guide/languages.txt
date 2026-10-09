@@ -8,7 +8,7 @@ TYPESCRIPT / JAVASCRIPT  (.ts .tsx .js .jsx .mts .cts .mjs .cjs)
   move    Files and folders. At most 30 source files per call; a folder counts the files below it, and
           the error tells the measured number. The tsconfig.json of --project-path decides which files
           are callers: a file it does not include is not updated.
-  rename  Variables, parameters, functions, types, members. One rename per command (no --batch).
+  rename  Variables, parameters, functions, types, members. Several renames in one session with --batch.
   tools   Oxc parser and the TypeScript native language server. The helper process is held to a RAM
           limit of 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB) and 300 seconds.
 

@@ -48,11 +48,13 @@ pub fn scan(
         let text = match plan.files.iter().find(|edited| edited.file.path == path) {
             Some(edited) => edited.file.text.clone(),
             None => match std::fs::metadata(&path) {
-                Ok(meta) if meta.len() <= MAX_FILE_BYTES => match std::fs::read_to_string(&path) {
-                    Ok(text) => text,
-                    // Not valid UTF-8: not source this scan can read.
-                    Err(_) => continue,
-                },
+                Ok(meta) if meta.len() <= MAX_FILE_BYTES => {
+                    match crate::drivers::symbol::view::read_to_string(&path) {
+                        Ok(text) => text,
+                        // Not valid UTF-8: not source this scan can read.
+                        Err(_) => continue,
+                    }
+                }
                 _ => continue,
             },
         };

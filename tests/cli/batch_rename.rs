@@ -135,8 +135,18 @@ fn a_batch_in_two_languages_is_refused_before_a_server_starts() {
 
 #[test]
 fn a_batch_can_come_from_stdin_and_errors_come_as_json() {
+    // A TypeScript batch is a batch like any other; this project has no
+    // tsconfig.json, which is found out before an engine starts.
+    let project = tempfile::tempdir().unwrap();
     let output = refac_with_stdin(
-        &["rename", "--batch", "-", "--json"],
+        &[
+            "rename",
+            "--batch",
+            "-",
+            "--json",
+            "--project-path",
+            project.path().to_str().unwrap(),
+        ],
         r#"[{"file": "a.ts", "symbol": "A", "new_name": "B"},
             {"file": "b.ts", "symbol": "C", "new_name": "D"}]"#,
     );
@@ -144,13 +154,9 @@ fn a_batch_can_come_from_stdin_and_errors_come_as_json() {
     assert!(!output.status.success());
     let error: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
     assert_eq!(error["status"], "error");
-    assert!(
-        error["error"]
-            .as_str()
-            .unwrap()
-            .contains("TypeScript/JavaScript rename"),
-        "{error}"
-    );
+    let message = error["error"].as_str().unwrap();
+    assert!(message.contains("No tsconfig.json"), "{error}");
+    assert!(!message.contains("one rename per command"), "{error}");
 }
 
 #[test]

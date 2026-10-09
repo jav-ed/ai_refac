@@ -4,7 +4,16 @@ import ts from "typescript";
 import type { ProjectConfig } from "./project";
 import type { ResolutionMode } from "./imports";
 
-export function makeResolver(project: ProjectConfig) {
+const ASSET = /\.(?:css|scss|sass|less|svg|png|jpe?g|webp|avif|gif|ico|woff2?|ttf|otf|wasm|txt|html|md|surql)$/i;
+
+/**
+ * `host` says which files exist. The default is the disk; a dry run passes the
+ * files as they will be after the moves (`afterMoves`), where assets can only
+ * be checked when they are written relative to the importer, because the asset
+ * resolver reads the disk.
+ */
+export function makeResolver(project: ProjectConfig, host: ts.ModuleResolutionHost = ts.sys) {
+    const virtual = host !== ts.sys;
     const cache = ts.createModuleResolutionCache(project.root, name => name, project.options);
     const assets = new ResolverFactory({
         tsconfig: project.configPath ? { configFile: project.configPath } : undefined,
@@ -12,20 +21,30 @@ export function makeResolver(project: ProjectConfig) {
         symlinks: !project.options.preserveSymlinks,
         nodePath: false,
     });
+    const isAsset = (specifier: string) => {
+        const [request, suffix] = splitSuffix(specifier);
+        return Boolean(suffix) || ASSET.test(request);
+    };
     return {
+        /** False when the check needs the asset resolver and the files are virtual. */
+        checkable(specifier: string): boolean {
+            return !(virtual && isAsset(specifier) && !specifier.startsWith("."));
+        },
         resolve(file: string, specifier: string, requestedMode: ResolutionMode): string | undefined {
-            const [request, suffix] = splitSuffix(specifier);
+            const [request] = splitSuffix(specifier);
             // Asset requests have bundler filesystem semantics; TS/JS requests
             // always use the compiler's resolver, without constructing a Program.
-            if (suffix || /\.(?:css|scss|sass|less|svg|png|jpe?g|webp|avif|gif|ico|woff2?|ttf|otf|wasm|txt|html|md|surql)$/i.test(request)) {
-                return assets.sync(path.dirname(file), request).path;
+            if (isAsset(specifier)) {
+                if (!virtual) return assets.sync(path.dirname(file), request).path;
+                const candidate = path.resolve(path.dirname(file), request);
+                return host.fileExists(candidate) ? candidate : undefined;
             }
             const nodeMode = project.options.moduleResolution === ts.ModuleResolutionKind.Node16
                 || project.options.moduleResolution === ts.ModuleResolutionKind.NodeNext;
             const mode = requestedMode === "require" ? ts.ModuleKind.CommonJS : requestedMode === "import" ? ts.ModuleKind.ESNext : nodeMode
-                ? ts.getImpliedNodeFormatForFile(file, undefined, ts.sys, project.options)
+                ? ts.getImpliedNodeFormatForFile(file, undefined, host, project.options)
                 : ts.ModuleKind.ESNext;
-            return ts.resolveModuleName(request, file, project.options, ts.sys, cache, undefined, mode).resolvedModule?.resolvedFileName;
+            return ts.resolveModuleName(request, file, project.options, host, cache, undefined, mode).resolvedModule?.resolvedFileName;
         },
     };
 }

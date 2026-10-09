@@ -44,7 +44,25 @@ pub fn apply(plan: &Plan) -> Result<()> {
     Ok(())
 }
 
-fn with_bom(bom: bool, text: &str) -> String {
+/// Take a written plan back, for a batch whose later rename failed. Every file
+/// must still read as the plan wrote it: a file edited since is not
+/// overwritten with the text from before the rename.
+pub fn revert(plan: &Plan) -> Result<()> {
+    for file in &plan.files {
+        if std::fs::read_to_string(&file.path)? != with_bom(file.bom, &file.new) {
+            bail!(
+                "{} changed after the rename wrote it; it was not restored",
+                file.path.display()
+            );
+        }
+    }
+    for file in &plan.files {
+        std::fs::write(&file.path, with_bom(file.bom, &file.old))?;
+    }
+    Ok(())
+}
+
+pub fn with_bom(bom: bool, text: &str) -> String {
     if bom {
         format!("\u{FEFF}{text}")
     } else {

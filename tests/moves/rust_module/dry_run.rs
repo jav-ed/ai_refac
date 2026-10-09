@@ -1,6 +1,6 @@
 //! `move-module --dry-run`: the plan is made and checked, nothing is written.
 
-use super::{run_json, write};
+use super::{run, run_json, write};
 use crate::common;
 use std::{collections::BTreeMap, fs, path::Path};
 
@@ -131,4 +131,112 @@ fn the_real_move_reports_no_dry_run() {
     let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(payload["dry_run"], false);
     assert!(root.join("src/domain/matching.rs").exists());
+}
+
+fn dry_run_checked(root: &Path, json: bool) -> std::process::Output {
+    let mut arguments = vec!["move-module"];
+    if json {
+        arguments.push("--json");
+    }
+    arguments.extend(["--dry-run", "--check", "--project-path"]);
+    arguments.extend([root.to_str().unwrap()]);
+    arguments.extend(["crate::engine::matching", "crate::domain::matching"]);
+    common::run_cli(&arguments)
+}
+
+#[test]
+fn a_checked_dry_run_compiles_the_move_on_a_copy_and_plans_what_the_real_move_does() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    project(root);
+    let before = snapshot(root);
+
+    let planned = dry_run_checked(root, true);
+    common::assert_move_succeeded(&planned);
+    let plan: serde_json::Value = serde_json::from_slice(&planned.stdout).unwrap();
+    assert_eq!(plan["dry_run"], true);
+    assert_eq!(plan["compiled"], true, "{plan}");
+    assert_eq!(snapshot(root), before, "a dry run must not write");
+    assert!(
+        !root.join("target").exists() && !root.join("Cargo.lock").exists(),
+        "the compile happened on the copy, not in the project"
+    );
+
+    let real = run_json(root, "crate::engine::matching", "crate::domain::matching");
+    common::assert_move_succeeded(&real);
+    let done: serde_json::Value = serde_json::from_slice(&real.stdout).unwrap();
+    assert_eq!(done["compiled"], true);
+    for key in ["moves", "files", "edits", "edited_files", "moved_paths"] {
+        assert_eq!(plan[key], done[key], "{key}");
+    }
+}
+
+#[test]
+fn a_plain_dry_run_says_that_it_did_not_compile() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    project(root);
+
+    let output = dry_run(root, true);
+    common::assert_move_succeeded(&output);
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(plan["compiled"], false, "{plan}");
+
+    let text = dry_run(root, false);
+    let text = String::from_utf8_lossy(&text.stdout).into_owned();
+    assert!(text.contains("add --check"), "{text}");
+}
+
+#[test]
+fn a_checked_dry_run_refuses_a_move_that_would_not_compile_like_the_real_move() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    project(root);
+    // A file path in a macro argument is not a module path, so the move leaves
+    // it alone and only the compiler sees that it now points nowhere.
+    write(
+        root,
+        "src/domain/mod.rs",
+        "pub const SOURCE: &str = include_str!(\"../engine/matching.rs\");\n",
+    );
+    let before = snapshot(root);
+
+    let plain = dry_run(root, false);
+    common::assert_move_succeeded(&plain);
+
+    let checked = dry_run_checked(root, false);
+    assert!(!checked.status.success());
+    let error = String::from_utf8_lossy(&checked.stderr);
+    assert!(error.contains("cargo check"), "{error}");
+    assert!(error.contains("copy of the workspace"), "{error}");
+    assert!(
+        !error.contains("refac-dry-run-"),
+        "the copy's folder is named as the project: {error}"
+    );
+    assert_eq!(snapshot(root), before);
+
+    let real = run(root, "crate::engine::matching", "crate::domain::matching");
+    assert!(!real.status.success());
+    assert!(String::from_utf8_lossy(&real.stderr).contains("cargo check"));
+    assert_eq!(snapshot(root), before);
+}
+
+#[test]
+fn check_without_dry_run_is_refused_and_says_so() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    project(root);
+
+    let output = common::run_cli(&[
+        "move-module",
+        "--check",
+        "--project-path",
+        root.to_str().unwrap(),
+        "crate::engine::matching",
+        "crate::domain::matching",
+    ]);
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("--dry-run"), "{error}");
+    assert!(root.join("src/engine/matching.rs").exists());
 }

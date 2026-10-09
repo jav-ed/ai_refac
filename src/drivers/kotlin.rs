@@ -67,6 +67,7 @@ impl RefactorDriver for KotlinDriver {
             CopyPlan {
                 tool_state: &[".gradle", ".kotlin"],
                 scratch: &["build"],
+                ..CopyPlan::default()
             },
             |pairs, copy| async move {
                 Ok(moves::move_files(&pairs, Some(copy.as_path())).await?.notes)

@@ -6,8 +6,9 @@ use crate::common;
 //
 // Fixture: tests/fixtures/dart/project/, the move of dart_move.rs
 // (lib/src/formatter.dart -> lib/src/core/formatter.dart). With the config file
-// in place that move is covered there. This is its own test binary with a single
-// test, so it never runs next to another Dart server and needs no lock.
+// in place that move is covered there. The refusal is the driver's, made before
+// any file is written, so this test takes no part in the lock of the other Dart
+// tests.
 
 fn run_move(project: &std::path::Path) -> std::process::Output {
     common::run_cli(&[
