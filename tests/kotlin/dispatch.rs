@@ -37,6 +37,13 @@ async fn a_kotlin_move_is_routed_and_its_notes_reach_the_response() {
     assert!(response.contains("Kotlin results"), "{response}");
     assert!(response.contains("// Note:"), "{response}");
     assert!(response.contains("build.gradle.kts"), "{response}");
+    // One Kotlin file on its own: the response says what that cost and what
+    // the batch form is.
+    assert!(response.contains("This Kotlin move took"), "{response}");
+    assert!(
+        response.contains("--source-path a.kt --source-path b.kt"),
+        "{response}"
+    );
     assert!(
         common::read_file(project.path(), &format!("{K}/launch/Main.kt"))
             .starts_with("package com.example.launch")
@@ -61,6 +68,8 @@ async fn a_directory_with_kotlin_sources_is_routed_to_the_kotlin_driver() {
         .unwrap_or_else(|error| panic!("the move failed: {error:#}"));
 
     assert!(response.contains("Kotlin results"), "{response}");
+    // A folder is already many files in one server start: no advice to batch.
+    assert!(!response.contains("This Kotlin move took"), "{response}");
     assert!(
         response.contains("Markdown links to the moved files"),
         "{response}"
@@ -95,6 +104,14 @@ async fn a_kotlin_rename_is_routed_by_the_file_extension() {
     .unwrap_or_else(|error| panic!("the rename failed: {error:#}"));
 
     assert!(report.edits >= 2, "{report:?}");
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|note| note.starts_with("This Kotlin rename took")),
+        "{:?}",
+        report.notes
+    );
     assert!(common::read_file(project.path(), &format!("{K}/util/Helper.kt")).contains("yell"));
     common::kotlin::assert_compiles(project.path(), &["compileKotlin", "compileJava"]);
 }

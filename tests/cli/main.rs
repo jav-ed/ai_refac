@@ -7,6 +7,7 @@ mod common;
 mod batch_rename;
 mod doctor;
 mod help;
+mod kotlin_cost;
 mod layout;
 mod move_outcome;
 mod usage;

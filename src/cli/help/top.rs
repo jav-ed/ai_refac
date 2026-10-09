@@ -62,6 +62,8 @@ ENVIRONMENT
                           where a language server is installed (`refac doctor <language>` explains)
   REFAC_LSP_TIMEOUT_SECS  how long a server may take to load or answer (default 300)
   REFAC_KOTLIN_TIMEOUT_SECS  same for the Kotlin Gradle import (default 600)
+  REFAC_KOTLIN_BATCH_ONLY=1  refuse a single Kotlin move or rename (each pays the 40 s Gradle import);
+                          add --allow-single to let one through
   REFAC_LSP_TRACE=1       print every message exchanged with a server (debugging)
   RUST_LOG=debug          more of refac's own log on stderr"#;
 

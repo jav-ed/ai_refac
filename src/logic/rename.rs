@@ -1,3 +1,4 @@
+use super::kotlin_cost;
 use crate::drivers::kotlin::rename::{
     rename_all_symbols as rename_all_kotlin, rename_symbol as rename_kotlin_symbol,
 };
@@ -62,7 +63,14 @@ impl Backend {
 pub async fn handle_rename(request: RenameRequest) -> Result<RenameReport> {
     match Backend::of(&request.file)? {
         Backend::TypeScript => rename_typescript_symbol(request).await,
-        Backend::Kotlin => rename_kotlin_symbol(request).await,
+        Backend::Kotlin => {
+            let (started, dry_run) = (std::time::Instant::now(), request.dry_run);
+            let mut report = rename_kotlin_symbol(request).await?;
+            report
+                .notes
+                .push(kotlin_cost::note("rename", started.elapsed(), dry_run));
+            Ok(report)
+        }
         Backend::Go => rename_with(&Go, request).await,
         Backend::Rust => rename_with(&Rust, request).await,
         Backend::Python => rename_with(&Python, request).await,

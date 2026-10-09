@@ -1,0 +1,165 @@
+//! `REFAC_KOTLIN_BATCH_ONLY=1` refuses a single Kotlin change before any server
+//! starts, and `--allow-single` lets it through. These tests need no Kotlin
+//! server: a refused command never gets that far, and one that is let through
+//! stops at a source file that does not exist.
+
+use std::path::Path;
+use std::process::{Command, Output};
+
+fn refac(project: &Path, batch_only: Option<&str>, args: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_refac"));
+    command.current_dir(project).args(args);
+    command.env_remove("REFAC_KOTLIN_BATCH_ONLY");
+    if let Some(value) = batch_only {
+        command.env("REFAC_KOTLIN_BATCH_ONLY", value);
+    }
+    command.output().expect("failed to execute the CLI binary")
+}
+
+fn text(output: &Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
+const MOVE: &[&str] = &["move", "--source-path", "A.kt", "--target-path", "pkg/A.kt"];
+const RENAME: &[&str] = &[
+    "rename",
+    "--file",
+    "A.kt",
+    "--symbol",
+    "old",
+    "--new-name",
+    "new",
+];
+
+fn with(base: &[&'static str], extra: &[&'static str]) -> Vec<&'static str> {
+    let mut args = base.to_vec();
+    args.extend(extra);
+    args
+}
+
+#[test]
+fn a_single_kotlin_move_is_refused_with_the_batch_command_and_the_way_through() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("A.kt"), "class A\n").unwrap();
+
+    let output = refac(dir.path(), Some("1"), MOVE);
+
+    assert_eq!(output.status.code(), Some(1));
+    let message = text(&output);
+    assert!(message.contains("single Kotlin move"), "{message}");
+    assert!(
+        message.contains("--source-path A.kt --source-path <next.kt>"),
+        "{message}"
+    );
+    assert!(message.contains("--allow-single"), "{message}");
+    assert!(message.contains("Nothing was changed"), "{message}");
+    assert!(dir.path().join("A.kt").exists());
+    assert!(!dir.path().join("pkg").exists());
+}
+
+#[test]
+fn a_single_kotlin_rename_is_refused_and_the_error_is_json_with_json() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = refac(dir.path(), Some("1"), &with(RENAME, &["--json"]));
+
+    assert_eq!(output.status.code(), Some(1));
+    let error: serde_json::Value = serde_json::from_slice(&output.stderr).unwrap();
+    let message = error["error"].as_str().unwrap();
+    assert!(message.contains("single Kotlin rename"), "{message}");
+    assert!(message.contains("refac rename --batch -"), "{message}");
+    assert!(message.contains("--allow-single"), "{message}");
+}
+
+#[test]
+fn a_dry_run_of_a_single_kotlin_change_is_refused_too() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("A.kt"), "class A\n").unwrap();
+
+    for command in [with(MOVE, &["--dry-run"]), with(RENAME, &["--dry-run"])] {
+        let output = refac(dir.path(), Some("1"), &command);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(
+            text(&output).contains("--allow-single"),
+            "{}",
+            text(&output)
+        );
+    }
+}
+
+#[test]
+fn allow_single_the_unset_variable_zero_and_a_batch_get_past_the_refusal() {
+    let dir = tempfile::tempdir().unwrap();
+    let two = [
+        "move",
+        "--source-path",
+        "A.kt",
+        "--source-path",
+        "B.kt",
+        "--target-path",
+        "p/A.kt",
+        "--target-path",
+        "p/B.kt",
+    ];
+    let cases: Vec<(Option<&str>, Vec<&str>)> = vec![
+        (Some("1"), with(MOVE, &["--allow-single"])),
+        (Some("1"), with(RENAME, &["--allow-single"])),
+        (None, MOVE.to_vec()),
+        (Some("0"), MOVE.to_vec()),
+        (Some("1"), two.to_vec()),
+    ];
+    for (value, args) in cases {
+        let message = text(&refac(dir.path(), value, &args));
+        // Whatever stops the command now, it is not the refusal.
+        assert!(
+            !message.contains("refuses those"),
+            "{value:?} {args:?}: {message}"
+        );
+    }
+}
+
+#[test]
+fn other_languages_are_not_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = refac(
+        dir.path(),
+        Some("1"),
+        &["move", "--source-path", "a.py", "--target-path", "p/a.py"],
+    );
+    assert!(
+        !text(&output).contains("refuses those"),
+        "{}",
+        text(&output)
+    );
+}
+
+#[test]
+fn a_value_that_is_not_one_or_zero_is_an_error_not_a_silent_off() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = refac(dir.path(), Some("yes"), MOVE);
+
+    assert_eq!(output.status.code(), Some(1));
+    let message = text(&output);
+    assert!(
+        message.contains("REFAC_KOTLIN_BATCH_ONLY must be 1"),
+        "{message}"
+    );
+}
+
+#[test]
+fn the_help_names_the_variable_and_the_argument() {
+    let dir = tempfile::tempdir().unwrap();
+    for command in ["move", "rename"] {
+        let help = text(&refac(dir.path(), None, &[command, "--help"]));
+        assert!(help.contains("--allow-single"), "{command}: {help}");
+        assert!(
+            help.contains("REFAC_KOTLIN_BATCH_ONLY"),
+            "{command}: {help}"
+        );
+    }
+}

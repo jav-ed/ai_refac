@@ -5,6 +5,7 @@ use super::args::RenameArgs;
 use super::output::{RenameBatchOutput, RenameResult, RenameSuccessOutput, RenamedFile};
 use super::{CliError, write_json};
 use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
+use crate::logic::kotlin_cost;
 use crate::logic::rename::{handle_rename, handle_rename_batch};
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -56,6 +57,7 @@ pub(super) async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
                 column: args.column,
                 dry_run: args.dry_run,
             };
+            kotlin_cost::refuse_single_rename(&request, args.allow_single).map_err(fail)?;
             let report = handle_rename(request.clone()).await.map_err(fail)?;
             print_single(&project_path, &request, &report, json)
         }

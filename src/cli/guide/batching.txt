@@ -28,6 +28,18 @@ MANY RENAMES: one `rename --batch`
   before anything runs and names the entry: run one batch per language. `--dry-run` plans the whole
   batch the same way, each entry on the files as the ones before it would leave them.
 
+KOTLIN: A SINGLE CHANGE SAYS WHAT IT COST
+  A Kotlin command costs about 40 s and 1.3 to 1.8 GB whether it changes one file or fifty, and every
+  command pays it again. Each command is a process of its own, so refac cannot know that it is the
+  twentieth one. What it does:
+    - a single Kotlin file moved, or a single Kotlin rename, ends with a note: the seconds it took
+      and the batch form (`move` repeating --source-path/--target-path, `rename --batch`). A dry run
+      says that the real run pays the start again. A folder, several files, or a batch get no note.
+    - REFAC_KOTLIN_BATCH_ONLY=1 (set it in the environment of an agent or script that should batch)
+      refuses a single Kotlin move or rename, dry runs included, before anything starts, with the
+      batch command written out for that request. If that one change is all there is, run the same
+      command again with --allow-single. The variable is 1, 0 or unset; anything else is an error.
+
 AN ORDER THAT WORKS FOR A REFACTOR
   1. `refac doctor` once, to see every server is ready.
   2. Renames of symbols first (`--dry-run` on the first big one to see the size), because they do not

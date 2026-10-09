@@ -23,6 +23,11 @@ fn the_plan_of_a_package_move_names_every_file_whose_import_changes() {
 
     // The moved file itself (its package line) and its importers.
     assert!(plan["edited_files"].as_u64().unwrap() >= 4, "{plan}");
+    // One Kotlin file on its own: the plan says what that costs and that the
+    // real run pays it again.
+    let notes = plan["notes"].to_string();
+    assert!(notes.contains("This Kotlin move took"), "{notes}");
+    assert!(notes.contains("This was a dry run"), "{notes}");
 }
 
 #[test]

@@ -303,7 +303,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - `package:` URI imports are only rewritten if `.dart_tool/package_config.json` exists at the project root. Run `dart pub get` to generate it. Without it, a move that would leave a `package:` import pointing at a file that no longer exists is refused before anything is written, and the error lists the imports.
 
 **Kotlin / Android**
-- Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call.
+- Every call starts the Kotlin language server and imports the Gradle build first: about 30 seconds and about 1.6 GiB of memory for the server on a tiny project. Batch several moves into one call (repeat `--source-path` and `--target-path`) and several renames into one `rename --batch`. A single Kotlin file moved, or a single Kotlin rename, ends with a note that says how many seconds it took and shows the batch form. `REFAC_KOTLIN_BATCH_ONLY=1` goes further: it refuses a single Kotlin move or rename (dry runs included) before anything starts, writes the batch command for that request into the error, and `--allow-single` lets the one change through. The variable is `1`, `0` or unset; any other value is an error, so a typo cannot switch the protection off.
 - `.java` files, directories containing Java sources, and moves between modules or source sets are refused. Kotlin Multiplatform is not supported.
 - Old class names in ProGuard rules, build scripts, service lists, and string literals are reported, not rewritten.
 

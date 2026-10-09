@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 mod dry_run;
 mod go_collaterals;
 mod grouping;
+pub mod kotlin_cost;
 mod markdown_links;
 pub mod rename;
 mod report;
@@ -68,10 +69,20 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // What each driver reports beyond success, by language.
     let mut notes: HashMap<String, Vec<String>> = HashMap::new();
     let mut failed: Vec<FailedGroup> = Vec::new();
+    let single_kotlin = kotlin_cost::is_single_move(
+        groups
+            .iter()
+            .map(|(lang, files, _)| (lang.as_str(), files.as_slice())),
+        root,
+    );
 
     for (lang, files, driver) in groups {
+        let started = std::time::Instant::now();
         match driver.move_files_with_notes(files.clone(), root).await {
-            Ok(driver_notes) => {
+            Ok(mut driver_notes) => {
+                if single_kotlin && lang == "kotlin" {
+                    driver_notes.push(kotlin_cost::note("move", started.elapsed(), false));
+                }
                 notes.insert(lang.clone(), driver_notes);
                 moved.insert(lang, files);
             }

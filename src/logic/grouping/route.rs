@@ -111,7 +111,7 @@ fn is_document_folder(dir: &Path) -> Result<bool> {
     Ok(documents)
 }
 
-fn resolve(path: &Path, root: Option<&Path>) -> PathBuf {
+pub(in crate::logic) fn resolve(path: &Path, root: Option<&Path>) -> PathBuf {
     match root {
         Some(root) if !path.is_absolute() => root.join(path),
         _ => path.to_path_buf(),

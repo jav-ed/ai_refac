@@ -40,6 +40,16 @@ pub(super) struct MoveArgs {
     #[arg(long)]
     pub(super) dry_run: bool,
 
+    /// Kotlin only: let a single Kotlin change through when REFAC_KOTLIN_BATCH_ONLY=1 refuses it.
+    ///
+    /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
+    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. With
+    /// REFAC_KOTLIN_BATCH_ONLY=1 a single Kotlin move is refused with the command that does several
+    /// in one call; this argument says that the one change is all there is. It has no effect on
+    /// other languages, on a batch, or when the variable is not set.
+    #[arg(long)]
+    pub(super) allow_single: bool,
+
     /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]
     pub(super) json: bool,
@@ -140,6 +150,16 @@ pub(super) struct RenameArgs {
     /// Plan and prove the rename, print it, and change no file.
     #[arg(long)]
     pub(super) dry_run: bool,
+
+    /// Kotlin only: let a single Kotlin change through when REFAC_KOTLIN_BATCH_ONLY=1 refuses it.
+    ///
+    /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
+    /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. With
+    /// REFAC_KOTLIN_BATCH_ONLY=1 a single Kotlin rename is refused with the command that does several
+    /// in one call; this argument says that the one change is all there is. It has no effect on
+    /// other languages, on a batch, or when the variable is not set.
+    #[arg(long)]
+    pub(super) allow_single: bool,
 
     /// Print one JSON document instead of text (an error is JSON on stderr).
     #[arg(long)]

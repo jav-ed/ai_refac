@@ -32,6 +32,13 @@ pub(super) async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
             .map(|path| path.to_string_lossy().into_owned()),
     };
 
+    crate::logic::kotlin_cost::refuse_single_move(&req, args.allow_single).map_err(|error| {
+        CliError {
+            json: args.json,
+            error,
+        }
+    })?;
+
     if args.dry_run {
         return execute_move_dry_run(&args, req).await;
     }

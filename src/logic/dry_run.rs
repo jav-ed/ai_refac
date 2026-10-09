@@ -38,13 +38,25 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
     let mut failed: Vec<FailedGroup> = Vec::new();
     let mut markdown_pairs: Pairs = Vec::new();
     let mut other_pairs: Pairs = Vec::new();
+    let single_kotlin = super::kotlin_cost::is_single_move(
+        groups
+            .iter()
+            .map(|(lang, files, _)| (lang.as_str(), files.as_slice())),
+        root,
+    );
     for (lang, files, driver) in groups {
         if lang == "markdown" {
             markdown_pairs = files;
             continue;
         }
+        let started = std::time::Instant::now();
         match driver.plan_move(files.clone(), root).await {
-            Ok(preview) => {
+            Ok(mut preview) => {
+                if single_kotlin && lang == "kotlin" {
+                    preview
+                        .notes
+                        .push(super::kotlin_cost::note("move", started.elapsed(), true));
+                }
                 other_pairs.extend(files);
                 planned.insert(lang, preview);
             }
