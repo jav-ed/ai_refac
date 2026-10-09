@@ -120,15 +120,18 @@ The Dart suite also has one normal test (a project without `package_config.json`
 
 ### Kotlin tests
 
-The Kotlin scenarios start the real JetBrains Kotlin language server and a Gradle import, which costs about 30 seconds each, so they are `#[ignore]`d and a plain `cargo test` skips them. Run them after installing the server ([setup](../Setup/kotlin_Server.md)):
+The Kotlin scenarios start the real JetBrains Kotlin language server and a Gradle import for every test (1 to 2 minutes each, tests do not share a server), so they are `#[ignore]`d and a plain `cargo test` skips them. **Run one test, or a few named tests in one `cargo test` command with `--test-threads=1`; do not run the whole group.** The commands, the table of which tests cover which change, and the rules that keep the machine alive are in [Kotlin server setup](../Setup/kotlin_Server.md#running-the-real-server-tests):
 
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # Android tests only
-cargo test --test kotlin -- --ignored --test-threads=2
+# one test:
+cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
+# a few tests, one command, one after the other:
+cargo test --test kotlin -- --ignored --test-threads=1 moves::a_file_moves_to_a_new_package_and_every_reference_follows rename::a_class_is_renamed_together_with_its_file
 ```
 
-Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these tests panic with an explanation instead of passing. Every successful scenario ends with a Gradle compile of the result, because a Kotlin refactor is right when the project still builds. A full run takes a few minutes; run one file or one test name while debugging.
+Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these tests panic with an explanation instead of passing. Every successful scenario ends with a Gradle compile of the result, because a Kotlin refactor is right when the project still builds.
 
 **Fixtures are never modified by running tests.** `common::setup_fixture` copies the fixture into a temp dir before each test. The tool operates on the temp copy; the originals stay pristine and the temp dir is cleaned up automatically when the test ends. No reset step is needed.
 
