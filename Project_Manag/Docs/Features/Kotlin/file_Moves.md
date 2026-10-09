@@ -22,7 +22,7 @@ Each of these fails before the server is started and changes nothing:
 
 - A `.java` file, or a directory that contains `.java` files. The server moves Java files without updating their package line, so refac refuses instead of leaving the project inconsistent. Move the Kotlin files, or use a Java-aware tool for Java.
 - A source or target that is not inside a source root, or is a source root itself.
-- A source and a target in different modules or source sets (`src/main` versus `src/test`): no package edit can fix what the code is then allowed to see.
+- A source and a target in different modules or source sets (`src/main` versus `src/test`, `commonMain` versus `jvmMain`): no package edit can fix what the code is then allowed to see. In a Kotlin Multiplatform build the server is served a plain-JVM copy of the source sets; see [Kotlin Multiplatform](multiplatform_Mirror.md).
 - A target that already exists, a target that keeps no `.kt` extension, a `..` in a target path, a move into itself.
 
 ## Checks after the server answers

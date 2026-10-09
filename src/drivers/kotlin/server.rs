@@ -7,86 +7,37 @@
 //! answered `null`, which is why this module waits for the real signals and
 //! never sleeps.
 
+mod install;
+mod mirror;
+
 use crate::drivers::lsp::rename::server::RenameServer;
 use crate::drivers::lsp::session::{LspSession, SessionConfig};
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
+use install::timeout;
+use mirror::Mirror;
 use serde_json::{Value, json};
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tempfile::TempDir;
 
-pub const SERVER_ENV: &str = "REFAC_KOTLIN_SERVER";
-pub const TIMEOUT_ENV: &str = "REFAC_KOTLIN_TIMEOUT_SECS";
-const DEFAULT_TIMEOUT_SECS: u64 = 600;
+/// What the server's Gradle import prints for a build it cannot model.
+const UNREADABLE_TARGETS: &str = "Failed to find 'target' in Kotlin extension";
 
-pub struct Install {
-    dir: PathBuf,
-    pub build: String,
+/// What to tell the user about a change on this Gradle root: that it was
+/// planned on a plain-JVM copy, when the build is multiplatform.
+pub fn multiplatform_note(root: &Path) -> Result<Option<String>> {
+    Ok(Mirror::applies_to(root)?.then(Mirror::note))
 }
 
-impl Install {
-    fn executable(&self) -> PathBuf {
-        self.dir.join("bin").join("intellij-server")
-    }
-}
+pub use install::{Install, SERVER_ENV, TIMEOUT_ENV, locate};
+pub use mirror::{refuse_expect_actual, refuse_expect_actual_symbol};
 
 const KEPT_NOTIFICATIONS: &[&str] = &[
     "intellij/workspaceImportState",
     "intellij/ready-for-test",
     "intellij/importLog",
 ];
-
-/// The installed server, found like every language server (`crate::servers`):
-/// the directory named by `REFAC_KOTLIN_SERVER`, which must hold
-/// `bin/intellij-server` and `build.txt`. A missing install is reported with
-/// the places looked at and the command that teaches the install.
-pub fn locate() -> Result<Install> {
-    locate_in(std::env::var_os(SERVER_ENV))
-}
-
-fn locate_in(configured: Option<OsString>) -> Result<Install> {
-    let server = crate::servers::for_language("kotlin")?;
-    let project = std::env::current_dir().context("Cannot read the current directory")?;
-    let found = crate::servers::locate_with(server, &project, configured)?;
-    let Some(build) = found.version.strip_prefix("ILS-") else {
-        bail!(
-            "{} does not name a Kotlin language server build (expected ILS-<number>, got `{}`). Run `refac doctor kotlin` to see which download refac expects.",
-            found
-                .folder
-                .as_deref()
-                .unwrap_or(&found.executable)
-                .join("build.txt")
-                .display(),
-            found.version
-        );
-    };
-    Ok(Install {
-        dir: found
-            .folder
-            .context("The Kotlin server was found without its folder")?,
-        build: build.to_string(),
-    })
-}
-
-fn timeout() -> Result<Duration> {
-    parse_timeout(std::env::var(TIMEOUT_ENV).ok().as_deref())
-}
-
-fn parse_timeout(configured: Option<&str>) -> Result<Duration> {
-    let Some(value) = configured else {
-        return Ok(Duration::from_secs(DEFAULT_TIMEOUT_SECS));
-    };
-    let seconds: u64 = value
-        .parse()
-        .ok()
-        .filter(|seconds| *seconds > 0)
-        .with_context(|| {
-            format!("{TIMEOUT_ENV} must be a positive number of seconds, got `{value}`")
-        })?;
-    Ok(Duration::from_secs(seconds))
-}
 
 /// A running server with its throwaway system directory (about 250 MB of
 /// caches that a second start does not reuse faster, so it is deleted).
@@ -95,6 +46,10 @@ pub struct KotlinServer {
     pub build: String,
     timeout: Duration,
     system_dir: TempDir,
+    /// Set for a Kotlin Multiplatform build, which the server cannot import:
+    /// it then works on a plain-JVM copy and everything crossing this boundary
+    /// is translated (see `mirror`).
+    mirror: Option<Mirror>,
 }
 
 impl KotlinServer {
@@ -102,6 +57,8 @@ impl KotlinServer {
     pub async fn start(install: &Install, project: &Path) -> Result<Self> {
         let timeout = timeout()?;
         let system_dir = tempfile::Builder::new().prefix("refac-kotlin-").tempdir()?;
+        let mirror = Mirror::for_project(project)?;
+        let project = mirror.as_ref().map_or(project, Mirror::root);
         let (mut session, init) = LspSession::start(SessionConfig {
             name: "Kotlin language server",
             executable: &install.executable(),
@@ -128,6 +85,7 @@ impl KotlinServer {
             build,
             timeout,
             system_dir,
+            mirror,
         };
         server.wait_until_ready().await
     }
@@ -147,6 +105,21 @@ impl KotlinServer {
             Ok(import) => import,
             Err(error) => return Err(self.fail(error).await),
         };
+        // The import's own output explains what the server could not model;
+        // `RUST_LOG=debug` shows it.
+        let log = self.import_log();
+        for line in &log {
+            tracing::debug!("Gradle import: {line}");
+        }
+        // The import still ends "successfully" when it cannot read the Kotlin
+        // targets, and the server then knows no source. The mirror avoids
+        // this for the multiplatform layouts refac recognises.
+        if self.mirror.is_none() && log.iter().any(|line| line.contains(UNREADABLE_TARGETS)) {
+            let error = anyhow::anyhow!(
+                "The Kotlin server could not read the Kotlin targets of this Gradle build (`{UNREADABLE_TARGETS}`). That is how it reports a Kotlin Multiplatform build, and it would then refuse every move. refac recognises a multiplatform build by a source set named commonMain, commonTest or <target>Main; this project has none"
+            );
+            return Err(self.fail(error).await);
+        }
         if let Some(folder) = import["params"]["folders"]
             .as_array()
             .into_iter()
@@ -173,23 +146,32 @@ impl KotlinServer {
         }
     }
 
-    /// Stop the server and attach what the Gradle import printed.
-    async fn fail(self, error: anyhow::Error) -> anyhow::Error {
-        let import_log: Vec<String> = self
-            .session
+    /// What the Gradle import printed, without blank lines and stack frames
+    /// (those bury the message that names the broken file).
+    fn import_log(&self) -> Vec<String> {
+        self.session
             .notifications()
             .iter()
             .filter(|message| message["method"] == "intellij/importLog")
             .filter_map(|message| message["params"]["message"].as_str())
             .map(|line| line.trim_end().to_string())
-            // Stack frames bury the message that names the broken file.
             .filter(|line| !line.is_empty() && !line.trim_start().starts_with("at "))
-            .collect();
+            .collect()
+    }
+
+    /// Stop the server and attach what the Gradle import printed.
+    async fn fail(self, error: anyhow::Error) -> anyhow::Error {
+        let import_log = self.import_log();
         let shown = import_log[import_log.len().saturating_sub(25)..].join("\n");
         let build = self.build.clone();
+        let about_mirror = if self.mirror.is_some() {
+            "\nThis is a Kotlin Multiplatform build: the server imported refac's plain-JVM copy of it, so the output above is about the copy."
+        } else {
+            ""
+        };
         self.shutdown().await;
         error.context(format!(
-            "Kotlin language server (build {build}) was not ready.\nLast Gradle import output:\n{shown}"
+            "Kotlin language server (build {build}) was not ready.\nLast Gradle import output:\n{shown}{about_mirror}"
         ))
     }
 
@@ -198,28 +180,58 @@ impl KotlinServer {
     }
 
     /// A request that fails loudly instead of waiting forever. An error
-    /// answer stays a downcastable `RpcError`.
-    pub async fn request(&mut self, method: &str, params: Value) -> Result<Value> {
-        tokio::time::timeout(self.timeout, self.session.request(method, params))
-            .await
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "The Kotlin language server did not answer {method} within {} seconds",
-                    self.timeout.as_secs()
-                )
-            })?
+    /// answer stays a downcastable `RpcError`. Callers speak in the real
+    /// project's paths; a mirror translates them for the server and back.
+    pub async fn request(&mut self, method: &str, mut params: Value) -> Result<Value> {
+        if let Some(mirror) = &self.mirror {
+            mirror.uris_to_mirror(&mut params);
+        }
+        let mut answer =
+            tokio::time::timeout(self.timeout, self.session.request(method, params.clone()))
+                .await
+                .map_err(|_| {
+                    anyhow::anyhow!(
+                        "The Kotlin language server did not answer {method} within {} seconds",
+                        self.timeout.as_secs()
+                    )
+                })??;
+        if let Some(mirror) = &self.mirror {
+            if !answer.is_null() {
+                mirror::keep_imports(method, &mut answer, &params, &|path| mirror.to_real(path))?;
+            }
+            mirror.uris_to_real(&mut answer);
+        }
+        Ok(answer)
     }
 
-    pub async fn notify(&mut self, method: &str, params: Value) -> Result<()> {
+    pub async fn notify(&mut self, method: &str, mut params: Value) -> Result<()> {
+        if let Some(mirror) = &self.mirror {
+            params = if method == "workspace/didChangeWatchedFiles" {
+                mirror.follow_changes(&params)?
+            } else {
+                mirror.uris_to_mirror(&mut params);
+                params
+            };
+        }
         self.session.notify(method, params).await
     }
 
     pub async fn sync_document(&mut self, path: &Path, text: &str) -> Result<()> {
-        self.session.sync_document(path, text).await
+        let Some(mirror) = &self.mirror else {
+            return self.session.sync_document(path, text).await;
+        };
+        let seen = mirror.write_document(path, text)?;
+        self.session
+            .sync_document(&mirror.to_mirror(path), &seen)
+            .await
     }
 
     pub async fn close_under(&mut self, path: &Path) -> Result<()> {
-        self.session.close_under(path).await
+        let path = self
+            .mirror
+            .as_ref()
+            .map_or_else(|| path.to_path_buf(), |mirror| mirror.to_mirror(path));
+        self.session.close_under(&path).await
     }
 
     pub async fn shutdown(self) {

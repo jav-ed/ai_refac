@@ -31,6 +31,8 @@ LIMITS AND SWITCHES
   REFAC_PROJECT_PATH           default for --project-path
   REFAC_LSP_TIMEOUT_SECS       how long a server may take to load or answer (default 300)
   REFAC_KOTLIN_TIMEOUT_SECS    the same for the Kotlin Gradle import (default 600)
+  REFAC_KOTLIN_MIRROR_VERSION  Kotlin version of the plain-JVM copy used for a Kotlin Multiplatform
+                               build, when the project does not state one in a place refac reads
   REFAC_KOTLIN_BATCH_ONLY=0    allow a single Kotlin move or rename (they are refused by default;
                                --allow-single lets one through; see `refac guide batching`)
   REFAC_TYPESCRIPT_MAX_RSS_MB  RAM limit of the TypeScript helper in MiB (default 4096)

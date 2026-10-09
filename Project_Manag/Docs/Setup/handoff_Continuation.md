@@ -41,6 +41,7 @@ Written on 2026-10-07 at the end of the session that added the Kotlin backend, r
 - Batch rename does not cover mixes of languages or more than one project per batch; both are refused before anything runs, and the message names the entry.
 - Ideas not built: Markdown heading rename, a Python rename that starts from an override and reaches the base.
 
+- Kotlin Multiplatform: the server cannot import such a build, so `KotlinServer` serves it a plain-JVM copy (`src/drivers/kotlin/server/mirror*`, [page](../Features/Kotlin/multiplatform_Mirror.md)); verified on `tests/fixtures/kotlin/kmp_project` only. Not tried on a Compose Multiplatform application with Android, desktop and iOS targets, and a file that declares `expect` or `actual` is refused (move those by hand).
 - Kotlin: moves between modules or source sets are refused, so cross-module moves are untested. Every Kotlin call costs about 30 seconds of Gradle import and about 1.6 GiB for the server on a tiny project; the server has no memory cap. One broken-build test hung for more than five minutes in one of nine runs and could not be reproduced; the 600 second timeout and the import log tail are the guard.
 - Tests that need a language server (gopls, Dart SDK, rope, basedpyright, Kotlin server) are `#[ignore = "needs X (run `refac doctor Y`)"]` and fail loudly when run without the tool; a plain `cargo test` needs only Rust (+ Bun) and no test skips silently.
 - Pyrefly is a fallback behind Rope, so `python_move` never starts it; `cargo test --lib pyrefly -- --ignored` runs it for real.

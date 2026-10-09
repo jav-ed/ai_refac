@@ -61,7 +61,40 @@ const RESERVED_WORDS: &[&str] = &[
 pub struct Kotlin;
 
 pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
-    rename_with(&Kotlin, request).await
+    let root = request.project_path.clone();
+    refuse_expect_actual(&request)?;
+    rename_with(&Kotlin, request)
+        .await
+        .map_err(|error| in_multiplatform(error, &root))
+}
+
+/// In a multiplatform build a symbol the named file declares `expect` or
+/// `actual` is not renamed (see `server::refuse_expect_actual_symbol`).
+fn refuse_expect_actual(request: &RenameRequest) -> Result<()> {
+    // Without a Gradle root the rename engine reports it in its own words.
+    let Ok(root) = gradle_root(Some(&request.project_path)) else {
+        return Ok(());
+    };
+    let file = root.join(&request.file);
+    if !file.is_file() {
+        return Ok(());
+    }
+    server::refuse_expect_actual_symbol(&root, &file, &request.symbol)
+}
+
+/// The server works on a plain-JVM copy of a multiplatform build, which lacks
+/// the libraries, so a failure that involves the server may come from that
+/// (a usage it does not understand, a declaration it sees twice). The
+/// reader is told which build the server saw. A failure before any server
+/// work (a name that is not in the file) is left alone.
+fn in_multiplatform(error: anyhow::Error, root: &Path) -> anyhow::Error {
+    if !format!("{error:#}").to_lowercase().contains("server") {
+        return error;
+    }
+    match server::multiplatform_note(root) {
+        Ok(Some(note)) => error.context(note),
+        _ => error,
+    }
 }
 
 /// Several renames in one server session, which for Kotlin saves the half
@@ -70,7 +103,16 @@ pub async fn rename_all_symbols(requests: Vec<RenameRequest>) -> Result<Vec<Rena
     if requests.len() > 1 && requests.iter().all(|request| request.dry_run) {
         return plan_on_copy(requests).await;
     }
-    rename_all_with(&Kotlin, requests).await
+    let root = requests
+        .first()
+        .map(|request| request.project_path.clone())
+        .unwrap_or_default();
+    for request in &requests {
+        refuse_expect_actual(request)?;
+    }
+    rename_all_with(&Kotlin, requests)
+        .await
+        .map_err(|error| in_multiplatform(error, &root))
 }
 
 /// A dry run of several renames. A Kotlin class rename moves its file and
@@ -176,6 +218,7 @@ impl Language for Kotlin {
                 )
             })
             .collect();
+        notes.extend(server::multiplatform_note(root)?);
         notes.extend(stale::scan(root, &files, &renames, &decided)?);
         Ok(FollowUps { writes, notes })
     }

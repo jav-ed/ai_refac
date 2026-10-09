@@ -25,7 +25,9 @@ RULES BY LANGUAGE
                          kotlin`). Every call imports the Gradle build first (about 40 s), so put all
                          moves in ONE call. The package line, imports, usages and Android XML (manifest,
                          layouts, navigation graphs) follow. .java files, folders that contain Java, and
-                         moves between modules or source sets are refused.
+                         moves between modules or source sets are refused. A Kotlin Multiplatform build
+                         (a commonMain, commonTest or <target>Main source set) is planned on a plain-JVM
+                         copy of its source sets; a file that declares expect or actual is refused.
   Go                     Moving a .go file to another folder moves the WHOLE package (gopls renames the
                          package); the output lists the files that moved with it. A rename within the same
                          folder is a plain file rename.

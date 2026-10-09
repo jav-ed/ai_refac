@@ -8,5 +8,6 @@ mod android;
 mod dispatch;
 mod dry_run;
 mod moves;
+mod multiplatform;
 mod rename;
 mod server;

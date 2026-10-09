@@ -26,7 +26,7 @@ Kotlin does not require a file's directory to match its package, but conventions
 - `LSMoveFilesOrDirectoriesProcessor` wraps IntelliJ's `MoveFilesOrDirectoriesProcessor`: it finds usages, checks conflicts, and performs the move on an in-memory project.
 - `refactoringUtils.kt` documents the `workspace/willRenameFiles` contract: IntelliJ simulates the whole refactoring and returns the text edits, while the rename or move of the file itself is left to the client and filtered out of the answer. The existing Go and Dart paths in `LspClient::initialize_and_rename_files` already apply exactly this contract.
 - Rename goes through ordinary `textDocument/rename`, and a Java base module exists, so mixed Java and Kotlin projects are in scope.
-- Build support: Gradle and Maven fully, Android Gradle Plugin experimental, Kotlin Multiplatform not yet. It is started with `kotlin-lsp.sh`; protocol options are listed by `--help`.
+- Build support: Gradle and Maven fully, Android Gradle Plugin experimental, Kotlin Multiplatform not yet (reproduced: its Gradle import prints `Failed to find 'target' in Kotlin extension` and every move is then refused; refac works around it, see [Kotlin Multiplatform](../Features/Kotlin/multiplatform_Mirror.md)). It is started with `kotlin-lsp.sh`; protocol options are listed by `--help`.
 
 ## Questions that were open before the hands-on tests
 
@@ -73,4 +73,4 @@ Environment: build `ILS-263.6379.0` (Linux x64, 368,488,700 bytes, bundled JetBr
 
 ### Not measured or not tested
 
-Cross-module moves (refused), Kotlin Multiplatform, Maven projects through refac's Android layer, a large multi-module Android project, and the server's memory on one. One run of the broken-build test hung for more than five minutes and could not be reproduced in eight further runs; the 600-second timeout and the import-log tail in the error are the guard.
+Cross-module moves (refused), a real Compose Multiplatform application (only the small `kmp_project` fixture through the plain-JVM copy), Maven projects through refac's Android layer, a large multi-module Android project, and the server's memory on one. One run of the broken-build test hung for more than five minutes and could not be reproduced in eight further runs; the 600-second timeout and the import-log tail in the error are the guard.

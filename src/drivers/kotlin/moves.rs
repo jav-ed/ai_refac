@@ -33,6 +33,11 @@ pub struct MoveReport {
 pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Result<MoveReport> {
     let gradle = gradle_root(root)?;
     let plan = plan::build(files, &gradle)?;
+    let mut sources = Vec::new();
+    for step in plan.groups.iter().flat_map(|group| &group.steps) {
+        sources.extend(source_files(step)?.into_iter().map(|(from, _)| from));
+    }
+    server::refuse_expect_actual(&gradle, &sources)?;
     let install = server::locate()?;
     let mut server = KotlinServer::start(&install, &gradle).await?;
     let mut journal = Journal::default();
@@ -57,6 +62,7 @@ async fn run(
         notes: plan.notes.clone(),
         ..MoveReport::default()
     };
+    report.notes.extend(server::multiplatform_note(root)?);
     let snapshot = Snapshot::take(plan)?;
     for group in &plan.groups {
         run_group(server, group, journal, &mut report)
