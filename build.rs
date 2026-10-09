@@ -6,8 +6,10 @@
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// What the installed binary is built from: code, helper scripts, lock files.
-const SOURCES: [&str; 5] = ["src", "scripts", "Cargo.toml", "Cargo.lock", "build.rs"];
+/// What is compiled into the binary. The helper scripts are read from the
+/// checkout at run time, and `scripts/node_modules` holds over a thousand files,
+/// so none of that may trigger a rebuild.
+const SOURCES: [&str; 4] = ["src", "Cargo.toml", "Cargo.lock", "build.rs"];
 
 fn git(args: &[&str]) -> Option<String> {
     let output = Command::new("git").args(args).output().ok()?;

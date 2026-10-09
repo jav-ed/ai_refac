@@ -125,6 +125,6 @@ Each sample project has internal references so file moves can be verified agains
 installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)
 ```
 
-The stamp comes from `build.rs` and exists in the release profile only, so debug and test builds do not recompile after every commit (they print `dev build`). `+dirty` after the commit means a file under `src/`, `scripts/`, `Cargo.toml`, `Cargo.lock` or `build.rs` differs from that commit. To check without building, run `refac --version` and compare it with `git rev-parse --short HEAD`.
+The stamp comes from `build.rs` and exists in the release profile only, so debug and test builds do not recompile after every commit (they print `dev build`). `+dirty` after the commit means a file under `src/`, `Cargo.toml`, `Cargo.lock` or `build.rs` differs from that commit (the helper scripts in `scripts/` are read from the checkout at run time, not compiled in). To check without building, run `refac --version` and compare it with `git rev-parse --short HEAD`.
 
 The install needs only the release build: `target/release` is about 1.5 GB. The much larger debug and test programs are a by-product of `cargo test`; keep them in check as described in [Resource use](../Setup/resource_Use.md).
