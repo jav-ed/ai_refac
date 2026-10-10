@@ -11,12 +11,14 @@ WHY IT IS SLOW
     indexing the JDK and the Kotlin libs    about 19 s once; refac keeps the index in ~/.cache/refac
                                             (110 to 160 MB), so later calls skip most of it
     waiting until the server says "ready"   about 6 s
-    the change itself                       1 to 3 s
+    the change itself                       2 to 4 s
   Measured on a small project: the first call on a machine takes about 44 s, the calls after it about
   24 s, and about 15 s when the Gradle daemon of the call before is still up (see option 3). The server
   and the Gradle daemon hold 1.3 to 1.8 GB while the command runs; a big project holds more.
-  Twenty single changes as twenty commands take about 8 minutes. The same twenty in one call take
-  about a minute: the start is paid once, each change then costs 1 to 3 s.
+  An estimate, not a measurement: twenty single changes as twenty commands take about 8 minutes
+  (20 x 24 s). The same twenty in one call take about a minute and a half: the start is paid once
+  (24 s), each change then costs about 3 s (the 8 `moves::` tests of this project take 25 s together
+  after the start).
 
 THE OPTIONS, BEST FIRST
   1. Collect the changes and make them in ONE call. Moves repeat the flags (the n-th source goes to

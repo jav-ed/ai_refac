@@ -5,10 +5,12 @@ use refac::drivers::kotlin::rename::{RenameRequest, rename_symbol};
 // The quick set: the only Kotlin tests that run by default, and together they
 // have to fit into 30 seconds. One Kotlin server for jvm_project (20 to 23 s
 // to start, 10 s when the Gradle daemon of an earlier run is still up), then
-// two operations of 2 seconds each, on the entry points the tool runs. Measured
-// 2026-10-10: 27 s with a cold Gradle daemon, 17 s with a warm one. A third
-// test did not fit (the cold run took 29 to 33 s), so the rollback test stays
-// in `moves::`; add a test here only after timing the whole set again.
+// two operations of 3 to 4 seconds each, on the entry points the tool runs.
+// Measured 2026-10-10 (two tests): 25 to 28 s of test time with a cold Gradle
+// daemon (29.5 s wall in the last run, so a slow start of 22 s or more can
+// pass 30 s), 17 s with a warm one. A third test did not fit (the cold run took
+// 29 to 33 s), so the rollback test stays in `moves::`; add a test here only
+// after timing the whole set again, cold and warm.
 // There is no compile check here (starting a Gradle daemon for it costs
 // 12 s); the modules outside the set end every scenario with one, and run
 // only when asked for (REFAC_KOTLIN_TESTS=all, see kotlin_Server.md).
