@@ -53,13 +53,13 @@ refac starts a language server for the command and stops it when the command end
 | rust-analyzer | 4.6 s | 637 MB, grows with the project |
 | basedpyright | 1.3 s | 158 MB |
 | Dart analysis server | 0.4 s | 124 MB |
-| Kotlin server | about 38 s | 1.3 to 1.8 GB |
+| Kotlin server | 32 to 38 s with an empty cache, 9 to 16 s with the warm cache | 1.3 to 1.8 GB |
 | TypeScript helper | seconds | limited to 4096 MiB by `REFAC_TYPESCRIPT_MAX_RSS_MB` (the command fails loudly above it) |
 
 Two leaks were found and closed, and the pattern applies to every new tool:
 
 - The Kotlin server imports the Gradle build through a **Gradle daemon**, which Gradle keeps for **three hours** (about 480 MB of RAM) after the command. refac starts the server with `JAVA_TOOL_OPTIONS=-Dorg.gradle.daemon.idletimeout=10000` so the daemon stops itself ten seconds after the import. The tests build with `./gradlew --no-daemon`.
-- The Kotlin server's system folder (about 250 MB of caches) is a throwaway temporary folder deleted at the end.
+- The Kotlin server's system folder (its index, 110 to 160 MB) is kept between calls in `~/.cache/refac/kotlin-<build>` (`REFAC_KOTLIN_CACHE`, `off` to disable), because it was measured to cut the start from 32 to 38 s to 9 to 16 s. Each run works in a private temporary copy of it (deleted at the end); the cache is deleted when it passes 2 GB.
 
 ## Tests with real servers
 
@@ -80,7 +80,7 @@ Symptoms: "No space left on device", "Bus error" in the linker, a test program t
 1. **Start it for the command and stop it at the end**; never leave a process behind. If the tool starts a daemon (Gradle, a build server, a language server of its own), set its idle timeout to seconds or pass its `--no-daemon` flag.
 2. **Measure** the memory (sum the resident size of the whole process tree once a second; a child process is the usual surprise) and the disk it writes, on a small project and a bigger one, and write the numbers here and in `Setup/language_Servers.md`.
 3. **Cap it** where the tool supports a cap, and make exceeding it a loud error (the TypeScript helper's `REFAC_TYPESCRIPT_MAX_RSS_MB` is the example).
-4. **Do not keep caches** that give no speedup (the Kotlin system folder was measured and gave none, so it is deleted).
+4. **Keep a cache only if it was measured to help** (the Kotlin system folder was kept because it cuts the start by more than half; it is bounded to 2 GB and can be switched off), and measure it with a new project path, not only the one it was made for.
 5. **Never add debug information or optimisation levels** to a profile without measuring the size of the test programs first.
 
 Related: [Language servers](language_Servers.md): where each server is found and the measured cost of a rename. [Kotlin server setup](kotlin_Server.md): the large download. [Testing guide](../Guides/Testing_and_Debugging.md): how to run the suites.

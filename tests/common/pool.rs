@@ -1,5 +1,5 @@
 //! One Kotlin server for many tests. A Kotlin test used to start its own
-//! server and import the Gradle project: 40 seconds before the first request,
+//! server and import the Gradle project: 20 to 47 seconds before the first request,
 //! whatever the test asked. Here a server is started once for a fixture, kept
 //! for the whole test program, and lent (`server::lend`) for the project
 //! directory of the fixture, so that the ordinary entry points of the library

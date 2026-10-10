@@ -8,7 +8,7 @@ a bigger project holds more, rust-analyzer most of all):
   Python      1 to 2 s         about 160 MB
   Dart        under 1 s        about 125 MB
   Rust        5 to 35 s        about 640 MB, growing with the project
-  Kotlin      about 40 s       1.3 to 1.8 GB (the Gradle import dominates)
+  Kotlin      20 to 45 s       1.3 to 1.8 GB (the first call indexes the libraries, later ones reuse it)
   TypeScript  (own engine)     its helper is held to 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB)
 
 So: do not run one command per file.

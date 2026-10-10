@@ -23,7 +23,7 @@ pub enum StartCheck {
 pub async fn start_check(server: &'static Server, located: &Located, project: &Path) -> StartCheck {
     let Find::Executable { launch, .. } = &server.find else {
         return StartCheck::Skipped(match server.find {
-            Find::Folder { .. } => "starting it imports a Gradle project and takes about 30 seconds; run a rename to see it work".to_string(),
+            Find::Folder { .. } => "starting it imports a Gradle project and takes 20 to 45 seconds; run a rename to see it work".to_string(),
             _ => "it is started by refac's own helper scripts".to_string(),
         });
     };
@@ -58,6 +58,7 @@ async fn handshake(
         keep_notifications: launch.profile.kept_notifications(),
         language_id: launch.profile.language_id(),
         env: Vec::new(),
+        initialization_options: None,
     })
     .await?;
     let missing = launch.profile.missing_capabilities(&init["capabilities"]);

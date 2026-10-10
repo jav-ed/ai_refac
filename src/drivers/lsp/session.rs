@@ -37,6 +37,9 @@ pub struct SessionConfig<'a> {
     pub language_id: fn(&Path) -> &'static str,
     /// Environment variables added to the server process.
     pub env: Vec<(String, String)>,
+    /// The `initializationOptions` of `initialize`, for a server that takes
+    /// settings there; most take none.
+    pub initialization_options: Option<Value>,
 }
 
 /// `REFAC_LSP_TRACE=1` prints every message of every session to stderr, cut
@@ -120,17 +123,16 @@ impl LspSession {
         let uri = Url::from_directory_path(config.root)
             .map_err(|_| anyhow::anyhow!("Invalid project path {}", config.root.display()))?
             .to_string();
-        let init = session
-            .request(
-                "initialize",
-                json!({
-                    "processId": std::process::id(),
-                    "rootUri": uri,
-                    "workspaceFolders": [{ "uri": uri, "name": "project" }],
-                    "capabilities": config.capabilities,
-                }),
-            )
-            .await?;
+        let mut params = json!({
+            "processId": std::process::id(),
+            "rootUri": uri,
+            "workspaceFolders": [{ "uri": uri, "name": "project" }],
+            "capabilities": config.capabilities,
+        });
+        if let Some(options) = config.initialization_options {
+            params["initializationOptions"] = options;
+        }
+        let init = session.request("initialize", params).await?;
         Ok((session, init))
     }
 
@@ -319,13 +321,22 @@ impl LspSession {
         Ok(())
     }
 
-    pub async fn shutdown(mut self) {
+    /// `shutdown`, `exit`, and the end of the server's input (the Kotlin server
+    /// stays after `exit` until its input closes). A server that does not leave
+    /// within two seconds is killed. Returns whether it left by itself, which
+    /// is when everything it keeps on disk is complete.
+    pub async fn shutdown(mut self) -> bool {
         let _ = tokio::time::timeout(
             Duration::from_secs(3),
             self.request("shutdown", Value::Null),
         )
         .await;
         let _ = self.notify("exit", Value::Null).await;
-        let _ = tokio::time::timeout(Duration::from_secs(2), self.child.wait()).await;
+        drop(self.stdin);
+        let left = tokio::time::timeout(Duration::from_secs(2), self.child.wait()).await;
+        if left.is_err() {
+            let _ = self.child.kill().await;
+        }
+        matches!(left, Ok(Ok(_)))
     }
 }

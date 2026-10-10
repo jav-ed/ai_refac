@@ -58,7 +58,7 @@ A language server idle in the background holds hundreds of megabytes, and an age
 | Dart (analysis server) | 0.4 s | 124 MB |
 | Kotlin (JetBrains server) | about 38 s | about 1.6 GiB, plus the Gradle daemon |
 
-The Kotlin cost is the Gradle import; see [Kotlin server setup](kotlin_Server.md). A limit on how long a server may take is `REFAC_LSP_TIMEOUT_SECS` for the others and `REFAC_KOTLIN_TIMEOUT_SECS` for Kotlin; a server that does not answer in time ends the command with an error that names the variable. `REFAC_LSP_TRACE=1` prints every message exchanged with a server (`full` keeps them whole), which is how a misbehaving server is investigated.
+The Kotlin cost is the server start (Gradle import and indexing, 20 to 45 seconds; its index is kept between calls); see [Kotlin server setup](kotlin_Server.md). A limit on how long a server may take is `REFAC_LSP_TIMEOUT_SECS` for the others and `REFAC_KOTLIN_TIMEOUT_SECS` for Kotlin; a server that does not answer in time ends the command with an error that names the variable. `REFAC_LSP_TRACE=1` prints every message exchanged with a server (`full` keeps them whole), which is how a misbehaving server is investigated.
 
 ## Checking a machine
 

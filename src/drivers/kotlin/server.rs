@@ -7,21 +7,24 @@
 //! answered `null`, which is why this module waits for the real signals and
 //! never sleeps.
 
+mod cache;
+mod capabilities;
 mod install;
 mod lend;
 mod mirror;
 
 use crate::drivers::lsp::rename::server::RenameServer;
 use crate::drivers::lsp::session::{LspSession, SessionConfig};
-use anyhow::{Result, bail};
+use anyhow::Result;
 use async_trait::async_trait;
+use cache::SystemDir;
+use capabilities::{check_capabilities, client_capabilities};
 use install::timeout;
 use mirror::Mirror;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tempfile::TempDir;
 
 /// What the server's Gradle import prints for a build it cannot model.
 const UNREADABLE_TARGETS: &str = "Failed to find 'target' in Kotlin extension";
@@ -32,6 +35,7 @@ pub fn multiplatform_note(root: &Path) -> Result<Option<String>> {
     Ok(Mirror::applies_to(root)?.then(Mirror::note))
 }
 
+pub use cache::CACHE_ENV;
 pub use install::{Install, SERVER_ENV, TIMEOUT_ENV, locate};
 pub use lend::{SharedServer, lend, lent_for, recall};
 pub use mirror::{refuse_expect_actual, refuse_expect_actual_symbol};
@@ -42,13 +46,14 @@ const KEPT_NOTIFICATIONS: &[&str] = &[
     "intellij/importLog",
 ];
 
-/// A running server with its throwaway system directory (about 250 MB of
-/// caches that a second start does not reuse faster, so it is deleted).
+/// A running server with the system directory it works in (its caches and
+/// indexes, about 120 MB; a run that ends cleanly keeps them for the next, see
+/// `cache`).
 pub struct KotlinServer {
     session: LspSession,
     pub build: String,
     timeout: Duration,
-    system_dir: TempDir,
+    system_dir: SystemDir,
     /// Set for a Kotlin Multiplatform build, which the server cannot import:
     /// it then works on a plain-JVM copy and everything crossing this boundary
     /// is translated (see `mirror`).
@@ -63,7 +68,7 @@ impl KotlinServer {
     /// Start the server on a Gradle root and return once the import is done.
     pub async fn start(install: &Install, project: &Path) -> Result<Self> {
         let timeout = timeout()?;
-        let system_dir = tempfile::Builder::new().prefix("refac-kotlin-").tempdir()?;
+        let system_dir = SystemDir::open(&install.build)?;
         let mirror = Mirror::for_project(project)?;
         let project = mirror.as_ref().map_or(project, Mirror::root);
         let (mut session, init) = LspSession::start(SessionConfig {
@@ -78,6 +83,11 @@ impl KotlinServer {
             capabilities: client_capabilities(),
             keep_notifications: KEPT_NOTIFICATIONS,
             language_id,
+            // Without `indexDir` the server keeps a full index of the JDK and
+            // the libraries for each project path (120 MB each, and none of
+            // it is found again under another path); with it, one shared index
+            // that every project and every copy of a project starts from.
+            initialization_options: Some(json!({ "indexDir": system_dir.path() })),
             env: vec![(
                 "JAVA_TOOL_OPTIONS".to_string(),
                 java_tool_options(std::env::var("JAVA_TOOL_OPTIONS").ok().as_deref()),
@@ -177,7 +187,7 @@ impl KotlinServer {
         } else {
             ""
         };
-        self.shutdown().await;
+        self.abandon().await;
         error.context(format!(
             "Kotlin language server (build {build}) was not ready.\nLast Gradle import output:\n{shown}{about_mirror}"
         ))
@@ -251,10 +261,21 @@ impl KotlinServer {
         self.session.close_under(&path).await
     }
 
+    /// Stop the server. One that left by itself has written its caches
+    /// completely, and they are kept for the next run (see `cache`). A cache
+    /// that could not be kept costs the next run its speed, not this one its
+    /// result, so it is reported and not an error.
     pub async fn shutdown(self) {
+        if self.session.shutdown().await
+            && let Err(error) = self.system_dir.keep()
+        {
+            tracing::warn!("The Kotlin server's caches were not kept: {error:#}");
+        }
+    }
+
+    /// Stop a server whose run failed; its caches are not kept.
+    async fn abandon(self) {
         self.session.shutdown().await;
-        // Best effort: the server may still hold a file for a moment.
-        let _ = self.system_dir.close();
     }
 }
 
@@ -317,41 +338,6 @@ fn java_tool_options(existing: Option<&str>) -> String {
         Some(options) => format!("{options} {ours}"),
         None => ours,
     }
-}
-
-fn client_capabilities() -> Value {
-    json!({
-        "workspace": {
-            "applyEdit": true,
-            "workspaceEdit": {
-                "documentChanges": true,
-                "resourceOperations": ["create", "rename", "delete"],
-            },
-            "workspaceFolders": true,
-            "configuration": true,
-            "fileOperations": { "willRename": true },
-        },
-        "window": { "workDoneProgress": true },
-        "textDocument": {
-            "rename": { "prepareSupport": true },
-            "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
-        },
-    })
-}
-
-fn check_capabilities(capabilities: &Value) -> Result<()> {
-    if capabilities["workspace"]["fileOperations"]["willRename"].is_null() {
-        bail!("The Kotlin language server does not offer workspace/willRenameFiles");
-    }
-    if capabilities["renameProvider"]["prepareProvider"] != true {
-        bail!("The Kotlin language server does not offer prepareRename");
-    }
-    if capabilities["referencesProvider"].is_null()
-        || capabilities["documentSymbolProvider"].is_null()
-    {
-        bail!("The Kotlin language server does not offer references and document symbols");
-    }
-    Ok(())
 }
 
 fn language_id(path: &Path) -> &'static str {

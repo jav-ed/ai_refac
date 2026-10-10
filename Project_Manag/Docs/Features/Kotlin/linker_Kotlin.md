@@ -30,6 +30,6 @@ Pure logic (planning, XML rewriting, imports, edit parsing, verification helpers
 ## Known limits
 
 - **Not supported:** moves of `.java` files (the server leaves their package line stale), directories that contain Java sources, and moves between modules or source sets. Kotlin Multiplatform builds work through a plain-JVM copy ([page](multiplatform_Mirror.md)): files that declare `expect`/`actual` are refused (move them by hand) and a real Compose Multiplatform application was not tried.
-- **Cost:** every call starts the server and imports the Gradle build, about 30 seconds and about 1.6 GiB for the server on a tiny project. Refac sets a time limit (`REFAC_KOTLIN_TIMEOUT_SECS`, default 600) but no memory cap, unlike the TypeScript engine.
+- **Cost:** every call starts the server and imports the Gradle build, about 45 seconds the first time and about 20 after that (the server's index is kept between calls, see [Kotlin server setup](../../Setup/kotlin_Server.md)), and about 1.6 GiB for the server on a tiny project. Refac sets a time limit (`REFAC_KOTLIN_TIMEOUT_SECS`, default 600) but no memory cap, unlike the TypeScript engine.
 - **Android build files are not edited:** ProGuard rules, `mainClass`, service lists, and string literals that name a moved class are reported, not rewritten.
 - **Untested here:** cross-module Android projects with several libraries, and builds other than Gradle (Maven imports are the server's feature, but refac's Android layer reads Gradle scripts).

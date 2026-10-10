@@ -62,6 +62,8 @@ ENVIRONMENT
                           where a language server is installed (`refac doctor <language>` explains)
   REFAC_LSP_TIMEOUT_SECS  how long a server may take to load or answer (default 300)
   REFAC_KOTLIN_TIMEOUT_SECS  same for the Kotlin Gradle import (default 600)
+  REFAC_KOTLIN_CACHE      where the Kotlin server keeps its index between calls (a directory or `off`;
+                          default ~/.cache/refac)
   REFAC_KOTLIN_MIRROR_VERSION  Kotlin version of the plain-JVM copy used for a Kotlin Multiplatform build,
                           when gradle/libs.versions.toml and the build scripts do not state one
   REFAC_KOTLIN_BATCH_ONLY  a single Kotlin move or rename is refused by default (each pays the 40 s

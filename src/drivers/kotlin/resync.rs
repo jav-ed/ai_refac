@@ -7,9 +7,11 @@
 
 use super::server::KotlinServer;
 use crate::drivers::lsp::rename::plan::discover::file_uri;
-use anyhow::{Context, Result};
+use crate::drivers::lsp::session::RpcError;
+use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// `FileChangeType` of `workspace/didChangeWatchedFiles`.
 const CREATED: u8 = 1;
@@ -88,11 +90,17 @@ impl DiskChanges {
     }
 }
 
+/// How long the server may take to drop a deleted file. Measured: 0.2 seconds.
+const DELETION_WAIT: Duration = Duration::from_secs(10);
+
 /// Tell the server the files changed behind its back. Every open document
 /// under the project is closed first, because a document the server holds is
 /// the text it was shown, not the file; the sources that exist are then sent
 /// with their text so that the next request already sees them (the watcher
-/// event alone is handled later).
+/// event alone is handled later). A deleted source has no text to send, so
+/// the call waits until the server no longer lists its symbols: a request
+/// sent before that (a move into the folder it was in) is refused because the
+/// file "already exists".
 pub async fn follow_disk(
     server: &mut KotlinServer,
     root: &Path,
@@ -125,7 +133,36 @@ pub async fn follow_disk(
             .with_context(|| format!("Cannot read {}", path.display()))?;
         server.sync_document(path, &text).await?;
     }
+    for path in changes.deleted.iter().filter(|path| is_source(path)) {
+        wait_until_dropped(server, path).await?;
+    }
     Ok(())
+}
+
+/// Asks for the symbols of the file until the server has none (or no longer
+/// knows the file).
+async fn wait_until_dropped(server: &mut KotlinServer, path: &Path) -> Result<()> {
+    let params = json!({ "textDocument": { "uri": file_uri(path)? } });
+    let deadline = Instant::now() + DELETION_WAIT;
+    loop {
+        match server
+            .request("textDocument/documentSymbol", params.clone())
+            .await
+        {
+            Ok(symbols) if symbols.as_array().is_none_or(Vec::is_empty) => return Ok(()),
+            Ok(_) => {}
+            Err(error) if error.downcast_ref::<RpcError>().is_some() => return Ok(()),
+            Err(error) => return Err(error),
+        }
+        if Instant::now() > deadline {
+            bail!(
+                "The Kotlin server still lists the symbols of {} {} seconds after it was told the file is gone",
+                path.display(),
+                DELETION_WAIT.as_secs()
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }
 
 fn is_source(path: &Path) -> bool {
