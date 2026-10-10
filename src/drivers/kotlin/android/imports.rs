@@ -58,7 +58,7 @@ fn imports(text: &str, name: &str) -> bool {
 
 /// Put the import in sorted position when the existing imports are sorted,
 /// else after the last one; with no imports, below the package line.
-fn insert_import(text: &str, import: &str) -> String {
+pub(in crate::drivers::kotlin) fn insert_import(text: &str, import: &str) -> String {
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let lines: Vec<&str> = text.split_inclusive('\n').collect();
     let import_lines: Vec<usize> = lines

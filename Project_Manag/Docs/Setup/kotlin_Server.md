@@ -87,7 +87,8 @@ Which tests for which change (all of these need `REFAC_KOTLIN_TESTS=all`; the qu
 | Kotlin symbol rename (`rename.rs`) | `rename::a_class_is_renamed_together_with_its_file` and `rename::a_clash_with_a_member_in_the_same_class_is_refused` (the quick set does not cover renames); the whole module `rename::` only for a large change (the batch dry run adds 25 s) |
 | The Android layer (`android/`) | the module `android::` (5 tests) and `dry_run::the_plan_of_an_android_move_includes_the_manifest_and_layout_edits` |
 | The dry run (`preview/copy*`, `plan_move`) | `dry_run::the_plan_of_a_package_move_names_every_file_whose_import_changes` |
-| The Kotlin Multiplatform mirror (`server/mirror*`) | the module `multiplatform::` (7 tests; the refusals and the failure test need no server) |
+| The Kotlin Multiplatform mirror (`server/mirror*`) | the module `multiplatform::` (8 tests; the refusals and the failure test need no server) |
+| The imports for the names that stayed behind (`same_package*`) | `cargo test --lib same_package` (no server), and `multiplatform::a_moved_file_imports_the_expect_function_it_used_without_an_import` for the real server; it runs in every Kotlin move, so the quick set covers the plain JVM case |
 | The shared server of the tests (`tests/common/pool.rs`, `server/lend.rs`, `resync.rs`) | `moves::` and `rename::` in one command, then `--nocapture` to count the starts |
 | The refusal and its explanation (`src/logic/kotlin_cost*`, the guide topic) | no Kotlin test: `cargo test --test cli kotlin_cost` and `cargo test --lib kotlin_cost` need no server |
 

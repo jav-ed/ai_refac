@@ -132,6 +132,32 @@ async fn imports_that_only_a_library_the_server_cannot_see_explains_stay() {
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_moved_file_imports_the_expect_function_it_used_without_an_import() {
+    let project = lease().await;
+    let from = format!("{COMMON}/util/Describer.kt");
+    let to = format!("{COMMON}/util/sub/Describer.kt");
+
+    let report = run(project.path(), &[pair(&from, &to)]).await;
+
+    // `platformName` is an `expect` here and an `actual` in jvmMain: the
+    // mirror holds two declarations of one name, and the server leaves it
+    // without an import ("Unresolved reference" when the project is built).
+    let moved = common::read_file(project.path(), &to);
+    assert!(moved.starts_with("package com.example.util.sub"), "{moved}");
+    for import in [
+        "import com.example.util.shout",
+        "import com.example.util.platformName",
+    ] {
+        assert!(moved.contains(import), "{import} is missing:\n{moved}");
+    }
+    let notes = report.notes.join("\n");
+    assert!(notes.contains("Added imports to"), "{notes}");
+    assert!(notes.contains("platformName"), "{notes}");
+    project.assert_compiles(COMPILE);
+}
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_file_or_symbol_that_is_expect_or_actual_is_refused_before_the_server_starts() {
     let project = setup();
     let before = common::kotlin::snapshot(project.path());

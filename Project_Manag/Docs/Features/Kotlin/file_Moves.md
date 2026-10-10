@@ -29,6 +29,16 @@ Each of these fails before the server is started and changes nothing:
 
 The server is trusted for the reference updates, and refac checks what is cheap to check. A moved file's `package` line must now follow its directory (relative to the source root), and a file renamed in place must have taken the class that carried its name. A server answer that does nothing (it answers `null` or `{}` when it is not ready or not able) shows up here as a failed check and not as a quiet success. A file whose package line did not follow its directory before the move cannot be compared; that is reported in the notes as not checked.
 
+## Imports for the names that stayed behind
+
+A Kotlin file sees every top-level declaration of its own package without an import, so a file that moves to another package loses them. The server adds the imports it can resolve; it leaves out names it takes for ambiguous, and in the Multiplatform mirror that includes an `expect fun` with its `actual fun` (see [the mirror](multiplatform_Mirror.md#names-that-stayed-behind-in-the-old-package)). `src/drivers/kotlin/moves/same_package.rs` runs after the server and adds `import <old package>.<name>` for each name that
+
+- the moved file uses outside comments and strings (inside `$name` and `${...}` templates too; after a dot only for extension functions and properties),
+- a file of the old package declares at the top level, not `private`: Kotlin files by their column-0 declarations (functions, properties, classes, objects, typealiases, with modifiers and annotations on the same line), Java files by the class that carries the file name,
+- and the file does not import already, under that simple name (an explicit import of another `Helper`, or an alias, is left alone: a second one would clash) or by a star import of the old package.
+
+A name is only taken from the same Gradle module and from a source set the moved file can see (its own, `main`, `commonMain`; a test set also sees `commonTest` and its platform's main set). A type that a moved file declares itself is not imported. Each file that got imports is named in the notes, so the additions can be checked. It looks at names, so overloads, `expect` and `actual` are no problem. It cannot see calls that need an import without writing the name (operators such as `a + b`, `by` delegates).
+
 ## All or nothing
 
 Every write and every move goes through an undo log. When anything fails, whether a server error, a failed check, or a write error, the log restores every edited file and every moved path and the error says that the move was undone. A rollback that itself fails is reported with the failure, never hidden.

@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 pub mod class_renames;
-mod imports;
+pub(in crate::drivers::kotlin) mod imports;
 pub mod moved;
 mod namespace;
 pub mod stale;
