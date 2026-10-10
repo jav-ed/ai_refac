@@ -5,7 +5,7 @@ use crate::common;
 //   Helper.kt: line 5 class Helper, 6 var counter, 8 fun decorate(text), 14 fun
 //   shout(text), 16 fun Helper.undecorate(text); three different `text` parameters.
 // Run with: REFAC_KOTLIN_SERVER=<install dir> [ANDROID_HOME=<sdk>] \
-//   cargo test --test kotlin rename:: -- --ignored --test-threads=1
+//   REFAC_KOTLIN_TESTS=all cargo test --test kotlin rename:: -- --ignored --test-threads=1
 // The tests share one server (common::pool): it starts once for a fixture and each test
 // gets the project as the fixture was; the entry points below use it for that project.
 

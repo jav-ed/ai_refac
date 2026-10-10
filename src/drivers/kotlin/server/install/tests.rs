@@ -65,3 +65,21 @@ fn the_timeout_defaults_and_rejects_nonsense() {
     assert!(parse_timeout(Some("0")).is_err());
     assert!(parse_timeout(Some("soon")).is_err());
 }
+
+#[test]
+fn the_gradle_daemon_stops_after_ten_seconds_unless_the_caller_keeps_it() {
+    assert_eq!(parse_gradle_idle(None).unwrap(), 10_000);
+    assert_eq!(parse_gradle_idle(Some("")).unwrap(), 10_000);
+    assert_eq!(parse_gradle_idle(Some("0")).unwrap(), 10_000);
+    assert_eq!(parse_gradle_idle(Some(" 300 ")).unwrap(), 300_000);
+    assert_eq!(parse_gradle_idle(Some("3600")).unwrap(), 3_600_000);
+}
+
+#[test]
+fn a_gradle_daemon_setting_that_could_leave_it_for_hours_is_an_error_naming_the_variable() {
+    for value in ["3601", "-5", "soon", "1.5", "10800"] {
+        let error = parse_gradle_idle(Some(value)).err().unwrap().to_string();
+        assert!(error.contains(GRADLE_IDLE_ENV), "{value}: {error}");
+        assert!(error.contains(value), "{value}: {error}");
+    }
+}

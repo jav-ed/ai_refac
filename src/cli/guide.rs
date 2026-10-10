@@ -25,6 +25,11 @@ const TOPICS: &[(&str, &str, &str)] = &[
         include_str!("guide/batching.txt"),
     ),
     (
+        "kotlin",
+        "why a Kotlin change is slow, what it costs, and the options you have",
+        crate::logic::kotlin_cost::EXPLANATION,
+    ),
+    (
         "output",
         "how to read the report, the JSON documents and the exit codes",
         include_str!("guide/output.txt"),
@@ -38,7 +43,7 @@ const TOPICS: &[(&str, &str, &str)] = &[
 
 #[derive(Debug, Args)]
 pub struct GuideArgs {
-    /// The topic to print: languages, safety, batching, output or servers.
+    /// The topic to print: languages, safety, batching, kotlin, output or servers.
     ///
     /// Without it, the topics are listed with what each answers. `all` prints every topic.
     #[arg(value_name = "TOPIC")]

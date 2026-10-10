@@ -8,7 +8,8 @@ a bigger project holds more, rust-analyzer most of all):
   Python      1 to 2 s         about 160 MB
   Dart        under 1 s        about 125 MB
   Rust        5 to 35 s        about 640 MB, growing with the project
-  Kotlin      20 to 45 s       1.3 to 1.8 GB (the first call indexes the libraries, later ones reuse it)
+  Kotlin      about 24 s       1.3 to 1.8 GB (44 s the first time: the first call indexes the libraries,
+                               later ones reuse the index)
   TypeScript  (own engine)     its helper is held to 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB)
 
 So: do not run one command per file.
@@ -28,18 +29,21 @@ MANY RENAMES: one `rename --batch`
   before anything runs and names the entry: run one batch per language. `--dry-run` plans the whole
   batch the same way, each entry on the files as the ones before it would leave them.
 
-KOTLIN: A SINGLE CHANGE SAYS WHAT IT COST
-  A Kotlin command costs about 40 s and 1.3 to 1.8 GB whether it changes one file or fifty, and every
-  command pays it again. Each command is a process of its own, so refac cannot know that it is the
-  twentieth one. What it does:
-    - a single Kotlin file moved, or a single Kotlin rename, ends with a note: the seconds it took
-      and the batch form (`move` repeating --source-path/--target-path, `rename --batch`). A dry run
-      says that the real run pays the start again. A folder, several files, or a batch get no note.
-    - a single Kotlin move or rename is refused by default, dry runs included, before anything
-      starts, with the batch command written out for that request. If that one change is all there
-      is, run the same command again with --allow-single. REFAC_KOTLIN_BATCH_ONLY=0 (set it in the
-      environment of a person who wants single changes) turns the refusal off. The variable is 1,
-      empty or unset (refuse), or 0 (allow); anything else is an error.
+KOTLIN: A SINGLE CHANGE IS REFUSED BY DEFAULT
+  A Kotlin command costs about 24 s (44 s the first time on a machine) and 1.3 to 1.8 GB whether it
+  changes one file or fifty, and every command pays it again. Each command is a process of its own, so
+  refac cannot know that it is the twentieth one. What it does:
+    - a single Kotlin move or rename is refused, dry runs included, before anything starts. The message
+      writes the batch command out for that request and carries the long explanation: why Kotlin is
+      slow and every option (also `refac guide kotlin`). Nothing is changed. If that one change is all
+      there is, run the same command again with --allow-single.
+    - REFAC_KOTLIN_BATCH_ONLY=0 (a person's choice, set in their environment) turns the refusal off.
+      The variable is 1, empty or unset (refuse), or 0 (allow); anything else is an error.
+    - REFAC_KOTLIN_GRADLE_IDLE_SECS=120 (1 to 3600, off by default) keeps the Gradle daemon up that
+      many seconds after a command, for scripts that run single changes one after the other: 24 s
+      become 15 s, at the price of the daemon's memory in between.
+    - a single change that is allowed (--allow-single, or the variable) ends with a note: the seconds
+      it took and the batch form. A folder, several files or a batch get no note.
 
 AN ORDER THAT WORKS FOR A REFACTOR
   1. `refac doctor` once, to see every server is ready.

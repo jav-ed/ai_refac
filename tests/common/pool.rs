@@ -73,6 +73,12 @@ extern "C" fn stop_at_exit() {
 /// is killed before it can stop it.
 const COMPILE_DAEMON_IDLE_MS: u64 = 180_000;
 
+/// How long the Gradle daemon of a server's import stays after the test
+/// program: the next program, started within two minutes while a developer
+/// iterates, finds it running and its servers are ready about 7 seconds
+/// sooner. The daemon stops itself (about 0.5 GB until then).
+const GRADLE_IDLE_MS: u64 = 120_000;
+
 struct Held {
     dir: TempDir,
     baseline: disk::Files,
@@ -151,7 +157,7 @@ async fn boot(root: &Path) -> SharedServer {
     let root = root.to_path_buf();
     let began = std::time::Instant::now();
     let started = RUNTIME
-        .spawn(async move { KotlinServer::start(&install, &root).await })
+        .spawn(async move { KotlinServer::start_with(&install, &root, GRADLE_IDLE_MS).await })
         .await
         .expect("the task that starts the Kotlin server");
     // Shown with `--nocapture`: what a start costs and how often one happens.
@@ -169,8 +175,16 @@ pub struct Lease {
 }
 
 /// Wait for the server of `fixture` (started on first use), with the project
-/// put back as the fixture was.
+/// put back as the fixture was. Blocked unless the caller asked for the slow
+/// Kotlin tests (`kotlin::require_slow_tests`).
 pub async fn lease(fixture: &str) -> Lease {
+    super::kotlin::require_slow_tests();
+    lease_quick(fixture).await
+}
+
+/// The same for a test of the quick set (`tests/kotlin/quick.rs`), which is
+/// allowed by default.
+pub async fn lease_quick(fixture: &str) -> Lease {
     super::kotlin::require_server();
     let mut pool = POOL.clone().lock_owned().await;
     match pool.held.get_mut(fixture) {

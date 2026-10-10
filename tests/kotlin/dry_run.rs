@@ -10,7 +10,7 @@ use refac::drivers::kotlin::moves::move_files;
 // The plan is made by the real binary on a copy (a server of its own, 45 seconds); the
 // real move that it is compared with runs on the shared server of the fixture
 // (common::pool), which takes seconds.
-// Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin dry_run:: -- --ignored --test-threads=1
+// Run with: REFAC_KOTLIN_SERVER=<install dir> REFAC_KOTLIN_TESTS=all cargo test --test kotlin dry_run:: -- --ignored --test-threads=1
 
 const K: &str = "src/main/kotlin/com/example";
 const SCRATCH: &[&str] = &[".gradle", ".kotlin", ".idea", "build", "app/build"];

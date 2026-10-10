@@ -19,7 +19,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cache::SystemDir;
 use capabilities::{check_capabilities, client_capabilities};
-use install::timeout;
+use install::{gradle_idle_ms, timeout};
 use mirror::Mirror;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -36,7 +36,7 @@ pub fn multiplatform_note(root: &Path) -> Result<Option<String>> {
 }
 
 pub use cache::CACHE_ENV;
-pub use install::{Install, SERVER_ENV, TIMEOUT_ENV, locate};
+pub use install::{GRADLE_IDLE_ENV, Install, SERVER_ENV, TIMEOUT_ENV, locate};
 pub use lend::{SharedServer, lend, lent_for, recall};
 pub use mirror::{refuse_expect_actual, refuse_expect_actual_symbol};
 
@@ -67,6 +67,19 @@ pub struct KotlinServer {
 impl KotlinServer {
     /// Start the server on a Gradle root and return once the import is done.
     pub async fn start(install: &Install, project: &Path) -> Result<Self> {
+        Self::start_with(install, project, gradle_idle_ms()?).await
+    }
+
+    /// The same, with the time, in milliseconds, that the Gradle daemon of the
+    /// import may sit idle after the run (`start` reads it from
+    /// `REFAC_KOTLIN_GRADLE_IDLE_SECS`). A caller that starts servers one run
+    /// after the other, such as the test programs, passes minutes: the next
+    /// import then finds the daemon running.
+    pub async fn start_with(
+        install: &Install,
+        project: &Path,
+        gradle_idle_ms: u64,
+    ) -> Result<Self> {
         let timeout = timeout()?;
         let system_dir = SystemDir::open(&install.build)?;
         let mirror = Mirror::for_project(project)?;
@@ -90,7 +103,10 @@ impl KotlinServer {
             initialization_options: Some(json!({ "indexDir": system_dir.path() })),
             env: vec![(
                 "JAVA_TOOL_OPTIONS".to_string(),
-                java_tool_options(std::env::var("JAVA_TOOL_OPTIONS").ok().as_deref()),
+                java_tool_options(
+                    std::env::var("JAVA_TOOL_OPTIONS").ok().as_deref(),
+                    gradle_idle_ms,
+                ),
             )],
         })
         .await?;
@@ -319,18 +335,17 @@ fn event_paths(params: &Value) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
-/// How long, in milliseconds, a Gradle daemon that the server's build import
-/// started may sit idle before it stops itself.
-const GRADLE_DAEMON_IDLE_MS: u64 = 10_000;
-
 /// The server imports the Gradle build through a Gradle daemon, and Gradle
 /// keeps that daemon running for three hours after the import (about 0.5 GB of
 /// memory). Nothing refac starts may outlive the command, so the server is
 /// started with an idle timeout of a few seconds and the daemon stops itself
 /// once the import is done; the semantic requests that follow are answered
-/// by the server, not by Gradle. Any `JAVA_TOOL_OPTIONS` the user has stay.
-fn java_tool_options(existing: Option<&str>) -> String {
-    let ours = format!("-Dorg.gradle.daemon.idletimeout={GRADLE_DAEMON_IDLE_MS}");
+/// by the server, not by Gradle. A caller who runs several Kotlin commands one
+/// after the other can ask for longer (`REFAC_KOTLIN_GRADLE_IDLE_SECS`): the
+/// next import then finds the daemon running and is about 7 seconds faster.
+/// Any `JAVA_TOOL_OPTIONS` the user has stay.
+fn java_tool_options(existing: Option<&str>, idle_ms: u64) -> String {
+    let ours = format!("-Dorg.gradle.daemon.idletimeout={idle_ms}");
     match existing
         .map(str::trim)
         .filter(|options| !options.is_empty())

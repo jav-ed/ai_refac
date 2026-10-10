@@ -8,6 +8,12 @@ use std::time::Duration;
 pub const SERVER_ENV: &str = "REFAC_KOTLIN_SERVER";
 pub const TIMEOUT_ENV: &str = "REFAC_KOTLIN_TIMEOUT_SECS";
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
+pub const GRADLE_IDLE_ENV: &str = "REFAC_KOTLIN_GRADLE_IDLE_SECS";
+/// Gradle keeps the daemon of the server's import for three hours by default
+/// (about 0.5 GB); nothing refac starts may outlive the command, so the
+/// default is a few seconds.
+const DEFAULT_GRADLE_IDLE_SECS: u64 = 10;
+const MAX_GRADLE_IDLE_SECS: u64 = 3600;
 
 pub struct Install {
     dir: PathBuf,
@@ -68,6 +74,31 @@ pub(super) fn parse_timeout(configured: Option<&str>) -> Result<Duration> {
             format!("{TIMEOUT_ENV} must be a positive number of seconds, got `{value}`")
         })?;
     Ok(Duration::from_secs(seconds))
+}
+
+/// How long, in milliseconds, the Gradle daemon of the server's import may sit
+/// idle after the command before it stops itself (`REFAC_KOTLIN_GRADLE_IDLE_SECS`).
+pub(super) fn gradle_idle_ms() -> Result<u64> {
+    parse_gradle_idle(std::env::var(GRADLE_IDLE_ENV).ok().as_deref())
+}
+
+/// Unset, empty or `0` is the default of ten seconds: keeping the daemon is
+/// something the caller asks for. Anything but a number of seconds up to an
+/// hour is an error, so a typo cannot leave a daemon behind for hours.
+pub(super) fn parse_gradle_idle(configured: Option<&str>) -> Result<u64> {
+    let seconds = match configured.map(str::trim) {
+        None | Some("") | Some("0") => DEFAULT_GRADLE_IDLE_SECS,
+        Some(value) => value
+            .parse()
+            .ok()
+            .filter(|seconds| (1..=MAX_GRADLE_IDLE_SECS).contains(seconds))
+            .with_context(|| {
+                format!(
+                    "{GRADLE_IDLE_ENV} must be a number of seconds from 1 to {MAX_GRADLE_IDLE_SECS} (0 or unset: {DEFAULT_GRADLE_IDLE_SECS}), got `{value}`"
+                )
+            })?,
+    };
+    Ok(seconds * 1000)
 }
 
 #[cfg(test)]

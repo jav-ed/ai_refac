@@ -41,8 +41,9 @@ HOW IT STAYS SAFE
 WHAT A COMMAND COSTS
   A server starts for the command and stops after it. Time to start / memory held while it runs:
   Go 2-8 s / 165 MB, Python 1-2 s / 160 MB, Dart under 1 s / 125 MB, Rust 5-35 s / 640 MB and more
-  (grows with the project), Kotlin about 40 s / 1.3-1.8 GB. So put several moves into one `move`
-  call and several renames of one project into one `rename --batch` call. `refac guide batching`.
+  (grows with the project), Kotlin about 24 s / 1.3-1.8 GB. So put several moves into one `move`
+  call and several renames of one project into one `rename --batch` call. `refac guide batching`;
+  for Kotlin, which refuses a single change by default, `refac guide kotlin` says why and what to do.
 
 READING THE OUTPUT
   Lines starting with `//` are refac's report. `// Note:` lines name places refac did NOT change
@@ -66,8 +67,10 @@ ENVIRONMENT
                           default ~/.cache/refac)
   REFAC_KOTLIN_MIRROR_VERSION  Kotlin version of the plain-JVM copy used for a Kotlin Multiplatform build,
                           when gradle/libs.versions.toml and the build scripts do not state one
-  REFAC_KOTLIN_BATCH_ONLY  a single Kotlin move or rename is refused by default (each pays the 40 s
-                          Gradle import); --allow-single lets one through, =0 turns the refusal off
+  REFAC_KOTLIN_BATCH_ONLY  a single Kotlin move or rename is refused by default (each pays the 24 s
+                          server start); --allow-single lets one through, =0 turns the refusal off
+  REFAC_KOTLIN_GRADLE_IDLE_SECS  keep the Kotlin project's Gradle daemon up that many seconds (1 to
+                          3600) after a command; off by default (it stops 10 s after the import)
   REFAC_LSP_TRACE=1       print every message exchanged with a server (debugging)
   RUST_LOG=debug          more of refac's own log on stderr"#;
 

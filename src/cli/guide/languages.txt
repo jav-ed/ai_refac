@@ -18,8 +18,9 @@ KOTLIN / ANDROID  (.kt)
           its import. Refused: .java sources, folders that contain Java, moves between Gradle modules
           or source sets, a target that does not keep the .kt extension.
   rename  Any Kotlin symbol; Java callers are updated too. XML class names follow a renamed class.
-  tools   The JetBrains Kotlin language server. Importing the Gradle build takes about 40 s on every
-          call and the server holds 1.3 to 1.8 GB, so put everything into ONE call.
+  tools   The JetBrains Kotlin language server. Starting it and importing the Gradle build takes about
+          24 s on every call and the server holds 1.3 to 1.8 GB, so put everything into ONE call
+          (`refac guide kotlin` explains why and lists the options).
   --project-path is the Gradle root (settings.gradle.kts).
 
 GO  (.go)

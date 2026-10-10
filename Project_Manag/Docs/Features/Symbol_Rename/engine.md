@@ -18,7 +18,7 @@ One engine, `src/drivers/lsp/rename/`, renames symbols for every language whose 
 
 ## Several renames in one session (batch)
 
-`rename_symbols(language, requests)` runs `batch.rs`. A server start is the largest fixed cost of a rename (Kotlin about 40 s and 1.6 GB, a large Rust project 30 s and 1.9 GB, Go 2-8 s, Python and Dart 1-2 s), so a series of renames of one project can share one start without any server staying resident between commands:
+`rename_symbols(language, requests)` runs `batch.rs`. A server start is the largest fixed cost of a rename (Kotlin about 24 s and 1.6 GB, a large Rust project 30 s and 1.9 GB, Go 2-8 s, Python and Dart 1-2 s), so a series of renames of one project can share one start without any server staying resident between commands:
 
 1. **Check every request first**, before a server exists: names, `--column` needs `--line`, one project root, all dry runs or none. The first request is also located (file, symbol, position), so a typo there costs no start. A batch of one keeps its plain, unprefixed error messages.
 2. **Start the server once**, then for each request in order: locate it in the file as the previous request left it, plan, prove, write.

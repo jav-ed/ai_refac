@@ -120,15 +120,19 @@ The Dart suite also has one normal test (a project without `package_config.json`
 
 ### Kotlin tests
 
+**Do not call Kotlin tests like crazy.** They start a language server and a Gradle import (20 to 47 seconds, about 2 GB) and the whole group takes about 7 minutes, so a session that runs them after every edit spends its time waiting. Invoke them only when the change you made needs them. By default only the quick set runs, within 30 seconds (`cargo test --test kotlin quick:: -- --ignored --test-threads=1`, 27 s cold, 17 s warm); every other Kotlin test is **blocked** (it fails at once with the reason) unless the command says `REFAC_KOTLIN_TESTS=all`.
+
 The Kotlin scenarios use the real JetBrains Kotlin language server and a Gradle import (20 to 47 seconds), so they are `#[ignore]`d and a plain `cargo test` skips them. **Put the tests you want into ONE command with `--test-threads=1`: one test, several named tests, or a module.** They share one server per fixture inside the command (`tests/common/pool.rs`): the first test of a fixture pays the start (20 to 32 seconds with the warm cache), every later one costs seconds, and a failed test costs no restart. The whole group (38 tests) takes about 7 minutes (417 s measured); only `server::` and the dry-run plans (the `refac` binary plans on a copy with a server of its own, about 25 seconds each) start servers of their own. The commands, the table of which tests cover which change, and the rules that keep the machine alive are in [Kotlin server setup](../Setup/kotlin_Server.md#running-the-real-server-tests):
 
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # Android tests only
 # one test:
-cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
+cargo test --test kotlin quick:: -- --ignored --test-threads=1
+# one test outside the quick set (blocked unless you ask):
+REFAC_KOTLIN_TESTS=all cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
 # a few tests, one command, one after the other (tests of one fixture share its server):
-cargo test --test kotlin -- --ignored --test-threads=1 moves::a_file_moves_to_a_new_package_and_every_reference_follows rename::a_class_is_renamed_together_with_its_file
+REFAC_KOTLIN_TESTS=all cargo test --test kotlin -- --ignored --test-threads=1 moves::a_file_moves_to_a_new_package_and_every_reference_follows rename::a_class_is_renamed_together_with_its_file
 ```
 
 Without `REFAC_KOTLIN_SERVER` (or `ANDROID_HOME` for the Android tests) these tests panic with an explanation instead of passing. Every successful scenario ends with a Gradle compile of the result, because a Kotlin refactor is right when the project still builds.

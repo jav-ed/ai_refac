@@ -169,3 +169,37 @@ fn the_help_names_the_variable_and_the_argument() {
         );
     }
 }
+
+#[test]
+fn the_refusal_explains_why_kotlin_is_slow_and_lists_the_options() {
+    let dir = tempfile::tempdir().unwrap();
+    for command in [MOVE, RENAME] {
+        let message = text(&refac(dir.path(), None, command));
+        assert!(message.contains("WHY IT IS SLOW"), "{message}");
+        assert!(message.contains("THE OPTIONS, BEST FIRST"), "{message}");
+        assert!(
+            message.contains("REFAC_KOTLIN_GRADLE_IDLE_SECS"),
+            "{message}"
+        );
+        assert!(message.contains("--allow-single"), "{message}");
+    }
+}
+
+#[test]
+fn the_kotlin_guide_topic_prints_the_same_explanation() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = refac(dir.path(), None, &["guide", "kotlin"]);
+
+    assert!(output.status.success(), "{}", text(&output));
+    let guide = text(&output);
+    assert!(
+        guide.starts_with("KOTLIN: why a Kotlin change is slow"),
+        "{guide}"
+    );
+    assert!(guide.contains("IF YOU ARE AN AGENT"), "{guide}");
+    assert!(
+        text(&refac(dir.path(), None, &["guide"])).contains("kotlin"),
+        "the topic list lacks kotlin"
+    );
+}

@@ -36,7 +36,10 @@ LIMITS AND SWITCHES
   REFAC_KOTLIN_MIRROR_VERSION  Kotlin version of the plain-JVM copy used for a Kotlin Multiplatform
                                build, when the project does not state one in a place refac reads
   REFAC_KOTLIN_BATCH_ONLY=0    allow a single Kotlin move or rename (they are refused by default;
-                               --allow-single lets one through; see `refac guide batching`)
+                               --allow-single lets one through; see `refac guide kotlin`)
+  REFAC_KOTLIN_GRADLE_IDLE_SECS=120
+                               keep the Kotlin project's Gradle daemon up that many seconds (1 to 3600)
+                               after a command; off by default, the daemon stops 10 s after the import
   REFAC_TYPESCRIPT_MAX_RSS_MB  RAM limit of the TypeScript helper in MiB (default 4096)
   REFAC_LSP_TRACE=1            print every message exchanged with a server (debugging)
   RUST_LOG=debug               more of refac's own log on stderr
@@ -44,5 +47,5 @@ LIMITS AND SWITCHES
 WHAT REFAC KEEPS ON YOUR MACHINE
   Only the Kotlin server's index (110 to 160 MB, deleted when it passes 2 GB), in ~/.cache/refac, so the
   next Kotlin call is ready in 9 to 16 seconds instead of 32 to 38. REFAC_KOTLIN_CACHE=off keeps nothing,
-  a directory moves it. The Kotlin Gradle daemon is told to stop itself seconds after the import instead
-  of the three hours Gradle defaults to.
+  a directory moves it. The Kotlin Gradle daemon is told to stop itself 10 s after the import instead
+  of the three hours Gradle defaults to; REFAC_KOTLIN_GRADLE_IDLE_SECS keeps it longer when you ask.

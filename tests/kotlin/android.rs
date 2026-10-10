@@ -9,7 +9,7 @@ use crate::common;
 // The server never edits XML and drops the implicit R when a file leaves the
 // namespace package; these tests prove refac repairs both, judged by a compile.
 // Run with: REFAC_KOTLIN_SERVER=<install dir> ANDROID_HOME=<sdk> \
-//   cargo test --test kotlin android:: -- --ignored --test-threads=1
+//   REFAC_KOTLIN_TESTS=all cargo test --test kotlin android:: -- --ignored --test-threads=1
 // The tests share one server (common::pool): it starts once for a fixture and each test
 // gets the project as the fixture was; the entry points below use it for that project.
 

@@ -40,7 +40,7 @@ BEFORE ANYTHING IS WRITTEN
 
 SEVERAL RENAMES AT ONCE: --batch <FILE> (or `-` for stdin)
   A JSON list: [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...]; each entry may add
-  "line" and "column". The language server is started ONCE (it takes seconds, Kotlin about 40) and
+  "line" and "column". The language server is started ONCE (it takes seconds, Kotlin about 24) and
   stopped after the last rename. Entries run in order and each one sees the files as the one before
   left them, so a later entry can name a symbol by the name an earlier entry gave it. All or nothing:
   if entry 3 of 5 fails, entries 1 and 2 are taken back and the error names entry 3. One language per

@@ -107,3 +107,36 @@ fn the_note_says_what_it_cost_and_how_to_batch() {
     assert!(!note.contains("dry run"), "{note}");
     assert!(super::note("move", Duration::from_secs(3), true).contains("This was a dry run"),);
 }
+
+#[test]
+fn every_refusal_carries_the_explanation_with_every_option_and_variable() {
+    let dir = tempfile::tempdir().unwrap();
+    let move_message = check_move(&request(&["a.kt"], &["p/a.kt"], dir.path()), false)
+        .unwrap_err()
+        .to_string();
+    let rename_message = check_rename(&rename("src/A.kt"), false)
+        .unwrap_err()
+        .to_string();
+
+    for message in [&move_message, &rename_message] {
+        assert!(message.ends_with(EXPLANATION), "{message}");
+        assert!(message.contains("Nothing was changed"), "{message}");
+    }
+    // Why it is slow, the numbers, and each way out.
+    for part in [
+        "WHY IT IS SLOW",
+        "Gradle import",
+        "indexing the JDK",
+        "THE OPTIONS, BEST FIRST",
+        "--allow-single",
+        "--dry-run",
+        BATCH_ONLY_ENV,
+        crate::drivers::kotlin::server::GRADLE_IDLE_ENV,
+        "REFAC_KOTLIN_CACHE",
+        "REFAC_KOTLIN_TIMEOUT_SECS",
+        "WHAT DOES NOT HELP",
+        "IF YOU ARE AN AGENT",
+    ] {
+        assert!(EXPLANATION.contains(part), "the explanation lacks `{part}`");
+    }
+}

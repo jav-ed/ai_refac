@@ -22,7 +22,7 @@ RULES BY LANGUAGE
                          folder's files is included; the error tells the measured number). The tsconfig
                          decides which files are callers: files it does not include are not updated.
   Kotlin/Android         Needs the JetBrains Kotlin language server (REFAC_KOTLIN_SERVER; `refac doctor
-                         kotlin`). Every call imports the Gradle build first (about 40 s), so put all
+                         kotlin`). Every call imports the Gradle build first (about 24 s), so put all
                          moves in ONE call. The package line, imports, usages and Android XML (manifest,
                          layouts, navigation graphs) follow. .java files, folders that contain Java, and
                          moves between modules or source sets are refused. A Kotlin Multiplatform build

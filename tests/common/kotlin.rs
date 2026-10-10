@@ -14,6 +14,27 @@ pub fn require_server() {
     );
 }
 
+/// The variable that asks for the Kotlin tests outside the quick set.
+pub const SLOW_TESTS_ENV: &str = "REFAC_KOTLIN_TESTS";
+
+/// A Kotlin test that starts a server costs 20 to 32 seconds before its first
+/// request, and the whole group takes 7 minutes, which is no price for an
+/// edit-and-test loop. So only the quick set (`tests/kotlin/quick.rs`, within
+/// 30 seconds) runs by default; every other test stops here with the way to
+/// ask for it, before anything starts. Asking is a decision: an agent that runs
+/// Kotlin tests after every edit spends the minutes of its whole session in them.
+pub fn require_slow_tests() {
+    require_server();
+    let asked = std::env::var(SLOW_TESTS_ENV).ok();
+    match asked.as_deref() {
+        Some("all") => {}
+        None | Some("") => panic!(
+            "BLOCKED: this Kotlin test is not in the quick set. A Kotlin test starts a language server (20 to 32 s) and the whole group takes 7 minutes, so by default only the quick set runs, within 30 s:\n  cargo test --test kotlin quick:: -- --ignored --test-threads=1\nDo not run Kotlin tests casually or after every edit: they cost minutes and gigabytes each time. Run others only when the change you made needs them, name only those tests, in ONE command, and say so explicitly:\n  {SLOW_TESTS_ENV}=all cargo test --test kotlin -- --ignored --test-threads=1 <module::test> <module::test>\nWhich tests cover which change: Project_Manag/Docs/Setup/kotlin_Server.md"
+        ),
+        Some(other) => panic!("{SLOW_TESTS_ENV} must be `all` or unset, got `{other}`"),
+    }
+}
+
 /// Every source file below `root` with its bytes, to prove that a failed
 /// refactor left the project exactly as it was. Gradle and the server write
 /// their own state into the project, which is not part of the comparison.

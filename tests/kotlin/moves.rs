@@ -5,7 +5,7 @@ use crate::common;
 //   app/Main.kt      same package as Greeter, so it imports it only after a move
 //   app/Greeter.kt, cli/Runner.kt, and a Java caller in java/.../legacy.
 // Every test ends with a Gradle compile: a move is right when the project builds.
-// Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin moves:: -- --ignored --test-threads=1
+// Run with: REFAC_KOTLIN_SERVER=<install dir> REFAC_KOTLIN_TESTS=all cargo test --test kotlin moves:: -- --ignored --test-threads=1
 // The tests share one server (common::pool): it starts once for a fixture and each test
 // gets the project as the fixture was; the entry points below use it for that project.
 

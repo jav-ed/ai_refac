@@ -3,7 +3,7 @@ use crate::common;
 // The same entry points the CLI and the MCP tool call, with Kotlin paths:
 // `handle_refactor` routes .kt files and Kotlin directories to the Kotlin
 // driver and shows its notes; `handle_rename` routes .kt files to the Kotlin
-// rename. Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin dispatch:: -- --ignored --test-threads=1
+// rename. Run with: REFAC_KOTLIN_SERVER=<install dir> REFAC_KOTLIN_TESTS=all cargo test --test kotlin dispatch:: -- --ignored --test-threads=1
 // The tests share one server (common::pool): it starts once for a fixture and each test
 // gets the project as the fixture was; the entry points below use it for that project.
 

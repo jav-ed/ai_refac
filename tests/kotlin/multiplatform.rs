@@ -14,7 +14,7 @@ use crate::common::project::Project;
 //   library/    stands for Compose; no source set, so the mirror does not hold it
 // Every test ends with a Gradle compile of main and test: a move is right when
 // the real project builds.
-// Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin multiplatform:: -- --ignored --test-threads=1
+// Run with: REFAC_KOTLIN_SERVER=<install dir> REFAC_KOTLIN_TESTS=all cargo test --test kotlin multiplatform:: -- --ignored --test-threads=1
 
 use refac::drivers::kotlin::moves::{MoveReport, move_files};
 use refac::drivers::kotlin::rename::{RenameReport, RenameRequest, rename_symbol};

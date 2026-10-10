@@ -42,12 +42,12 @@ pub(super) struct MoveArgs {
 
     /// Kotlin only: let a single Kotlin change through; refac refuses it by default.
     ///
-    /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
+    /// Every Kotlin command starts the language server and imports the Gradle build (about 24 s,
     /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. So a
     /// single Kotlin move is refused, dry runs included, with the command that does several in one
-    /// call; this argument says that the one change is all there is. REFAC_KOTLIN_BATCH_ONLY=0
-    /// turns the refusal off for the whole environment. It has no effect on other languages or on
-    /// a batch.
+    /// call and a long explanation (`refac guide kotlin`); this argument says that the one change
+    /// is all there is. REFAC_KOTLIN_BATCH_ONLY=0 turns the refusal off for the whole environment.
+    /// It has no effect on other languages or on a batch.
     #[arg(long)]
     pub(super) allow_single: bool,
 
@@ -154,12 +154,12 @@ pub(super) struct RenameArgs {
 
     /// Kotlin only: let a single Kotlin change through; refac refuses it by default.
     ///
-    /// Every Kotlin command starts the language server and imports the Gradle build (30 to 40 s,
+    /// Every Kotlin command starts the language server and imports the Gradle build (about 24 s,
     /// 1.3 to 1.8 GB), however few files it changes, so a series of single changes is slow. So a
     /// single Kotlin rename is refused, dry runs included, with the command that does several in one
-    /// call; this argument says that the one change is all there is. REFAC_KOTLIN_BATCH_ONLY=0
-    /// turns the refusal off for the whole environment. It has no effect on other languages or on
-    /// a batch.
+    /// call and a long explanation (`refac guide kotlin`); this argument says that the one change
+    /// is all there is. REFAC_KOTLIN_BATCH_ONLY=0 turns the refusal off for the whole environment.
+    /// It has no effect on other languages or on a batch.
     #[arg(long)]
     pub(super) allow_single: bool,
 
