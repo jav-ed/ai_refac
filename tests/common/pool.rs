@@ -1,32 +1,34 @@
 //! One Kotlin server for many tests. A Kotlin test used to start its own
 //! server and import the Gradle project: 40 seconds before the first request,
-//! whatever the test asked. Here the server is started once for a fixture,
-//! kept for the whole test program, and handed to one test at a time (a test
-//! that waits for the lease waits for the one before it). Between two tests
-//! the project directory is put back as the fixture was, and the server is
-//! told what changed, so a test starts from a project that equals a fresh
-//! copy. A different fixture stops the server and starts another.
+//! whatever the test asked. Here a server is started once for a fixture, kept
+//! for the whole test program, and lent (`server::lend`) for the project
+//! directory of the fixture, so that the ordinary entry points of the library
+//! (`move_files`, `rename_symbol`, `handle_refactor`) use it instead of
+//! starting their own. The tests call those entry points as they always did.
 //!
-//! What a test can no longer rely on is a clean server: after a failed
-//! operation the server holds texts and file events that the rolled-back disk
-//! no longer has, and the lease tells it again what the disk has for every
-//! file it was shown (`recover`). A test that is about the server's own start and stop (the CLI dispatch, the
-//! dry-run plans, `server.rs`) does not use a lease.
+//! A test holds a lease on the pool, and a test that waits for the lease waits
+//! for the one before it. When a test takes the lease the project directory is
+//! put back as the fixture was and the server is told what the disk has for
+//! every file it was ever shown (`recover`), so a test starts from a project
+//! that equals a fresh copy and a server that agrees with it, whatever the
+//! test before it did, a failure included. The servers of all fixtures that
+//! were used stay alive (about 2 GB each); each stops when the test program
+//! ends.
 //!
-//! The server and the project directory are removed when the test program
+//! A test that is about the server's own start and stop (`server.rs`, the
+//! dry-run plans that run the `refac` binary) does not lease: it starts what
+//! it needs.
+//!
+//! The servers and the project directories are removed when the test program
 //! ends (`atexit`): nothing a test starts may outlive it.
 
-use super::disk::{self, Files};
-use refac::drivers::kotlin::moves::{MoveReport, move_files_on};
-use refac::drivers::kotlin::rename::{
-    RenameReport, RenameRequest, SharedServer, rename_all_symbols, rename_all_symbols_on,
-    rename_symbol, rename_symbol_on,
-};
+use super::disk;
 use refac::drivers::kotlin::resync::{DiskChanges, follow_disk};
-use refac::drivers::kotlin::server::{self, KotlinServer};
-use std::collections::BTreeSet;
+use refac::drivers::kotlin::server::{self, KotlinServer, SharedServer};
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
 use tempfile::TempDir;
 use tokio::runtime::{Builder, Runtime};
@@ -43,10 +45,15 @@ static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
         .expect("the runtime of the Kotlin server")
 });
 
-static POOL: LazyLock<Arc<Mutex<Option<Held>>>> = LazyLock::new(|| {
+#[derive(Default)]
+struct Pool {
+    held: HashMap<String, Held>,
+}
+
+static POOL: LazyLock<Arc<Mutex<Pool>>> = LazyLock::new(|| {
     // SAFETY: `atexit` takes a plain function; it is registered once.
     unsafe { atexit(stop_at_exit) };
-    Arc::new(Mutex::new(None))
+    Arc::new(Mutex::new(Pool::default()))
 });
 
 unsafe extern "C" {
@@ -55,7 +62,8 @@ unsafe extern "C" {
 
 extern "C" fn stop_at_exit() {
     RUNTIME.block_on(async {
-        if let Some(held) = POOL.lock().await.take() {
+        let held = std::mem::take(&mut POOL.lock().await.held);
+        for (_, held) in held {
             held.stop().await;
         }
     });
@@ -66,18 +74,12 @@ extern "C" fn stop_at_exit() {
 const COMPILE_DAEMON_IDLE_MS: u64 = 180_000;
 
 struct Held {
-    fixture: String,
     dir: TempDir,
-    baseline: Files,
+    baseline: disk::Files,
     directories: BTreeSet<String>,
-    /// What the server has been told about the files.
-    known: Files,
-    /// None only while a server is being replaced.
-    server: Option<SharedServer>,
-    /// The server may hold texts that are not on disk: do not reuse it.
-    uncertain: bool,
+    server: SharedServer,
     /// A Gradle daemon was started for the compile checks.
-    compiled: bool,
+    compiled: AtomicBool,
 }
 
 impl Held {
@@ -86,88 +88,56 @@ impl Held {
         let baseline = super::kotlin::snapshot(dir.path());
         let directories = disk::directories(dir.path());
         let server = boot(dir.path()).await;
+        server::lend(dir.path(), server.clone());
         Self {
-            fixture: fixture.to_string(),
-            known: baseline.clone(),
             baseline,
             directories,
             dir,
-            server: Some(server),
-            uncertain: false,
-            compiled: false,
+            server,
+            compiled: AtomicBool::new(false),
         }
     }
 
-    /// The server holds texts and file events that the disk no longer has: a
-    /// failed operation was rolled back on disk without telling it. Tell it
-    /// again what the disk has for every file it was ever shown, so that it
-    /// can be trusted like a new one without paying for a new one.
+    /// The project as the fixture was, and a server that agrees with the disk.
+    async fn reset(&mut self) {
+        disk::restore(self.dir.path(), &self.baseline, &self.directories);
+        self.recover().await;
+    }
+
+    /// Tell the server what the disk has for every file it was ever shown: a
+    /// failed operation was rolled back on disk without telling it, and the
+    /// operation before may have left documents open with texts that never
+    /// reached the disk. Every open document is closed, and a file that
+    /// exists is announced as new (the server reads it again), one that is
+    /// gone as deleted.
     async fn recover(&mut self) {
-        eprintln!(
-            "[pool] {}: telling the server what the disk has",
-            self.fixture
-        );
-        let server = self.server();
-        let mut guard = server.lock().await;
+        let mut server = self.server.lock().await;
         let mut changes = DiskChanges::default();
-        for path in guard.told() {
+        for path in server.told() {
             if path.is_file() {
                 changes.created.push(path);
             } else {
                 changes.deleted.push(path);
             }
         }
-        follow_disk(&mut guard, self.dir.path(), &changes)
+        follow_disk(&mut server, self.dir.path(), &changes)
             .await
             .unwrap_or_else(|error| {
                 panic!("the Kotlin server could not follow the disk: {error:#}")
             });
-        self.uncertain = false;
     }
 
-    fn server(&self) -> SharedServer {
-        self.server.clone().expect("the lease has a server")
-    }
-
-    /// Tell the server what differs between what it was told and the disk.
-    async fn tell_server(&mut self) {
-        let root = self.dir.path();
-        let now = super::kotlin::snapshot(root);
-        let changes = disk::changes(root, &self.known, &now);
-        follow_disk(&mut *self.server().lock().await, root, &changes)
+    async fn stop(self) {
+        server::recall(self.dir.path());
+        // Nobody else holds it: an operation lets go of its share when it ends.
+        let server = Arc::try_unwrap(self.server)
+            .unwrap_or_else(|_| panic!("the Kotlin server is still in use"))
+            .into_inner();
+        RUNTIME
+            .spawn(async move { server.shutdown().await })
             .await
-            .unwrap_or_else(|error| {
-                panic!("the Kotlin server could not follow the disk: {error:#}")
-            });
-        self.known = now;
-    }
-
-    /// Ready for the next operation: a server that can be trusted, told of
-    /// whatever the test changed on disk itself.
-    async fn prepare(&mut self) {
-        if self.uncertain {
-            self.recover().await;
-        }
-        self.tell_server().await;
-    }
-
-    /// The operation is over. `sent` is what the server had been sent before
-    /// it. A server that was not involved in a failure is as good as before.
-    async fn finish(&mut self, succeeded: bool, sent: u64) {
-        let touched = self.server().lock().await.sent() != sent;
-        if succeeded || !touched {
-            self.known = super::kotlin::snapshot(self.dir.path());
-            self.uncertain = false;
-        } else {
-            self.uncertain = true;
-        }
-    }
-
-    async fn stop(mut self) {
-        if let Some(server) = self.server.take() {
-            stop_server(server).await;
-        }
-        if self.compiled {
+            .expect("the task that stops the Kotlin server");
+        if self.compiled.load(Ordering::Relaxed) {
             let _ = Command::new("./gradlew")
                 .args(["--stop", "--console=plain", "-q"])
                 .current_dir(self.dir.path())
@@ -191,113 +161,61 @@ async fn boot(root: &Path) -> SharedServer {
     })))
 }
 
-async fn stop_server(shared: SharedServer) {
-    // Nobody else holds it: the engine lets go of its share when it returns.
-    let server = Arc::try_unwrap(shared)
-        .unwrap_or_else(|_| panic!("the Kotlin server is still lent out"))
-        .into_inner();
-    RUNTIME
-        .spawn(async move { server.shutdown().await })
-        .await
-        .expect("the task that stops the Kotlin server");
-}
-
-/// The right to use the server, and the project directory, for one test.
+/// The right to use the pool, and the project directory of one fixture, for
+/// one test.
 pub struct Lease {
-    held: OwnedMutexGuard<Option<Held>>,
+    pool: OwnedMutexGuard<Pool>,
+    fixture: String,
 }
 
-/// Wait for the server of `fixture` (started on first use) with the project
+/// Wait for the server of `fixture` (started on first use), with the project
 /// put back as the fixture was.
 pub async fn lease(fixture: &str) -> Lease {
     super::kotlin::require_server();
-    let mut guard = POOL.clone().lock_owned().await;
-    match guard.take() {
-        Some(mut held) if held.fixture == fixture => {
-            eprintln!("[pool] {fixture}: reused");
-            disk::restore(held.dir.path(), &held.baseline, &held.directories);
-            held.prepare().await;
-            *guard = Some(held);
-        }
+    let mut pool = POOL.clone().lock_owned().await;
+    match pool.held.get_mut(fixture) {
         Some(held) => {
-            held.stop().await;
-            *guard = Some(Held::start(fixture).await);
+            eprintln!("[pool] {fixture}: reused");
+            held.reset().await;
         }
-        None => *guard = Some(Held::start(fixture).await),
+        None => {
+            let held = Held::start(fixture).await;
+            pool.held.insert(fixture.to_string(), held);
+        }
     }
-    Lease { held: guard }
+    Lease {
+        pool,
+        fixture: fixture.to_string(),
+    }
 }
 
 impl Lease {
     fn held(&mut self) -> &mut Held {
-        self.held.as_mut().expect("a lease holds a server")
-    }
-
-    pub fn path(&self) -> &Path {
-        self.held
-            .as_ref()
+        self.pool
+            .held
+            .get_mut(&self.fixture)
             .expect("a lease holds a server")
-            .dir
-            .path()
     }
 
-    pub async fn move_files(&mut self, moves: &[(String, String)]) -> anyhow::Result<MoveReport> {
-        let root = self.path().to_path_buf();
-        let held = self.held();
-        held.prepare().await;
-        let server = held.server();
-        let sent = server.lock().await.sent();
-        held.uncertain = true;
-        let outcome = move_files_on(&mut *server.lock().await, moves, &root).await;
-        held.finish(outcome.is_ok(), sent).await;
-        outcome
+    /// The project directory: the Gradle root the server is lent for.
+    pub fn path(&self) -> &Path {
+        self.pool.held[&self.fixture].dir.path()
     }
 
-    /// A rename in the leased project (the request's own `project_path` is
-    /// replaced). A dry run plans on a server of its own and leaves the leased
-    /// one alone: it would hold texts that never reach the disk.
-    pub async fn rename(&mut self, mut request: RenameRequest) -> anyhow::Result<RenameReport> {
-        request.project_path = self.path().to_path_buf();
-        if request.dry_run {
-            return rename_symbol(request).await;
-        }
-        let held = self.held();
-        held.prepare().await;
-        let server = held.server();
-        let sent = server.lock().await.sent();
-        held.uncertain = true;
-        let outcome = rename_symbol_on(&server, request).await;
-        held.finish(outcome.is_ok(), sent).await;
-        outcome
-    }
-
-    /// Several renames in one session; see `rename`.
-    pub async fn rename_all(
-        &mut self,
-        mut requests: Vec<RenameRequest>,
-    ) -> anyhow::Result<Vec<RenameReport>> {
-        for request in &mut requests {
-            request.project_path = self.path().to_path_buf();
-        }
-        if requests.first().is_some_and(|request| request.dry_run) {
-            return rename_all_symbols(requests).await;
-        }
-        let held = self.held();
-        held.prepare().await;
-        let server = held.server();
-        let sent = server.lock().await.sent();
-        held.uncertain = true;
-        let outcome = rename_all_symbols_on(&server, requests).await;
-        held.finish(outcome.is_ok(), sent).await;
-        outcome
+    /// A test that edited sources itself, after it took the lease, tells the
+    /// server before the next operation.
+    pub async fn sync(&mut self) {
+        self.held().recover().await;
     }
 
     /// The judge of a refactor, as `kotlin::assert_compiles`, on a Gradle
     /// daemon that stays for the next test (it is stopped with the server).
     /// `--rerun-tasks` compiles everything again, so nothing a former test
     /// left behind can stand in for a file.
-    pub fn assert_compiles(&mut self, tasks: &[&str]) {
-        self.held().compiled = true;
+    pub fn assert_compiles(&self, tasks: &[&str]) {
+        self.pool.held[&self.fixture]
+            .compiled
+            .store(true, Ordering::Relaxed);
         let idle = format!("-Dorg.gradle.daemon.idletimeout={COMPILE_DAEMON_IDLE_MS}");
         super::kotlin::compile(self.path(), tasks, &["--rerun-tasks", &idle]);
     }

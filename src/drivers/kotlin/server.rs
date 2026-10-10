@@ -8,6 +8,7 @@
 //! never sleeps.
 
 mod install;
+mod lend;
 mod mirror;
 
 use crate::drivers::lsp::rename::server::RenameServer;
@@ -32,6 +33,7 @@ pub fn multiplatform_note(root: &Path) -> Result<Option<String>> {
 }
 
 pub use install::{Install, SERVER_ENV, TIMEOUT_ENV, locate};
+pub use lend::{SharedServer, lend, lent_for, recall};
 pub use mirror::{refuse_expect_actual, refuse_expect_actual_symbol};
 
 const KEPT_NOTIFICATIONS: &[&str] = &[
@@ -51,10 +53,6 @@ pub struct KotlinServer {
     /// it then works on a plain-JVM copy and everything crossing this boundary
     /// is translated (see `mirror`).
     mirror: Option<Mirror>,
-    /// Messages sent since the import. A caller that keeps the server for
-    /// several operations compares it before and after one to learn whether
-    /// a failure happened before the server was involved.
-    sent: u64,
     /// Every file the server was shown a text of or told a change of. A
     /// caller that keeps the server and rolls the disk back after a failure
     /// tells it again what the disk has for each of them.
@@ -95,7 +93,6 @@ impl KotlinServer {
             timeout,
             system_dir,
             mirror,
-            sent: 0,
             told: BTreeSet::new(),
         };
         server.wait_until_ready().await
@@ -190,11 +187,6 @@ impl KotlinServer {
         self.session.pid()
     }
 
-    /// How many requests, notifications and documents were sent to the server.
-    pub fn sent(&self) -> u64 {
-        self.sent
-    }
-
     /// The files the server was shown or told a change of (see `told`).
     pub fn told(&self) -> Vec<PathBuf> {
         self.told.iter().cloned().collect()
@@ -204,7 +196,6 @@ impl KotlinServer {
     /// answer stays a downcastable `RpcError`. Callers speak in the real
     /// project's paths; a mirror translates them for the server and back.
     pub async fn request(&mut self, method: &str, mut params: Value) -> Result<Value> {
-        self.sent += 1;
         if let Some(mirror) = &self.mirror {
             mirror.uris_to_mirror(&mut params);
         }
@@ -227,7 +218,6 @@ impl KotlinServer {
     }
 
     pub async fn notify(&mut self, method: &str, mut params: Value) -> Result<()> {
-        self.sent += 1;
         if method == "workspace/didChangeWatchedFiles" {
             self.told.extend(event_paths(&params)?);
         }
@@ -243,7 +233,6 @@ impl KotlinServer {
     }
 
     pub async fn sync_document(&mut self, path: &Path, text: &str) -> Result<()> {
-        self.sent += 1;
         self.told.insert(path.to_path_buf());
         let Some(mirror) = &self.mirror else {
             return self.session.sync_document(path, text).await;

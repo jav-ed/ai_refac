@@ -71,18 +71,35 @@ pub fn assert_plan_matches_move_ignoring(
     moves: &[(&str, &str)],
     ignored_folders: &[&str],
 ) -> Value {
-    let tree = || -> Tree {
-        project
-            .tree()
-            .into_iter()
-            .filter(|(path, _)| {
-                !ignored_folders
-                    .iter()
-                    .any(|folder| path.starts_with(&format!("{folder}/")))
-            })
-            .collect()
-    };
-    let before: Tree = tree();
+    let (plan, before) = plan_without_changes(project, moves, ignored_folders);
+    project.move_ok(moves);
+    assert_plan_was_carried_out(project, &plan, &before, ignored_folders);
+    plan
+}
+
+/// Every file of the project by path, without the folders a tool fills.
+pub fn tree_without(project: &Project, ignored_folders: &[&str]) -> Tree {
+    project
+        .tree()
+        .into_iter()
+        .filter(|(path, _)| {
+            !ignored_folders
+                .iter()
+                .any(|folder| path.starts_with(&format!("{folder}/")))
+        })
+        .collect()
+}
+
+/// The first half of `assert_plan_matches_move_ignoring`, for a test that
+/// carries the move out itself (on a server it keeps): plans the move, checks
+/// that the tree is byte for byte what it was, and returns the plan with the
+/// tree it was made from.
+pub fn plan_without_changes(
+    project: &Project,
+    moves: &[(&str, &str)],
+    ignored_folders: &[&str],
+) -> (Value, Tree) {
+    let before = tree_without(project, ignored_folders);
     let output = project.dry_run_json(moves);
     assert!(
         output.status.success(),
@@ -90,18 +107,47 @@ pub fn assert_plan_matches_move_ignoring(
         stdout_text(&output),
         stderr_text(&output)
     );
-    assert_same_tree(&before, &tree());
+    assert_same_tree(&before, &tree_without(project, ignored_folders));
     let plan: Value = serde_json::from_slice(&output.stdout).expect("the dry run prints JSON");
     assert_eq!(plan["dry_run"], true);
+    (plan, before)
+}
 
-    project.move_ok(moves);
-    let after = tree();
+/// The plan of a Kotlin move, made on a fresh copy of the fixture. The leased
+/// project of a shared server is no place for it: the compile checks of the
+/// tests before left build output in it, which carries the paths of the folder
+/// it was built in, so a copy of it that Gradle imports again differs in
+/// files that no move touches. A fresh copy is what a project is when nobody
+/// built it.
+pub fn plan_on_fresh_copy(
+    fixture: &str,
+    moves: &[(&str, &str)],
+    ignored_folders: &[&str],
+) -> Value {
+    let project = Project::from_fixture(fixture);
+    let (plan, _) = plan_without_changes(&project, moves, ignored_folders);
+    // The original was never opened by Gradle: nothing of the tools' own state.
+    for state in [".gradle", ".kotlin", ".idea", "build", "app/build"] {
+        assert!(!project.exists(state), "the dry run left {state} behind");
+    }
+    plan
+}
 
-    let planned_moves: Vec<(String, String)> = strings(&plan, "moves", "from")
+/// The second half: the move was carried out, and the plan named exactly the
+/// files it edited and the paths it moved.
+pub fn assert_plan_was_carried_out(
+    project: &Project,
+    plan: &Value,
+    before: &Tree,
+    ignored_folders: &[&str],
+) {
+    let after = tree_without(project, ignored_folders);
+
+    let planned_moves: Vec<(String, String)> = strings(plan, "moves", "from")
         .into_iter()
-        .zip(strings(&plan, "moves", "to"))
+        .zip(strings(plan, "moves", "to"))
         .collect();
-    let planned_files: BTreeSet<String> = strings(&plan, "files", "path").into_iter().collect();
+    let planned_files: BTreeSet<String> = strings(plan, "files", "path").into_iter().collect();
 
     // Every planned move happened.
     for (from, to) in &planned_moves {
@@ -109,7 +155,7 @@ pub fn assert_plan_matches_move_ignoring(
             tree.keys()
                 .any(|key| key == path || key.starts_with(&format!("{path}/")))
         };
-        assert!(at(&before, from), "{from} was not in the project: {plan}");
+        assert!(at(before, from), "{from} was not in the project: {plan}");
         assert!(!at(&after, from), "{from} is still there after the move");
         assert!(at(&after, to), "{to} does not exist after the move");
     }
@@ -118,7 +164,7 @@ pub fn assert_plan_matches_move_ignoring(
     // that disappeared without a planned move are the plan's blind spots.
     let mut edited = BTreeSet::new();
     let mut unplanned = Vec::new();
-    for (path, bytes) in &before {
+    for (path, bytes) in before {
         let now = destination(path, &planned_moves);
         match after.get(&now) {
             Some(new_bytes) if new_bytes != bytes => {
@@ -136,5 +182,4 @@ pub fn assert_plan_matches_move_ignoring(
         edited, planned_files,
         "the plan and the move edited different files\nplan: {plan}"
     );
-    plan
 }

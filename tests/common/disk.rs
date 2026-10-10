@@ -1,7 +1,6 @@
-//! Putting a project directory back as it was, and telling what differs, for
-//! the tests that keep one Kotlin server across many tests (see `pool`).
+//! Putting a project directory back as it was, for the tests that keep one
+//! Kotlin server across many tests (see `pool`).
 
-use refac::drivers::kotlin::resync::DiskChanges;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
@@ -61,27 +60,5 @@ pub fn restore(root: &Path, baseline: &Files, directories_of_baseline: &BTreeSet
         if path.is_dir() {
             fs::remove_dir_all(path).unwrap();
         }
-    }
-}
-
-/// What differs between what the server was told (`old`) and the disk (`new`).
-pub fn changes(root: &Path, old: &Files, new: &Files) -> DiskChanges {
-    let path = |relative: &String| root.join(relative);
-    DiskChanges {
-        created: new
-            .keys()
-            .filter(|key| !old.contains_key(*key))
-            .map(path)
-            .collect(),
-        changed: new
-            .iter()
-            .filter(|(key, bytes)| old.get(*key).is_some_and(|before| before != *bytes))
-            .map(|(key, _)| path(key))
-            .collect(),
-        deleted: old
-            .keys()
-            .filter(|key| !new.contains_key(*key))
-            .map(path)
-            .collect(),
     }
 }

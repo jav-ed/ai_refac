@@ -34,31 +34,17 @@ pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Resu
     let gradle = gradle_root(root)?;
     let plan = plan::build(files, &gradle)?;
     refuse_declared_pairs(&plan, &gradle)?;
+    // A caller that keeps a server for this root lends it (see `server::lend`).
+    if let Some(shared) = server::lent_for(&gradle) {
+        let mut journal = Journal::default();
+        let outcome = run(&mut *shared.lock().await, &plan, &gradle, &mut journal).await;
+        return finish(outcome, journal);
+    }
     let install = server::locate()?;
     let mut server = KotlinServer::start(&install, &gradle).await?;
     let mut journal = Journal::default();
     let outcome = run(&mut server, &plan, &gradle, &mut journal).await;
     server.shutdown().await;
-    finish(outcome, journal)
-}
-
-/// The same move on a server that is already running and has imported the
-/// Gradle root of `root`: the caller owns the server and stops it. For a
-/// caller that runs many moves against one project, where the half minute of
-/// a Gradle import per move is the whole cost. The server's view of the files
-/// must be what is on disk (see `resync::follow_disk`); after a failure it is
-/// not, because the rollback does not tell it, and the caller must not use it
-/// again.
-pub async fn move_files_on(
-    server: &mut KotlinServer,
-    files: &[(String, String)],
-    root: &Path,
-) -> Result<MoveReport> {
-    let gradle = gradle_root(Some(root))?;
-    let plan = plan::build(files, &gradle)?;
-    refuse_declared_pairs(&plan, &gradle)?;
-    let mut journal = Journal::default();
-    let outcome = run(server, &plan, &gradle, &mut journal).await;
     finish(outcome, journal)
 }
 

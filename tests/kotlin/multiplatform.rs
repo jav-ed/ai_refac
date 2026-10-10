@@ -1,5 +1,5 @@
 use crate::common;
-use crate::common::dry_run::assert_plan_matches_move_ignoring;
+use crate::common::dry_run::{assert_plan_was_carried_out, plan_on_fresh_copy, tree_without};
 use crate::common::project::Project;
 
 // Real Kotlin language server against tests/fixtures/kotlin/kmp_project, a
@@ -16,7 +16,6 @@ use crate::common::project::Project;
 // the real project builds.
 // Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin multiplatform:: -- --ignored --test-threads=1
 
-use common::pool::Lease;
 use refac::drivers::kotlin::moves::{MoveReport, move_files};
 use refac::drivers::kotlin::rename::{RenameReport, RenameRequest, rename_symbol};
 use std::path::Path;
@@ -32,9 +31,8 @@ fn setup() -> tempfile::TempDir {
     common::setup_fixture("kotlin/kmp_project")
 }
 
-/// The tests that use the server share one (common::pool): it starts once and
-/// each test gets the project as the fixture was.
-async fn lease() -> Lease {
+/// The tests that use the server share one (common::pool).
+async fn lease() -> common::pool::Lease {
     common::pool::lease("kotlin/kmp_project").await
 }
 
@@ -42,9 +40,8 @@ fn pair(from: &str, to: &str) -> (String, String) {
     (from.to_string(), to.to_string())
 }
 
-async fn run(project: &mut Lease, moves: &[(String, String)]) -> MoveReport {
-    project
-        .move_files(moves)
+async fn run(project: &Path, moves: &[(String, String)]) -> MoveReport {
+    move_files(moves, Some(project))
         .await
         .unwrap_or_else(|error| panic!("the move failed: {error:#}"))
 }
@@ -52,10 +49,10 @@ async fn run(project: &mut Lease, moves: &[(String, String)]) -> MoveReport {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn files_of_a_multiplatform_module_move_and_every_source_set_follows() {
-    let mut project = lease().await;
+    let project = lease().await;
 
     let report = run(
-        &mut project,
+        project.path(),
         &[
             pair(
                 &format!("{COMMON}/app/Greeter.kt"),
@@ -103,10 +100,10 @@ async fn files_of_a_multiplatform_module_move_and_every_source_set_follows() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn imports_that_only_a_library_the_server_cannot_see_explains_stay() {
-    let mut project = lease().await;
+    let project = lease().await;
 
     run(
-        &mut project,
+        project.path(),
         &[pair(
             &format!("{COMMON}/app/Screen.kt"),
             &format!("{COMMON}/ui/Screen.kt"),
@@ -173,8 +170,13 @@ async fn a_file_or_symbol_that_is_expect_or_actual_is_refused_before_the_server_
     assert_eq!(before, common::kotlin::snapshot(project.path()));
 }
 
-fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRequest {
-    RenameRequest {
+async fn rename(
+    project: &Path,
+    file: &str,
+    symbol: &str,
+    new_name: &str,
+) -> anyhow::Result<RenameReport> {
+    rename_symbol(RenameRequest {
         project_path: project.to_path_buf(),
         file: file.into(),
         symbol: symbol.to_string(),
@@ -182,37 +184,17 @@ fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRe
         line: None,
         column: None,
         dry_run: false,
-    }
-}
-
-/// A rename that is refused before a server starts, on a project of its own.
-async fn rename(
-    project: &Path,
-    file: &str,
-    symbol: &str,
-    new_name: &str,
-) -> anyhow::Result<RenameReport> {
-    rename_symbol(request(project, file, symbol, new_name)).await
-}
-
-/// A rename on the leased server.
-async fn rename_leased(
-    project: &mut Lease,
-    file: &str,
-    symbol: &str,
-    new_name: &str,
-) -> anyhow::Result<RenameReport> {
-    let request = request(project.path(), file, symbol, new_name);
-    project.rename(request).await
+    })
+    .await
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_symbol_rename_reaches_every_source_set() {
-    let mut project = lease().await;
+    let project = lease().await;
     let file = format!("{COMMON}/util/Helper.kt");
 
-    let report = rename_leased(&mut project, &file, "decorate", "embellish")
+    let report = rename(project.path(), &file, "decorate", "embellish")
         .await
         .unwrap_or_else(|error| panic!("the rename failed: {error:#}"));
 
@@ -241,12 +223,12 @@ async fn a_symbol_rename_reaches_every_source_set() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_rename_reaches_a_use_inside_a_call_of_a_library_function() {
-    let mut project = lease().await;
+    let project = lease().await;
 
     // Screen.kt calls `greet` in the lambda of `LaunchedEffect`, which the
     // mirror does not hold.
-    rename_leased(
-        &mut project,
+    rename(
+        project.path(),
         &format!("{COMMON}/app/Greeter.kt"),
         "greet",
         "welcome",
@@ -286,15 +268,21 @@ async fn a_failure_before_the_server_is_not_blamed_on_the_copy() {
     assert!(!message.contains("Multiplatform"), "{message}");
 }
 
-#[test]
+#[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
-fn the_plan_of_a_multiplatform_move_is_what_the_move_does() {
-    common::kotlin::require_server();
-    let project = Project::from_fixture("kotlin/kmp_project");
+async fn the_plan_of_a_multiplatform_move_is_what_the_move_does() {
+    let leased = lease().await;
+    let project = Project::over(leased.path());
     let from = format!("{COMMON}/app/Greeter.kt");
     let to = format!("{COMMON}/ui/Greeter.kt");
 
-    let plan = assert_plan_matches_move_ignoring(&project, &[(&from, &to)], SCRATCH);
+    // The plan is made by the binary on a copy; the move runs on the shared server.
+    let plan = plan_on_fresh_copy("kotlin/kmp_project", &[(&from, &to)], SCRATCH);
+    let before = tree_without(&project, SCRATCH);
+    move_files(&[(from, to)], Some(leased.path()))
+        .await
+        .unwrap_or_else(|error| panic!("the move failed: {error:#}"));
+    assert_plan_was_carried_out(&project, &plan, &before, SCRATCH);
 
     // The moved file and the files of three source sets that import it.
     assert!(plan["edited_files"].as_u64().unwrap() >= 5, "{plan}");

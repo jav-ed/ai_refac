@@ -3,7 +3,9 @@ use crate::common;
 // The same entry points the CLI and the MCP tool call, with Kotlin paths:
 // `handle_refactor` routes .kt files and Kotlin directories to the Kotlin
 // driver and shows its notes; `handle_rename` routes .kt files to the Kotlin
-// rename. Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin dispatch:: -- --ignored
+// rename. Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin dispatch:: -- --ignored --test-threads=1
+// The tests share one server (common::pool): it starts once for a fixture and each test
+// gets the project as the fixture was; the entry points below use it for that project.
 
 use refac::drivers::symbol::rename::RenameRequest;
 use refac::logic::rename::handle_rename;
@@ -23,8 +25,7 @@ fn move_request(project: &std::path::Path, from: &str, to: &str) -> RefactorRequ
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_kotlin_move_is_routed_and_its_notes_reach_the_response() {
-    common::kotlin::require_server();
-    let project = common::setup_fixture("kotlin/jvm_project");
+    let project = common::pool::lease("kotlin/jvm_project").await;
 
     let response = handle_refactor(move_request(
         project.path(),
@@ -48,14 +49,13 @@ async fn a_kotlin_move_is_routed_and_its_notes_reach_the_response() {
         common::read_file(project.path(), &format!("{K}/launch/Main.kt"))
             .starts_with("package com.example.launch")
     );
-    common::kotlin::assert_compiles(project.path(), &["compileKotlin", "compileJava"]);
+    project.assert_compiles(&["compileKotlin", "compileJava"]);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_directory_with_kotlin_sources_is_routed_to_the_kotlin_driver() {
-    common::kotlin::require_server();
-    let project = common::setup_fixture("kotlin/jvm_project");
+    let project = common::pool::lease("kotlin/jvm_project").await;
     // A README that points at the folder and at a file in it follows the move.
     std::fs::write(
         project.path().join("README.md"),
@@ -82,14 +82,13 @@ async fn a_directory_with_kotlin_sources_is_routed_to_the_kotlin_driver() {
         common::read_file(project.path(), "README.md"),
         format!("The [helpers]({K}/common/) and [Helper]({K}/common/Helper.kt).\n")
     );
-    common::kotlin::assert_compiles(project.path(), &["compileKotlin", "compileJava"]);
+    project.assert_compiles(&["compileKotlin", "compileJava"]);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_kotlin_rename_is_routed_by_the_file_extension() {
-    common::kotlin::require_server();
-    let project = common::setup_fixture("kotlin/jvm_project");
+    let project = common::pool::lease("kotlin/jvm_project").await;
 
     let report = handle_rename(RenameRequest {
         project_path: project.path().to_path_buf(),
@@ -113,7 +112,7 @@ async fn a_kotlin_rename_is_routed_by_the_file_extension() {
         report.notes
     );
     assert!(common::read_file(project.path(), &format!("{K}/util/Helper.kt")).contains("yell"));
-    common::kotlin::assert_compiles(project.path(), &["compileKotlin", "compileJava"]);
+    project.assert_compiles(&["compileKotlin", "compileJava"]);
 }
 
 #[tokio::test]

@@ -12,7 +12,9 @@ use tempfile::TempDir;
 pub type Tree = BTreeMap<String, Vec<u8>>;
 
 pub struct Project {
-    dir: TempDir,
+    path: PathBuf,
+    /// The directory, when the project owns it and removes it at the end.
+    _dir: Option<TempDir>,
 }
 
 impl Project {
@@ -21,17 +23,32 @@ impl Project {
             .prefix("refac-test-")
             .tempdir()
             .expect("failed to create temp dir");
-        Self { dir }
+        Self::owning(dir)
     }
 
     pub fn from_fixture(name: &str) -> Self {
+        Self::owning(setup_fixture(name))
+    }
+
+    fn owning(dir: TempDir) -> Self {
         Self {
-            dir: setup_fixture(name),
+            path: dir.path().to_path_buf(),
+            _dir: Some(dir),
+        }
+    }
+
+    /// A project in a directory somebody else owns (the leased project of a
+    /// shared Kotlin server, see `pool`): the commands run on it, it is not
+    /// removed.
+    pub fn over(path: &Path) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            _dir: None,
         }
     }
 
     pub fn path(&self) -> &Path {
-        self.dir.path()
+        &self.path
     }
 
     pub fn write(&self, rel: &str, content: &str) {
