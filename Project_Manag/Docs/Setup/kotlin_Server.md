@@ -30,26 +30,27 @@ A JDK 17 or newer must be on `PATH` for the Gradle import that the server runs. 
 
 The tests that use the server are `#[ignore]`d so a plain `cargo test` stays fast and offline. Without `REFAC_KOTLIN_SERVER` they panic with this page's path instead of passing silently.
 
-**The rule: one test, or a few tests in one `cargo test` command, one after the other. Never the whole group.**
+**The rule: put the Kotlin tests you want into ONE `cargo test` command, `--test-threads=1`. Start as few commands as possible, because every command pays the server start again.**
 
-Every Kotlin test starts its own server (tests do not share one) and imports its own Gradle project. That costs 1 to 2 minutes per test, measured on 2026-10-09: the 3 `dispatch::` tests took 385 s, the 7 `multiplatform::` tests 415 s, and the whole group (32 tests then, 39 now) over 40 minutes, with one JVM of about 1.6 GiB plus a Gradle daemon alive at a time. A long run is also the one most likely to be cut off by a restart of the machine, and it then proves nothing. So pick the tests that cover the change and run only those.
+**The tests share a server inside one command.** The tests that call the library (`moves::`, `rename::`, `android::`, and the four `multiplatform::` tests that need a server) lease a server from `tests/common/pool.rs`. It starts the Kotlin server once per fixture (`jvm_project`, `android_project`, `kmp_project`; about 40 seconds: 4 JVM, 31 Gradle import, 6 indexing), keeps it for the rest of the test program, and stops it when the program ends or when a test asks for another fixture. A test gets the project as the fixture was: the pool puts the files back and tells the server what changed (`resync::follow_disk`). A move or rename on the kept server takes 1 to 5 seconds, and the compile check runs on a Gradle daemon the pool keeps (2 seconds instead of 17). Measured on 2026-10-10: the 8 `moves::` tests take 132 s in one command (640 s before), and the whole group of 39 tests 21 minutes (39 minutes before).
+
+**What still starts its own server, and costs about 1 to 2 minutes each:** `dispatch::` and `dry_run::` (they run the `refac` binary, whose job is to start and stop a server), `server::` (the start and stop themselves), `multiplatform::the_plan_of_a_multiplatform_move_is_what_the_move_does`, and the dry runs in `rename::` (a dry run plans on a copy, with a server of its own). Run those one at a time and only when the change is about what they prove. After a failed operation the pool does not trust the server (it holds texts that never reached the disk) and starts a new one before the next test: a test that fails on purpose costs one start.
 
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # only the Android tests need it
-# (in a script: source the file that exports them in the SAME shell as cargo, not inside a pipe)
+# (in a script: export them in the SAME shell that runs cargo, not inside a pipe)
 
 # 1. ONE test (about 2 minutes). Enough to prove the server works with refac:
 cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
 
-# 2. SEVERAL tests in ONE command: list the names after `--`, any number of them.
-#    One test program, one test at a time (--test-threads=1), nothing else started in between:
+# 2. SEVERAL tests in ONE command: list the names after `--`. Tests of one fixture share its server:
 cargo test --test kotlin -- --ignored --test-threads=1 \
   moves::a_file_moves_to_a_new_package_and_every_reference_follows \
   rename::a_class_is_renamed_together_with_its_file
 
 # 3. One MODULE (a name that ends in ::) when the change is about that area only:
-cargo test --test kotlin multiplatform:: -- --ignored --test-threads=1
+cargo test --test kotlin moves:: -- --ignored --test-threads=1
 ```
 
 Which tests for which change:
@@ -57,19 +58,20 @@ Which tests for which change:
 | The change touches | Run these (one command, form 2) |
 |---|---|
 | `server.rs`, `server/install.rs`, the start or readiness of the server | `dispatch::a_kotlin_rename_is_routed_by_the_file_extension` |
-| Kotlin moves (`moves.rs`, `plan.rs`, `declarations.rs`) | `moves::a_file_moves_to_a_new_package_and_every_reference_follows`, `moves::a_failure_in_a_later_group_restores_the_first_group` |
-| Kotlin symbol rename (`rename.rs`) | `rename::a_class_is_renamed_together_with_its_file`, `rename::a_clash_with_a_member_in_the_same_class_is_refused` |
-| The Android layer (`android/`) | `android::an_activity_moves_and_manifest_layout_and_r_follow` |
+| Kotlin moves (`moves.rs`, `plan.rs`, `declarations.rs`) | the module `moves::` (8 tests, about 2 minutes) |
+| Kotlin symbol rename (`rename.rs`) | the module `rename::` without the dry runs, or `rename::a_class_is_renamed_together_with_its_file` and `rename::a_clash_with_a_member_in_the_same_class_is_refused` |
+| The Android layer (`android/`) | the module `android::` (5 tests) |
 | The dry run | `dry_run::the_plan_of_a_package_move_names_every_file_whose_import_changes` |
-| The Kotlin Multiplatform mirror (`server/mirror*`) | `multiplatform::files_of_a_multiplatform_module_move_and_every_source_set_follows`, `multiplatform::a_symbol_rename_reaches_every_source_set`; the whole `multiplatform::` module (7 minutes) only when the mirror itself changed |
+| The Kotlin Multiplatform mirror (`server/mirror*`) | the module `multiplatform::` (7 tests; the refusals and the failure test need no server) |
+| The shared server of the tests (`tests/common/pool.rs`, `resync::follow_disk`) | `moves::` and `rename::` in one command: a test that sees a stale server fails there |
 
-A project without a `commonMain`, `commonTest` or `<target>Main` source set never gets a mirror, so a change that only touches the mirror cannot affect the plain JVM or Android tests above. Run the whole group (`cargo test --test kotlin -- --ignored --test-threads=1`, in the background, nothing else running) only when the server start or the shared move and rename engine changed in a way that every Kotlin test depends on, and then once, not repeatedly.
+A project without a `commonMain`, `commonTest` or `<target>Main` source set never gets a mirror, so a change that only touches the mirror cannot affect the plain JVM or Android tests. Run the whole group (`cargo test --test kotlin -- --ignored --test-threads=1`, in the background, nothing else running, 21 minutes) only when the server start or the shared move and rename engine changed in a way every Kotlin test depends on, and then once, not repeatedly.
 
 Rules that keep the machine alive:
 
-- **Do not build while a Kotlin test runs.** The `dry_run::` tests spawn `target/debug/refac`; a rebuild under them breaks them. Edit docs, not code, while one runs.
-- **Never run two Kotlin test commands at the same time**, and keep `--test-threads=1`.
-- **When the tool itself is used** (`refac move`), the same idea holds: put all files of one change into one call. That is one server and one Gradle import instead of one per file.
-- After a run, `ps aux | grep -i -E 'gradle|intellij' | grep -v grep` must print nothing.
+- **Do not build while a Kotlin test runs.** The `dry_run::` and `dispatch::` tests spawn `target/debug/refac`; a rebuild under them breaks them. Edit docs, not code, while one runs.
+- **Never run two Kotlin test commands at the same time**, and keep `--test-threads=1` (the pool serialises the tests that use it, but the binary tests do not wait for it).
+- **The tool itself:** put all files of one change into one `refac move` call. That is one server and one Gradle import instead of one per file; a command still stops its server when it ends.
+- A killed test program cannot stop its server (the pool stops it when the program ends normally). After a run, `ps aux | grep -i -E 'gradle|intellij' | grep -v grep` must print nothing; the compile daemon of the pool stops itself three minutes after its last use.
 
 See [Testing & Debugging](../Guides/Testing_and_Debugging.md) for the full test map and [Resource use](resource_Use.md) for the memory numbers.

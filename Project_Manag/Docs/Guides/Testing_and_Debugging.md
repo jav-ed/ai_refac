@@ -120,14 +120,14 @@ The Dart suite also has one normal test (a project without `package_config.json`
 
 ### Kotlin tests
 
-The Kotlin scenarios start the real JetBrains Kotlin language server and a Gradle import for every test (1 to 2 minutes each, tests do not share a server), so they are `#[ignore]`d and a plain `cargo test` skips them. **Run one test, or a few named tests in one `cargo test` command with `--test-threads=1`; do not run the whole group.** The commands, the table of which tests cover which change, and the rules that keep the machine alive are in [Kotlin server setup](../Setup/kotlin_Server.md#running-the-real-server-tests):
+The Kotlin scenarios start the real JetBrains Kotlin language server and a Gradle import (40 seconds), so they are `#[ignore]`d and a plain `cargo test` skips them. The move, rename, Android and multiplatform tests share one server per fixture inside one `cargo test` command (`tests/common/pool.rs`): it starts once, and each test then costs seconds. The CLI dispatch, dry-run and server-lifecycle tests start their own server, 1 to 2 minutes each. **Put the tests you want into one command with `--test-threads=1`; do not run the whole group (21 minutes) as a routine.** The commands, the table of which tests cover which change, and the rules that keep the machine alive are in [Kotlin server setup](../Setup/kotlin_Server.md#running-the-real-server-tests):
 
 ```bash
 export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
 export ANDROID_HOME=~/Android/Sdk   # Android tests only
 # one test:
 cargo test --test kotlin dispatch::a_kotlin_rename_is_routed_by_the_file_extension -- --ignored
-# a few tests, one command, one after the other:
+# a few tests, one command, one after the other (tests of one fixture share its server):
 cargo test --test kotlin -- --ignored --test-threads=1 moves::a_file_moves_to_a_new_package_and_every_reference_follows rename::a_class_is_renamed_together_with_its_file
 ```
 

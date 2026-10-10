@@ -63,7 +63,7 @@ Two leaks were found and closed, and the pattern applies to every new tool:
 
 ## Tests with real servers
 
-They are `#[ignore]`d, so a plain `cargo test` does not start any server. Start them in groups (`Guides/Testing_and_Debugging.md` has the commands). Each one runs one server at a time with `--test-threads=1`. The Kotlin group is the exception in cost: every test starts its own server (1.3 to 1.8 GB plus a Gradle daemon) and takes 1 to 2 minutes, so run one Kotlin test or a few named ones in one command and never the whole group as a routine ([how](kotlin_Server.md#running-the-real-server-tests)). After a Kotlin run check that nothing survived: `ps aux | grep -i -E 'gradle|intellij|gopls|rust-analyzer|pyright|dart' | grep -v grep` must print nothing.
+They are `#[ignore]`d, so a plain `cargo test` does not start any server. Start them in groups (`Guides/Testing_and_Debugging.md` has the commands). Each one runs one server at a time with `--test-threads=1`. The Kotlin group is the exception in cost: the move, rename, Android and multiplatform tests share one server per fixture inside one command (1.3 to 1.8 GB plus a Gradle daemon, stopped when the test program ends), and the dispatch, dry-run and server tests start their own, 1 to 2 minutes each. Put the Kotlin tests you want into one command and never run the whole group (21 minutes) as a routine ([how](kotlin_Server.md#running-the-real-server-tests)). After a Kotlin run check that nothing survived: `ps aux | grep -i -E 'gradle|intellij|gopls|rust-analyzer|pyright|dart' | grep -v grep` must print nothing.
 
 ## When the disk is full
 
