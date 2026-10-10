@@ -8,9 +8,9 @@
 //! copy. A different fixture stops the server and starts another.
 //!
 //! What a test can no longer rely on is a clean server: after a failed
-//! operation, or a dry run, the server holds texts that never reached the
-//! disk, and the lease then starts a new server instead of trusting it. A
-//! test that is about the server's own start and stop (the CLI dispatch, the
+//! operation the server holds texts and file events that the rolled-back disk
+//! no longer has, and the lease tells it again what the disk has for every
+//! file it was shown (`recover`). A test that is about the server's own start and stop (the CLI dispatch, the
 //! dry-run plans, `server.rs`) does not use a lease.
 //!
 //! The server and the project directory are removed when the test program
@@ -22,7 +22,7 @@ use refac::drivers::kotlin::rename::{
     RenameReport, RenameRequest, SharedServer, rename_all_symbols, rename_all_symbols_on,
     rename_symbol, rename_symbol_on,
 };
-use refac::drivers::kotlin::resync::follow_disk;
+use refac::drivers::kotlin::resync::{DiskChanges, follow_disk};
 use refac::drivers::kotlin::server::{self, KotlinServer};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -98,14 +98,30 @@ impl Held {
         }
     }
 
-    /// A new server on the same directory, which is put back first.
-    async fn restart(&mut self) {
-        if let Some(old) = self.server.take() {
-            stop_server(old).await;
+    /// The server holds texts and file events that the disk no longer has: a
+    /// failed operation was rolled back on disk without telling it. Tell it
+    /// again what the disk has for every file it was ever shown, so that it
+    /// can be trusted like a new one without paying for a new one.
+    async fn recover(&mut self) {
+        eprintln!(
+            "[pool] {}: telling the server what the disk has",
+            self.fixture
+        );
+        let server = self.server();
+        let mut guard = server.lock().await;
+        let mut changes = DiskChanges::default();
+        for path in guard.told() {
+            if path.is_file() {
+                changes.created.push(path);
+            } else {
+                changes.deleted.push(path);
+            }
         }
-        disk::restore(self.dir.path(), &self.baseline, &self.directories);
-        self.server = Some(boot(self.dir.path()).await);
-        self.known = self.baseline.clone();
+        follow_disk(&mut guard, self.dir.path(), &changes)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("the Kotlin server could not follow the disk: {error:#}")
+            });
         self.uncertain = false;
     }
 
@@ -130,7 +146,7 @@ impl Held {
     /// whatever the test changed on disk itself.
     async fn prepare(&mut self) {
         if self.uncertain {
-            self.restart().await;
+            self.recover().await;
         }
         self.tell_server().await;
     }
@@ -163,10 +179,13 @@ impl Held {
 async fn boot(root: &Path) -> SharedServer {
     let install = server::locate().unwrap_or_else(|error| panic!("{error:#}"));
     let root = root.to_path_buf();
+    let began = std::time::Instant::now();
     let started = RUNTIME
         .spawn(async move { KotlinServer::start(&install, &root).await })
         .await
         .expect("the task that starts the Kotlin server");
+    // Shown with `--nocapture`: what a start costs and how often one happens.
+    eprintln!("[pool] Kotlin server started in {:?}", began.elapsed());
     Arc::new(Mutex::new(started.unwrap_or_else(|error| {
         panic!("the Kotlin server did not start: {error:#}")
     })))
@@ -195,8 +214,9 @@ pub async fn lease(fixture: &str) -> Lease {
     let mut guard = POOL.clone().lock_owned().await;
     match guard.take() {
         Some(mut held) if held.fixture == fixture => {
+            eprintln!("[pool] {fixture}: reused");
             disk::restore(held.dir.path(), &held.baseline, &held.directories);
-            held.tell_server().await;
+            held.prepare().await;
             *guard = Some(held);
         }
         Some(held) => {

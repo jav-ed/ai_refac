@@ -17,6 +17,7 @@ use async_trait::async_trait;
 use install::timeout;
 use mirror::Mirror;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tempfile::TempDir;
@@ -54,6 +55,10 @@ pub struct KotlinServer {
     /// several operations compares it before and after one to learn whether
     /// a failure happened before the server was involved.
     sent: u64,
+    /// Every file the server was shown a text of or told a change of. A
+    /// caller that keeps the server and rolls the disk back after a failure
+    /// tells it again what the disk has for each of them.
+    told: BTreeSet<PathBuf>,
 }
 
 impl KotlinServer {
@@ -91,6 +96,7 @@ impl KotlinServer {
             system_dir,
             mirror,
             sent: 0,
+            told: BTreeSet::new(),
         };
         server.wait_until_ready().await
     }
@@ -189,6 +195,11 @@ impl KotlinServer {
         self.sent
     }
 
+    /// The files the server was shown or told a change of (see `told`).
+    pub fn told(&self) -> Vec<PathBuf> {
+        self.told.iter().cloned().collect()
+    }
+
     /// A request that fails loudly instead of waiting forever. An error
     /// answer stays a downcastable `RpcError`. Callers speak in the real
     /// project's paths; a mirror translates them for the server and back.
@@ -217,6 +228,9 @@ impl KotlinServer {
 
     pub async fn notify(&mut self, method: &str, mut params: Value) -> Result<()> {
         self.sent += 1;
+        if method == "workspace/didChangeWatchedFiles" {
+            self.told.extend(event_paths(&params)?);
+        }
         if let Some(mirror) = &self.mirror {
             params = if method == "workspace/didChangeWatchedFiles" {
                 mirror.follow_changes(&params)?
@@ -230,6 +244,7 @@ impl KotlinServer {
 
     pub async fn sync_document(&mut self, path: &Path, text: &str) -> Result<()> {
         self.sent += 1;
+        self.told.insert(path.to_path_buf());
         let Some(mirror) = &self.mirror else {
             return self.session.sync_document(path, text).await;
         };
@@ -277,6 +292,21 @@ impl RenameServer for KotlinServer {
     async fn shutdown(self: Box<Self>) {
         KotlinServer::shutdown(*self).await;
     }
+}
+
+/// The paths a `workspace/didChangeWatchedFiles` notification names.
+fn event_paths(params: &Value) -> Result<Vec<PathBuf>> {
+    let mut paths = Vec::new();
+    for change in params["changes"].as_array().into_iter().flatten() {
+        let uri = change["uri"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("A file event without a uri: {change}"))?;
+        let path = url::Url::parse(uri)?
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("A file event for something that is no path: {uri}"))?;
+        paths.push(path);
+    }
+    Ok(paths)
 }
 
 /// How long, in milliseconds, a Gradle daemon that the server's build import
