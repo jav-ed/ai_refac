@@ -22,6 +22,8 @@ use std::path::{Path, PathBuf};
 use url::Url;
 use walkdir::WalkDir;
 
+mod same_package;
+
 #[derive(Debug, Default)]
 pub struct MoveReport {
     /// Files whose content changed, at their final location.
@@ -91,14 +93,23 @@ async fn run(
     let moved = snapshot.finish(plan)?;
     let renames = class_renames::collect(&moved)?;
     let files = survey(root)?;
-    let writes = android::plan(&files, &moved, &renames.classes)?;
+    let mut writes = android::plan(&files, &moved, &renames.classes)?;
+    // What the server left out of a moved file's imports: the names it saw in
+    // its old package.
+    report
+        .notes
+        .extend(same_package::plan(&files, &moved, &mut writes)?);
     report
         .notes
         .extend(stale::scan(root, &files, &renames, &writes)?);
     journal.write_all(&writes)?;
-    report
-        .edited
-        .extend(writes.into_iter().map(|write| write.path));
+    report.edited.extend(
+        writes
+            .into_iter()
+            .map(|write| write.path)
+            .filter(|path| !report.edited.contains(path))
+            .collect::<Vec<_>>(),
+    );
     Ok(report)
 }
 
