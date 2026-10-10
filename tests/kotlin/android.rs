@@ -9,10 +9,12 @@ use crate::common;
 // The server never edits XML and drops the implicit R when a file leaves the
 // namespace package; these tests prove refac repairs both, judged by a compile.
 // Run with: REFAC_KOTLIN_SERVER=<install dir> ANDROID_HOME=<sdk> \
-//   cargo test --test kotlin android:: -- --ignored
+//   cargo test --test kotlin android:: -- --ignored --test-threads=1
 
-use refac::drivers::kotlin::moves::{MoveReport, move_files};
-use std::path::Path;
+use common::pool::Lease;
+use refac::drivers::kotlin::moves::MoveReport;
+use refac::drivers::kotlin::rename::RenameRequest;
+use std::path::PathBuf;
 
 const J: &str = "src/main/java/com/example/droid";
 const RES: &str = "app/src/main/res";
@@ -22,25 +24,27 @@ fn app(path: &str) -> String {
     format!("app/{J}/{path}")
 }
 
-async fn run(project: &Path, moves: &[(String, String)]) -> MoveReport {
-    move_files(moves, Some(project))
+async fn run(project: &mut Lease, moves: &[(String, String)]) -> MoveReport {
+    project
+        .move_files(moves)
         .await
         .unwrap_or_else(|error| panic!("the move failed: {error:#}"))
 }
 
-fn setup() -> tempfile::TempDir {
-    common::kotlin::require_server();
+/// The tests share one server (common::pool): it starts once and each test
+/// gets the project as the fixture was.
+async fn setup() -> Lease {
     common::kotlin::require_android_sdk();
-    common::setup_fixture("kotlin/android_project")
+    common::pool::lease("kotlin/android_project").await
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
 async fn an_activity_moves_and_manifest_layout_and_r_follow() {
-    let project = setup();
+    let mut project = setup().await;
 
     let report = run(
-        project.path(),
+        &mut project,
         &[(app("MainActivity.kt"), app("ui/MainActivity.kt"))],
     )
     .await;
@@ -63,15 +67,15 @@ async fn an_activity_moves_and_manifest_layout_and_r_follow() {
             .iter()
             .any(|path| path.ends_with("AndroidManifest.xml"))
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
 async fn a_custom_view_directory_is_renamed_and_its_layout_tag_follows() {
-    let project = setup();
+    let mut project = setup().await;
 
-    run(project.path(), &[(app("widgets"), app("views"))]).await;
+    run(&mut project, &[(app("widgets"), app("views"))]).await;
 
     let layout = common::read_file(project.path(), &format!("{RES}/layout/activity_main.xml"));
     assert!(
@@ -83,16 +87,16 @@ async fn a_custom_view_directory_is_renamed_and_its_layout_tag_follows() {
         java.contains("import com.example.droid.views.BadgeView;"),
         "{java}"
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
 async fn a_service_and_a_fragment_are_renamed_in_manifest_and_navigation_graph() {
-    let project = setup();
+    let mut project = setup().await;
 
     run(
-        project.path(),
+        &mut project,
         &[
             (app("sync/SyncService.kt"), app("work/SyncService.kt")),
             (app("ui/HomeFragment.kt"), app("home/HomeFragment.kt")),
@@ -110,16 +114,16 @@ async fn a_service_and_a_fragment_are_renamed_in_manifest_and_navigation_graph()
         graph.contains(r#"android:name="com.example.droid.home.HomeFragment""#),
         "{graph}"
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
 async fn a_class_renamed_with_its_file_is_renamed_in_xml() {
-    let project = setup();
+    let mut project = setup().await;
 
     run(
-        project.path(),
+        &mut project,
         &[(app("widgets/BadgeView.kt"), app("widgets/CounterView.kt"))],
     )
     .await;
@@ -129,5 +133,40 @@ async fn a_class_renamed_with_its_file_is_renamed_in_xml() {
         layout.contains("<com.example.droid.widgets.CounterView"),
         "{layout}"
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
+}
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
+async fn an_android_class_rename_updates_the_layout_tag() {
+    let mut project = setup().await;
+    let request = RenameRequest {
+        project_path: PathBuf::new(),
+        file: app("widgets/BadgeView.kt").into(),
+        symbol: "BadgeView".to_string(),
+        new_name: "CounterView".to_string(),
+        line: None,
+        column: None,
+        dry_run: false,
+    };
+
+    let report = project
+        .rename(request)
+        .await
+        .unwrap_or_else(|error| panic!("the rename failed: {error:#}"));
+
+    let layout = common::read_file(project.path(), &format!("{RES}/layout/activity_main.xml"));
+    assert!(
+        layout.contains("<com.example.droid.widgets.CounterView"),
+        "{layout}"
+    );
+    assert!(
+        report
+            .files
+            .iter()
+            .any(|(path, _)| path.ends_with("activity_main.xml")),
+        "{:?}",
+        report.files
+    );
+    project.assert_compiles(COMPILE);
 }

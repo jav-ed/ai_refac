@@ -45,9 +45,16 @@ pub fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
 /// `--no-daemon`: a Gradle daemon would stay in memory (about 0.5 GB) for three
 /// hours after the test, and nothing a test starts may outlive it.
 pub fn assert_compiles(project: &Path, tasks: &[&str]) {
+    compile(project, tasks, &["--no-daemon"]);
+}
+
+/// Run Gradle `tasks` in `project` with `extra` arguments and fail with its
+/// output when the project does not compile.
+pub fn compile(project: &Path, tasks: &[&str], extra: &[&str]) {
     let output = Command::new("./gradlew")
         .args(tasks)
-        .args(["--console=plain", "-q", "--no-daemon"])
+        .args(["--console=plain", "-q"])
+        .args(extra)
         .current_dir(project)
         .output()
         .expect("failed to run ./gradlew");

@@ -73,6 +73,61 @@ pub async fn after_rename(
     Ok(())
 }
 
+/// What changed on disk without the server being told, for a caller that
+/// keeps one server across operations and edits or restores files itself.
+#[derive(Debug, Default)]
+pub struct DiskChanges {
+    pub created: Vec<PathBuf>,
+    pub changed: Vec<PathBuf>,
+    pub deleted: Vec<PathBuf>,
+}
+
+impl DiskChanges {
+    pub fn is_empty(&self) -> bool {
+        self.created.is_empty() && self.changed.is_empty() && self.deleted.is_empty()
+    }
+}
+
+/// Tell the server the files changed behind its back. Every open document
+/// under the project is closed first, because a document the server holds is
+/// the text it was shown, not the file; the sources that exist are then sent
+/// with their text so that the next request already sees them (the watcher
+/// event alone is handled later).
+pub async fn follow_disk(
+    server: &mut KotlinServer,
+    root: &Path,
+    changes: &DiskChanges,
+) -> Result<()> {
+    server.close_under(root).await?;
+    let mut events = Vec::new();
+    for (paths, kind) in [
+        (&changes.created, CREATED),
+        (&changes.changed, CHANGED),
+        (&changes.deleted, DELETED),
+    ] {
+        for path in paths {
+            events.push(json!({ "uri": file_uri(path)?, "type": kind }));
+        }
+    }
+    if !events.is_empty() {
+        server
+            .notify(
+                "workspace/didChangeWatchedFiles",
+                json!({ "changes": events }),
+            )
+            .await?;
+    }
+    for path in changes.created.iter().chain(&changes.changed) {
+        if !is_source(path) {
+            continue;
+        }
+        let text = std::fs::read_to_string(path)
+            .with_context(|| format!("Cannot read {}", path.display()))?;
+        server.sync_document(path, &text).await?;
+    }
+    Ok(())
+}
+
 fn is_source(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|extension| extension.to_str()),

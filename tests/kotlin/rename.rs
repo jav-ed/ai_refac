@@ -1,24 +1,25 @@
 use crate::common;
 
 // Real Kotlin language server against tests/fixtures/kotlin/jvm_project
-// (see kotlin_moves.rs for the layout) and android_project.
+// (see moves.rs for the layout). The Android class rename is in android.rs.
 //   Helper.kt: line 5 class Helper, 6 var counter, 8 fun decorate(text), 14 fun
 //   shout(text), 16 fun Helper.undecorate(text); three different `text` parameters.
 // Run with: REFAC_KOTLIN_SERVER=<install dir> [ANDROID_HOME=<sdk>] \
-//   cargo test --test kotlin rename:: -- --ignored
+//   cargo test --test kotlin rename:: -- --ignored --test-threads=1
+// The tests share one server (common::pool): it starts once and each test gets
+// the project as the fixture was. A request names no project: the lease supplies it.
 
-use refac::drivers::kotlin::rename::{
-    RenameReport, RenameRequest, rename_all_symbols, rename_symbol,
-};
-use std::path::Path;
+use common::pool::Lease;
+use refac::drivers::kotlin::rename::{RenameReport, RenameRequest, rename_symbol};
+use std::path::PathBuf;
 
 const K: &str = "src/main/kotlin/com/example";
 const HELPER: &str = "src/main/kotlin/com/example/util/Helper.kt";
 const COMPILE: &[&str] = &["compileKotlin", "compileJava"];
 
-fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRequest {
+fn request(file: &str, symbol: &str, new_name: &str) -> RenameRequest {
     RenameRequest {
-        project_path: project.to_path_buf(),
+        project_path: PathBuf::new(),
         file: file.into(),
         symbol: symbol.to_string(),
         new_name: new_name.to_string(),
@@ -28,14 +29,15 @@ fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRe
     }
 }
 
-async fn rename(request: RenameRequest) -> RenameReport {
-    rename_symbol(request)
+async fn rename(project: &mut Lease, request: RenameRequest) -> RenameReport {
+    project
+        .rename(request)
         .await
         .unwrap_or_else(|error| panic!("the rename failed: {error:#}"))
 }
 
-async fn refused(request: RenameRequest) -> String {
-    match rename_symbol(request).await {
+async fn refused(project: &mut Lease, request: RenameRequest) -> String {
+    match project.rename(request).await {
         Ok(report) => panic!(
             "the rename should be refused, but changed {:?}",
             report.files
@@ -44,17 +46,16 @@ async fn refused(request: RenameRequest) -> String {
     }
 }
 
-fn setup() -> tempfile::TempDir {
-    common::kotlin::require_server();
-    common::setup_fixture("kotlin/jvm_project")
+async fn lease() -> Lease {
+    common::pool::lease("kotlin/jvm_project").await
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_member_function_is_renamed_in_kotlin_and_java_callers() {
-    let project = setup();
+    let mut project = lease().await;
 
-    let report = rename(request(project.path(), HELPER, "decorate", "embellish")).await;
+    let report = rename(&mut project, request(HELPER, "decorate", "embellish")).await;
 
     assert_eq!(report.files.len(), 3, "{:?}", report.files);
     assert!(common::read_file(project.path(), HELPER).contains("fun embellish(text: String)"));
@@ -65,15 +66,15 @@ async fn a_member_function_is_renamed_in_kotlin_and_java_callers() {
         "src/main/java/com/example/legacy/JavaCaller.java",
     );
     assert!(java.contains("helper.embellish("), "{java}");
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_property_is_renamed_with_its_java_accessor() {
-    let project = setup();
+    let mut project = lease().await;
 
-    rename(request(project.path(), HELPER, "counter", "callCount")).await;
+    rename(&mut project, request(HELPER, "counter", "callCount")).await;
 
     let main = common::read_file(project.path(), &format!("{K}/app/Main.kt"));
     assert!(main.contains("helper.callCount"), "{main}");
@@ -82,20 +83,18 @@ async fn a_property_is_renamed_with_its_java_accessor() {
         "src/main/java/com/example/legacy/JavaCaller.java",
     );
     assert!(java.contains("getCallCount()"), "{java}");
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_class_is_renamed_together_with_its_file() {
-    let project = setup();
+    let mut project = lease().await;
 
-    let report = rename(request(
-        project.path(),
-        &format!("{K}/app/Greeter.kt"),
-        "Greeter",
-        "Welcomer",
-    ))
+    let report = rename(
+        &mut project,
+        request(&format!("{K}/app/Greeter.kt"), "Greeter", "Welcomer"),
+    )
     .await;
 
     assert!(!project.path().join(K).join("app/Greeter.kt").exists());
@@ -111,7 +110,7 @@ async fn a_class_is_renamed_together_with_its_file() {
         "{:?}",
         report.notes
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 /// Greeter.kt becomes Welcomer.kt with its class; the second rename names the
@@ -120,17 +119,18 @@ async fn a_class_is_renamed_together_with_its_file() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_batch_follows_a_class_file_that_an_earlier_rename_moved() {
-    let project = setup();
+    let mut project = lease().await;
     let greeter = format!("{K}/app/Greeter.kt");
     let welcomer = format!("{K}/app/Welcomer.kt");
 
-    let reports = rename_all_symbols(vec![
-        request(project.path(), &greeter, "Greeter", "Welcomer"),
-        request(project.path(), &welcomer, "greet", "welcome"),
-        request(project.path(), HELPER, "decorate", "embellish"),
-    ])
-    .await
-    .unwrap_or_else(|error| panic!("the batch failed: {error:#}"));
+    let reports = project
+        .rename_all(vec![
+            request(&greeter, "Greeter", "Welcomer"),
+            request(&welcomer, "greet", "welcome"),
+            request(HELPER, "decorate", "embellish"),
+        ])
+        .await
+        .unwrap_or_else(|error| panic!("the batch failed: {error:#}"));
 
     assert_eq!(reports.len(), 3);
     assert!(!project.path().join(&greeter).exists());
@@ -141,7 +141,7 @@ async fn a_batch_follows_a_class_file_that_an_earlier_rename_moved() {
     let main = common::read_file(project.path(), &format!("{K}/app/Main.kt"));
     assert!(main.contains("Welcomer(helper)"), "{main}");
     assert!(main.contains("greeter.welcome(\"world\")"), "{main}");
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 /// A dry run of several renames carries the batch out on a copy of the project
@@ -153,11 +153,11 @@ async fn a_batch_follows_a_class_file_that_an_earlier_rename_moved() {
 async fn a_dry_run_of_a_batch_plans_what_the_batch_does() {
     let greeter = format!("{K}/app/Greeter.kt");
     let welcomer = format!("{K}/app/Welcomer.kt");
-    let batch = |project: &Path, dry_run: bool| {
+    let batch = |dry_run: bool| {
         let mut requests = vec![
-            request(project, &greeter, "Greeter", "Welcomer"),
-            request(project, &welcomer, "greet", "welcome"),
-            request(project, HELPER, "decorate", "embellish"),
+            request(&greeter, "Greeter", "Welcomer"),
+            request(&welcomer, "greet", "welcome"),
+            request(HELPER, "decorate", "embellish"),
         ];
         for request in &mut requests {
             request.dry_run = dry_run;
@@ -165,16 +165,17 @@ async fn a_dry_run_of_a_batch_plans_what_the_batch_does() {
         requests
     };
 
-    let planned = setup();
-    let before = common::kotlin::snapshot(planned.path());
-    let plan = rename_all_symbols(batch(planned.path(), true))
+    let mut project = lease().await;
+    let before = common::kotlin::snapshot(project.path());
+    let plan = project
+        .rename_all(batch(true))
         .await
         .unwrap_or_else(|error| panic!("the dry run failed: {error:#}"));
-    assert_eq!(common::kotlin::snapshot(planned.path()), before);
+    assert_eq!(common::kotlin::snapshot(project.path()), before);
     assert!(plan.iter().all(|report| report.dry_run));
 
-    let carried_out = setup();
-    let done = rename_all_symbols(batch(carried_out.path(), false))
+    let done = project
+        .rename_all(batch(false))
         .await
         .unwrap_or_else(|error| panic!("the batch failed: {error:#}"));
 
@@ -194,20 +195,16 @@ async fn a_dry_run_of_a_batch_plans_what_the_batch_does() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_failing_batch_gives_back_the_moved_file_and_every_edit() {
-    let project = setup();
+    let mut project = lease().await;
     let before = common::kotlin::snapshot(project.path());
 
-    let error = rename_all_symbols(vec![
-        request(
-            project.path(),
-            &format!("{K}/app/Greeter.kt"),
-            "Greeter",
-            "Welcomer",
-        ),
-        request(project.path(), HELPER, "no_such_symbol", "something_else"),
-    ])
-    .await
-    .expect_err("the second rename cannot work");
+    let error = project
+        .rename_all(vec![
+            request(&format!("{K}/app/Greeter.kt"), "Greeter", "Welcomer"),
+            request(HELPER, "no_such_symbol", "something_else"),
+        ])
+        .await
+        .expect_err("the second rename cannot work");
 
     let message = format!("{error:#}");
     assert!(message.contains("Rename 2 of 2"), "{message}");
@@ -221,12 +218,12 @@ async fn a_failing_batch_gives_back_the_moved_file_and_every_edit() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_dry_run_plans_and_verifies_but_writes_nothing() {
-    let project = setup();
+    let mut project = lease().await;
     let before = common::kotlin::snapshot(project.path());
-    let mut dry = request(project.path(), HELPER, "decorate", "embellish");
+    let mut dry = request(HELPER, "decorate", "embellish");
     dry.dry_run = true;
 
-    let report = rename(dry).await;
+    let report = rename(&mut project, dry).await;
 
     assert!(report.dry_run);
     assert_eq!(report.files.len(), 3, "{:?}", report.files);
@@ -236,15 +233,15 @@ async fn a_dry_run_plans_and_verifies_but_writes_nothing() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_name_shared_by_several_symbols_is_listed_and_chosen_by_line() {
-    let project = setup();
+    let mut project = lease().await;
 
-    let message = refused(request(project.path(), HELPER, "text", "value")).await;
+    let message = refused(&mut project, request(HELPER, "text", "value")).await;
     assert!(message.contains("several different symbols"), "{message}");
     assert!(message.contains("14:"), "{message}");
 
-    let mut chosen = request(project.path(), HELPER, "text", "value");
+    let mut chosen = request(HELPER, "text", "value");
     chosen.line = Some(14);
-    let report = rename(chosen).await;
+    let report = rename(&mut project, chosen).await;
     assert_eq!(report.files.len(), 1, "{:?}", report.files);
     let helper = common::read_file(project.path(), HELPER);
     assert!(
@@ -252,18 +249,18 @@ async fn a_name_shared_by_several_symbols_is_listed_and_chosen_by_line() {
         "{helper}"
     );
     assert!(helper.contains("fun decorate(text: String)"), "{helper}");
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_rename_that_shadows_another_declaration_is_refused_and_changes_nothing() {
-    let project = setup();
+    let mut project = lease().await;
     let before = common::kotlin::snapshot(project.path());
 
     // A member `decorate` wins over an extension `decorate`: callers of the
     // extension would silently call the member.
-    let message = refused(request(project.path(), HELPER, "undecorate", "decorate")).await;
+    let message = refused(&mut project, request(HELPER, "undecorate", "decorate")).await;
 
     assert!(message.contains("not faithful"), "{message}");
     assert_eq!(common::kotlin::snapshot(project.path()), before);
@@ -272,10 +269,10 @@ async fn a_rename_that_shadows_another_declaration_is_refused_and_changes_nothin
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_clash_with_a_member_in_the_same_class_is_refused() {
-    let project = setup();
+    let mut project = lease().await;
     let before = common::kotlin::snapshot(project.path());
 
-    let message = refused(request(project.path(), HELPER, "counter", "prefix")).await;
+    let message = refused(&mut project, request(HELPER, "counter", "prefix")).await;
 
     assert!(!message.is_empty());
     assert_eq!(common::kotlin::snapshot(project.path()), before);
@@ -284,60 +281,40 @@ async fn a_clash_with_a_member_in_the_same_class_is_refused() {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn text_that_is_not_a_symbol_is_refused() {
-    let project = setup();
+    let mut project = lease().await;
 
     // "hello" only appears inside a string literal.
-    let message = refused(request(project.path(), HELPER, "hello", "goodbye")).await;
+    let message = refused(&mut project, request(HELPER, "hello", "goodbye")).await;
 
     assert!(message.contains("Cannot rename"), "{message}");
-}
-
-#[tokio::test]
-#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and the Android SDK (ANDROID_HOME)"]
-async fn an_android_class_rename_updates_the_layout_tag() {
-    common::kotlin::require_server();
-    common::kotlin::require_android_sdk();
-    let project = common::setup_fixture("kotlin/android_project");
-    let view = "app/src/main/java/com/example/droid/widgets/BadgeView.kt";
-
-    let report = rename(request(project.path(), view, "BadgeView", "CounterView")).await;
-
-    let layout = common::read_file(project.path(), "app/src/main/res/layout/activity_main.xml");
-    assert!(
-        layout.contains("<com.example.droid.widgets.CounterView"),
-        "{layout}"
-    );
-    assert!(
-        report
-            .files
-            .iter()
-            .any(|(path, _)| path.ends_with("activity_main.xml")),
-        "{:?}",
-        report.files
-    );
-    common::kotlin::assert_compiles(
-        project.path(),
-        &[":app:compileDebugKotlin", ":app:compileDebugJavaWithJavac"],
-    );
 }
 
 // Refusals that come before the server starts run without it.
 #[tokio::test]
 async fn bad_requests_fail_before_any_server_starts() {
     let project = common::setup_fixture("kotlin/jvm_project");
+    let refused = |file: &str, symbol: &str, new_name: &str| {
+        let mut request = request(file, symbol, new_name);
+        request.project_path = project.path().to_path_buf();
+        async move {
+            match rename_symbol(request).await {
+                Ok(report) => panic!("should be refused, but changed {:?}", report.files),
+                Err(error) => format!("{error:#}"),
+            }
+        }
+    };
 
-    let keyword = refused(request(project.path(), HELPER, "decorate", "class")).await;
+    let keyword = refused(HELPER, "decorate", "class").await;
     assert!(keyword.contains("keyword"), "{keyword}");
-    let same = refused(request(project.path(), HELPER, "decorate", "decorate")).await;
+    let same = refused(HELPER, "decorate", "decorate").await;
     assert!(same.contains("equals the current name"), "{same}");
-    let java = refused(request(
-        project.path(),
+    let java = refused(
         "src/main/java/com/example/legacy/JavaCaller.java",
         "run",
         "go",
-    ))
+    )
     .await;
     assert!(java.contains(".kt"), "{java}");
-    let missing = refused(request(project.path(), HELPER, "nothingHere", "something")).await;
+    let missing = refused(HELPER, "nothingHere", "something").await;
     assert!(missing.contains("does not appear"), "{missing}");
 }

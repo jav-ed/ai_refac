@@ -77,6 +77,8 @@ pub fn read_file(root: &Path, rel: &str) -> String {
 }
 
 #[allow(dead_code)]
+pub mod disk;
+#[allow(dead_code)]
 pub mod dry_run;
 #[allow(dead_code)]
 pub mod kotlin;
@@ -84,6 +86,8 @@ pub mod kotlin;
 pub mod links;
 #[allow(dead_code)]
 pub mod lsp;
+#[allow(dead_code)]
+pub mod pool;
 #[allow(dead_code)]
 pub mod project;
 #[allow(dead_code)]

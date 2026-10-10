@@ -5,6 +5,7 @@
 //! symbol's own import line.
 
 mod imports;
+mod lent;
 
 use super::android;
 use super::android::class_renames;
@@ -24,6 +25,7 @@ use crate::drivers::preview::copy::{CopyPlan, ProjectRoot};
 pub use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
 use anyhow::Result;
 use async_trait::async_trait;
+pub use lent::SharedServer;
 use std::path::{Path, PathBuf};
 
 /// Words that cannot name a symbol (hard keywords).
@@ -58,12 +60,36 @@ const RESERVED_WORDS: &[&str] = &[
     "while",
 ];
 
-pub struct Kotlin;
+pub struct Kotlin {
+    /// A server somebody else keeps (see `lent`); without one the engine
+    /// starts a server and stops it again.
+    lent: Option<SharedServer>,
+}
+
+/// The language as the commands use it: every rename starts its own server.
+const OWN_SERVER: Kotlin = Kotlin { lent: None };
 
 pub async fn rename_symbol(request: RenameRequest) -> Result<RenameReport> {
+    rename_symbol_with(&OWN_SERVER, request).await
+}
+
+/// The same rename on a server that is already running and has imported the
+/// project; the caller stops it. The files on disk must be what the server
+/// believes (`resync::follow_disk`), and after a failure it is not.
+pub async fn rename_symbol_on(
+    server: &SharedServer,
+    request: RenameRequest,
+) -> Result<RenameReport> {
+    let lent = Kotlin {
+        lent: Some(server.clone()),
+    };
+    rename_symbol_with(&lent, request).await
+}
+
+async fn rename_symbol_with(language: &Kotlin, request: RenameRequest) -> Result<RenameReport> {
     let root = request.project_path.clone();
     refuse_expect_actual(&request)?;
-    rename_with(&Kotlin, request)
+    rename_with(language, request)
         .await
         .map_err(|error| in_multiplatform(error, &root))
 }
@@ -100,6 +126,26 @@ fn in_multiplatform(error: anyhow::Error, root: &Path) -> anyhow::Error {
 /// Several renames in one server session, which for Kotlin saves the half
 /// minute the server needs to import the Gradle build for each of them.
 pub async fn rename_all_symbols(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>> {
+    rename_all_symbols_with(&OWN_SERVER, requests).await
+}
+
+/// `rename_all_symbols` on a server that is already running (see
+/// `rename_symbol_on`). A dry run of several renames plans on a copy of the
+/// project, with a server of its own.
+pub async fn rename_all_symbols_on(
+    server: &SharedServer,
+    requests: Vec<RenameRequest>,
+) -> Result<Vec<RenameReport>> {
+    let lent = Kotlin {
+        lent: Some(server.clone()),
+    };
+    rename_all_symbols_with(&lent, requests).await
+}
+
+async fn rename_all_symbols_with(
+    language: &Kotlin,
+    requests: Vec<RenameRequest>,
+) -> Result<Vec<RenameReport>> {
     if requests.len() > 1 && requests.iter().all(|request| request.dry_run) {
         return plan_on_copy(requests).await;
     }
@@ -110,7 +156,7 @@ pub async fn rename_all_symbols(requests: Vec<RenameRequest>) -> Result<Vec<Rena
     for request in &requests {
         refuse_expect_actual(request)?;
     }
-    rename_all_with(&Kotlin, requests)
+    rename_all_with(language, requests)
         .await
         .map_err(|error| in_multiplatform(error, &root))
 }
@@ -131,7 +177,7 @@ async fn plan_on_copy(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>>
         moved.dry_run = false;
         on_copy.push(moved);
     }
-    let reports = rename_all_with(&Kotlin, on_copy)
+    let reports = rename_all_with(&OWN_SERVER, on_copy)
         .await
         .map_err(|error| anyhow::anyhow!(copy.about_the_project(&format!("{error:#}"))))?;
     Ok(reports
@@ -167,6 +213,9 @@ impl Language for Kotlin {
     }
 
     async fn start(&self, root: &Path, _file: &Path) -> Result<Box<dyn RenameServer>> {
+        if let Some(shared) = &self.lent {
+            return Ok(Box::new(lent::Lent(shared.clone())));
+        }
         let install = server::locate()?;
         Ok(Box::new(KotlinServer::start(&install, root).await?))
     }

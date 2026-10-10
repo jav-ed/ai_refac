@@ -50,6 +50,10 @@ pub struct KotlinServer {
     /// it then works on a plain-JVM copy and everything crossing this boundary
     /// is translated (see `mirror`).
     mirror: Option<Mirror>,
+    /// Messages sent since the import. A caller that keeps the server for
+    /// several operations compares it before and after one to learn whether
+    /// a failure happened before the server was involved.
+    sent: u64,
 }
 
 impl KotlinServer {
@@ -86,6 +90,7 @@ impl KotlinServer {
             timeout,
             system_dir,
             mirror,
+            sent: 0,
         };
         server.wait_until_ready().await
     }
@@ -179,10 +184,16 @@ impl KotlinServer {
         self.session.pid()
     }
 
+    /// How many requests, notifications and documents were sent to the server.
+    pub fn sent(&self) -> u64 {
+        self.sent
+    }
+
     /// A request that fails loudly instead of waiting forever. An error
     /// answer stays a downcastable `RpcError`. Callers speak in the real
     /// project's paths; a mirror translates them for the server and back.
     pub async fn request(&mut self, method: &str, mut params: Value) -> Result<Value> {
+        self.sent += 1;
         if let Some(mirror) = &self.mirror {
             mirror.uris_to_mirror(&mut params);
         }
@@ -205,6 +216,7 @@ impl KotlinServer {
     }
 
     pub async fn notify(&mut self, method: &str, mut params: Value) -> Result<()> {
+        self.sent += 1;
         if let Some(mirror) = &self.mirror {
             params = if method == "workspace/didChangeWatchedFiles" {
                 mirror.follow_changes(&params)?
@@ -217,6 +229,7 @@ impl KotlinServer {
     }
 
     pub async fn sync_document(&mut self, path: &Path, text: &str) -> Result<()> {
+        self.sent += 1;
         let Some(mirror) = &self.mirror else {
             return self.session.sync_document(path, text).await;
         };

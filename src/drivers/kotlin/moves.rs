@@ -33,16 +33,46 @@ pub struct MoveReport {
 pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Result<MoveReport> {
     let gradle = gradle_root(root)?;
     let plan = plan::build(files, &gradle)?;
-    let mut sources = Vec::new();
-    for step in plan.groups.iter().flat_map(|group| &group.steps) {
-        sources.extend(source_files(step)?.into_iter().map(|(from, _)| from));
-    }
-    server::refuse_expect_actual(&gradle, &sources)?;
+    refuse_declared_pairs(&plan, &gradle)?;
     let install = server::locate()?;
     let mut server = KotlinServer::start(&install, &gradle).await?;
     let mut journal = Journal::default();
     let outcome = run(&mut server, &plan, &gradle, &mut journal).await;
     server.shutdown().await;
+    finish(outcome, journal)
+}
+
+/// The same move on a server that is already running and has imported the
+/// Gradle root of `root`: the caller owns the server and stops it. For a
+/// caller that runs many moves against one project, where the half minute of
+/// a Gradle import per move is the whole cost. The server's view of the files
+/// must be what is on disk (see `resync::follow_disk`); after a failure it is
+/// not, because the rollback does not tell it, and the caller must not use it
+/// again.
+pub async fn move_files_on(
+    server: &mut KotlinServer,
+    files: &[(String, String)],
+    root: &Path,
+) -> Result<MoveReport> {
+    let gradle = gradle_root(Some(root))?;
+    let plan = plan::build(files, &gradle)?;
+    refuse_declared_pairs(&plan, &gradle)?;
+    let mut journal = Journal::default();
+    let outcome = run(server, &plan, &gradle, &mut journal).await;
+    finish(outcome, journal)
+}
+
+/// Files that declare `expect` or `actual` are refused before a server starts.
+fn refuse_declared_pairs(plan: &MovePlan, gradle: &Path) -> Result<()> {
+    let mut sources = Vec::new();
+    for step in plan.groups.iter().flat_map(|group| &group.steps) {
+        sources.extend(source_files(step)?.into_iter().map(|(from, _)| from));
+    }
+    server::refuse_expect_actual(gradle, &sources)
+}
+
+/// A failed move gives every change back.
+fn finish(outcome: Result<MoveReport>, journal: Journal) -> Result<MoveReport> {
     match outcome {
         Ok(report) => Ok(report),
         Err(error) => match journal.rollback() {

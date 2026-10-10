@@ -14,8 +14,9 @@ use crate::common::project::Project;
 //   library/    stands for Compose; no source set, so the mirror does not hold it
 // Every test ends with a Gradle compile of main and test: a move is right when
 // the real project builds.
-// Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin multiplatform:: -- --ignored
+// Run with: REFAC_KOTLIN_SERVER=<install dir> cargo test --test kotlin multiplatform:: -- --ignored --test-threads=1
 
+use common::pool::Lease;
 use refac::drivers::kotlin::moves::{MoveReport, move_files};
 use refac::drivers::kotlin::rename::{RenameReport, RenameRequest, rename_symbol};
 use std::path::Path;
@@ -25,17 +26,25 @@ const JVM: &str = "src/jvmMain/kotlin/com/example";
 const COMPILE: &[&str] = &["compileKotlinJvm", "compileTestKotlinJvm"];
 const SCRATCH: &[&str] = &[".gradle", ".kotlin", ".idea", "build"];
 
+/// For a test that is refused before a server starts and so needs none.
 fn setup() -> tempfile::TempDir {
     common::kotlin::require_server();
     common::setup_fixture("kotlin/kmp_project")
+}
+
+/// The tests that use the server share one (common::pool): it starts once and
+/// each test gets the project as the fixture was.
+async fn lease() -> Lease {
+    common::pool::lease("kotlin/kmp_project").await
 }
 
 fn pair(from: &str, to: &str) -> (String, String) {
     (from.to_string(), to.to_string())
 }
 
-async fn run(project: &Path, moves: &[(String, String)]) -> MoveReport {
-    move_files(moves, Some(project))
+async fn run(project: &mut Lease, moves: &[(String, String)]) -> MoveReport {
+    project
+        .move_files(moves)
         .await
         .unwrap_or_else(|error| panic!("the move failed: {error:#}"))
 }
@@ -43,10 +52,10 @@ async fn run(project: &Path, moves: &[(String, String)]) -> MoveReport {
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn files_of_a_multiplatform_module_move_and_every_source_set_follows() {
-    let project = setup();
+    let mut project = lease().await;
 
     let report = run(
-        project.path(),
+        &mut project,
         &[
             pair(
                 &format!("{COMMON}/app/Greeter.kt"),
@@ -88,16 +97,16 @@ async fn files_of_a_multiplatform_module_move_and_every_source_set_follows() {
         "{:?}",
         report.notes
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn imports_that_only_a_library_the_server_cannot_see_explains_stay() {
-    let project = setup();
+    let mut project = lease().await;
 
     run(
-        project.path(),
+        &mut project,
         &[pair(
             &format!("{COMMON}/app/Screen.kt"),
             &format!("{COMMON}/ui/Screen.kt"),
@@ -121,7 +130,7 @@ async fn imports_that_only_a_library_the_server_cannot_see_explains_stay() {
         screen.contains("import com.example.app.Greeter"),
         "{screen}"
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
@@ -164,13 +173,8 @@ async fn a_file_or_symbol_that_is_expect_or_actual_is_refused_before_the_server_
     assert_eq!(before, common::kotlin::snapshot(project.path()));
 }
 
-async fn rename(
-    project: &Path,
-    file: &str,
-    symbol: &str,
-    new_name: &str,
-) -> anyhow::Result<RenameReport> {
-    rename_symbol(RenameRequest {
+fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRequest {
+    RenameRequest {
         project_path: project.to_path_buf(),
         file: file.into(),
         symbol: symbol.to_string(),
@@ -178,17 +182,37 @@ async fn rename(
         line: None,
         column: None,
         dry_run: false,
-    })
-    .await
+    }
+}
+
+/// A rename that is refused before a server starts, on a project of its own.
+async fn rename(
+    project: &Path,
+    file: &str,
+    symbol: &str,
+    new_name: &str,
+) -> anyhow::Result<RenameReport> {
+    rename_symbol(request(project, file, symbol, new_name)).await
+}
+
+/// A rename on the leased server.
+async fn rename_leased(
+    project: &mut Lease,
+    file: &str,
+    symbol: &str,
+    new_name: &str,
+) -> anyhow::Result<RenameReport> {
+    let request = request(project.path(), file, symbol, new_name);
+    project.rename(request).await
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_symbol_rename_reaches_every_source_set() {
-    let project = setup();
+    let mut project = lease().await;
     let file = format!("{COMMON}/util/Helper.kt");
 
-    let report = rename(project.path(), &file, "decorate", "embellish")
+    let report = rename_leased(&mut project, &file, "decorate", "embellish")
         .await
         .unwrap_or_else(|error| panic!("the rename failed: {error:#}"));
 
@@ -211,18 +235,18 @@ async fn a_symbol_rename_reaches_every_source_set() {
         "{:?}",
         report.notes
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_rename_reaches_a_use_inside_a_call_of_a_library_function() {
-    let project = setup();
+    let mut project = lease().await;
 
     // Screen.kt calls `greet` in the lambda of `LaunchedEffect`, which the
     // mirror does not hold.
-    rename(
-        project.path(),
+    rename_leased(
+        &mut project,
         &format!("{COMMON}/app/Greeter.kt"),
         "greet",
         "welcome",
@@ -237,7 +261,7 @@ async fn a_rename_reaches_a_use_inside_a_call_of_a_library_function() {
         screen.contains("import androidx.compose.runtime.getValue"),
         "{screen}"
     );
-    common::kotlin::assert_compiles(project.path(), COMPILE);
+    project.assert_compiles(COMPILE);
 }
 
 #[tokio::test]
