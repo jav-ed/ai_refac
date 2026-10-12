@@ -44,6 +44,33 @@ fn source_roots_skip_build_output_and_hidden_folders() {
 }
 
 #[test]
+fn what_gitignore_leaves_out_is_not_a_source_root() {
+    let dir = project(&[
+        (".gitignore", "Repos/\nScratch/\n"),
+        ("shared/src/commonMain/kotlin/a/A.kt", "package a\n"),
+        (
+            "Repos/compose/lib/src/commonMain/kotlin/a/A.kt",
+            "package a\n",
+        ),
+        (
+            "Scratch/Agent_Tasks/repro/shared/src/commonMain/kotlin/a/A.kt",
+            "package a\n",
+        ),
+    ]);
+
+    assert_eq!(
+        source_roots(dir.path()).unwrap(),
+        vec![PathBuf::from("shared/src/commonMain/kotlin")]
+    );
+    let note = Mirror::note(dir.path()).unwrap().unwrap();
+    assert!(
+        note.contains("copy of 1 Kotlin and Java files from 1 source folders"),
+        "{note}"
+    );
+    assert!(note.contains("did not compile anything"), "{note}");
+}
+
+#[test]
 fn multiplatform_source_sets_are_told_from_android_and_jvm_ones() {
     for name in [
         "commonMain",

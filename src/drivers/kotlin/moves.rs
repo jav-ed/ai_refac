@@ -54,6 +54,12 @@ pub async fn move_files(files: &[(String, String)], root: Option<&Path>) -> Resu
 fn refuse_declared_pairs(plan: &MovePlan, gradle: &Path) -> Result<()> {
     let mut sources = Vec::new();
     for step in plan.groups.iter().flat_map(|group| &group.steps) {
+        // The second half of a move with a new name starts where the first
+        // half puts its source, which does not exist yet. The first half
+        // names the same files.
+        if !step.from.exists() {
+            continue;
+        }
         sources.extend(source_files(step)?.into_iter().map(|(from, _)| from));
     }
     server::refuse_expect_actual(gradle, &sources)
@@ -98,7 +104,7 @@ async fn run(
     // its old package.
     report
         .notes
-        .extend(same_package::plan(&files, &moved, &mut writes)?);
+        .extend(same_package::plan(root, &files, &moved, &mut writes)?);
     report
         .notes
         .extend(stale::scan(root, &files, &renames, &writes)?);

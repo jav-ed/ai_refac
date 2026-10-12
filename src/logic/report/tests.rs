@@ -107,3 +107,23 @@ fn a_skipped_file_next_to_a_moved_one_stays_a_success_with_the_skip_listed() {
     assert!(mixed.is_complete());
     assert!(text.contains("notes.xyz"), "{text}");
 }
+
+/// The failure that was seen on a Kotlin project: the driver wraps the cause in
+/// "The move failed and every change was undone", and the report printed only
+/// that line, so nobody could tell what had gone wrong.
+#[test]
+fn a_failed_group_names_the_cause_and_not_only_the_context_around_it() {
+    let error = anyhow::anyhow!("the server answered: File not found")
+        .context("Moving a.kt -> b.kt")
+        .context("The move failed and every change was undone");
+
+    let group = FailedGroup::new("kotlin".to_string(), vec![pair("a.kt", "b.kt")], &error);
+
+    assert_eq!(
+        group.error,
+        "The move failed and every change was undone: Moving a.kt -> b.kt: the server answered: File not found"
+    );
+    let mut text = String::new();
+    render_failed(&mut text, &[group], |path| path.to_string());
+    assert!(text.contains("File not found"), "{text}");
+}

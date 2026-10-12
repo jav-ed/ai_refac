@@ -6,7 +6,7 @@
 use super::class_renames::Renames;
 use super::survey::Survey;
 use crate::drivers::lsp::rename::write::journal::FileWrite;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::Path;
 
 /// `planned` holds changes that are decided but not written yet; a file in it
@@ -28,14 +28,25 @@ pub fn scan(
         (survey.sources.iter().collect(), true),
     ] {
         for path in files {
+            let shown = path.strip_prefix(root).unwrap_or(path).display();
+            // This scan only reports, and the move is done by now: a file it
+            // cannot read says so in a note and must not undo the move. Text
+            // that is not UTF-8 (an Arabic data file in another encoding) is
+            // read lossily, class names are ASCII.
             let text = match planned.iter().find(|write| write.path == *path) {
                 Some(write) => String::from_utf8_lossy(&write.bytes).into_owned(),
-                None => std::fs::read_to_string(path)
-                    .with_context(|| format!("Cannot read {}", path.display()))?,
+                None => match std::fs::read(path) {
+                    Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                    Err(error) => {
+                        notes.push(format!(
+                            "{shown} could not be read ({error}), so refac did not check it for old class names"
+                        ));
+                        continue;
+                    }
+                },
             };
             for (old, new) in &names {
                 if mentions(&text, old, only_in_quotes) {
-                    let shown = path.strip_prefix(root).unwrap_or(path).display();
                     notes.push(format!(
                         "{shown} still mentions {old} (now {new}); refac does not edit this kind of reference"
                     ));
@@ -127,6 +138,42 @@ mod tests {
             scan(dir.path(), &survey, &renames, &[fixed])
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    /// What made every Kotlin move of a project fail after the server was done:
+    /// one file somewhere under the Gradle root that is not UTF-8, or cannot be
+    /// read. The scan only reports, so it reports that file and goes on.
+    #[test]
+    fn a_file_that_is_not_utf8_or_not_readable_does_not_undo_the_move() {
+        let dir = tempfile::tempdir().unwrap();
+        let latin = dir.path().join("quran.json");
+        // "Allah" in Windows-1256, then a mention of the old name.
+        let mut bytes = vec![0xC7, 0xE1, 0xE1, 0xE5];
+        bytes.extend_from_slice(b" {\"main\": \"com.example.app.MainKt\"}");
+        std::fs::write(&latin, bytes).unwrap();
+        let survey = Survey {
+            naming_text: vec![latin, dir.path().join("gone.toml")],
+            ..Survey::default()
+        };
+        let renames = Renames {
+            facades: vec![(
+                "com.example.app.MainKt".to_string(),
+                "com.example.cli.MainKt".to_string(),
+            )],
+            ..Renames::default()
+        };
+
+        let notes = scan(dir.path(), &survey, &renames, &[]).unwrap();
+
+        assert_eq!(notes.len(), 2, "{notes:?}");
+        assert!(
+            notes[0].starts_with("quran.json still mentions com.example.app.MainKt"),
+            "{notes:?}"
+        );
+        assert!(
+            notes[1].starts_with("gone.toml could not be read"),
+            "{notes:?}"
         );
     }
 }

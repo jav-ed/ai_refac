@@ -2,9 +2,9 @@
 //! run after the server: Android resources, other text that may name a class,
 //! and sources.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use ignore::{DirEntry, WalkBuilder};
 use std::path::{Path, PathBuf};
-use walkdir::{DirEntry, WalkDir};
 
 /// Directories that hold build output or tool state, never project files.
 const SKIPPED: &[&str] = &[
@@ -43,11 +43,23 @@ pub struct Survey {
     pub sources: Vec<PathBuf>,
 }
 
+/// What `.gitignore` leaves out is not the project: reference clones, scratch
+/// folders and the output of other tools hold sources and configuration of
+/// their own, which no move of this project may read, scan or add imports from
+/// (same walk as the Markdown pass).
 pub fn survey(root: &Path) -> Result<Survey> {
     let mut found = Survey::default();
-    let entries = WalkDir::new(root).into_iter().filter_entry(keep);
+    let entries = WalkBuilder::new(root)
+        .hidden(false)
+        .parents(false)
+        .git_global(false)
+        .require_git(false)
+        .filter_entry(keep)
+        .build();
     for entry in entries {
-        let path = entry?.into_path();
+        let path = entry
+            .with_context(|| format!("Cannot scan {} for project files", root.display()))?
+            .into_path();
         if !path.is_file() {
             continue;
         }
@@ -75,7 +87,7 @@ pub fn survey(root: &Path) -> Result<Survey> {
 
 fn keep(entry: &DirEntry) -> bool {
     entry.depth() == 0
-        || !entry.file_type().is_dir()
+        || !entry.file_type().is_some_and(|kind| kind.is_dir())
         || !SKIPPED.contains(&entry.file_name().to_str().unwrap_or(""))
 }
 
@@ -164,5 +176,40 @@ mod tests {
                 "app/src/main/resources/META-INF/services/com.x.Spi"
             ]
         );
+    }
+
+    #[test]
+    fn what_gitignore_leaves_out_is_not_part_of_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".gitignore"),
+            "Repos/\nScratch/\n*.local.json\n",
+        )
+        .unwrap();
+        for file in [
+            "app/build.gradle.kts",
+            "app/src/main/kotlin/com/x/A.kt",
+            "app/settings.local.json",
+            "Repos/compose/src/commonMain/kotlin/Foo.kt",
+            "Repos/compose/build.gradle.kts",
+            "Scratch/Agent_Tasks/copy/B.kt",
+            "Scratch/Agent_Tasks/copy/config.json",
+        ] {
+            touch(dir.path(), file);
+        }
+
+        let found = survey(dir.path()).unwrap();
+
+        let relative = |paths: &[PathBuf]| {
+            let mut names: Vec<String> = paths
+                .iter()
+                .map(|path| path.strip_prefix(dir.path()).unwrap().display().to_string())
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(relative(&found.sources), ["app/src/main/kotlin/com/x/A.kt"]);
+        assert_eq!(relative(&found.build_files), ["app/build.gradle.kts"]);
+        assert_eq!(relative(&found.naming_text), ["app/build.gradle.kts"]);
     }
 }

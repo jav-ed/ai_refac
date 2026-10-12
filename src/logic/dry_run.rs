@@ -60,11 +60,7 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
                 other_pairs.extend(files);
                 planned.insert(lang, preview);
             }
-            Err(error) => failed.push(FailedGroup {
-                lang,
-                files,
-                error: format!("{error:#}"),
-            }),
+            Err(error) => failed.push(FailedGroup::new(lang, files, &error)),
         }
     }
 
@@ -81,11 +77,11 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
             Ok(preview) => {
                 planned.insert("markdown".to_string(), preview);
             }
-            Err(error) => failed.push(FailedGroup {
-                lang: "markdown".to_string(),
-                files: markdown_pairs,
-                error: format!("{error:#}"),
-            }),
+            Err(error) => failed.push(FailedGroup::new(
+                "markdown".to_string(),
+                markdown_pairs,
+                &error,
+            )),
         }
     }
 

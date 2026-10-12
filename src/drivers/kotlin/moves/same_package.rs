@@ -16,7 +16,6 @@
 //! as `a + b`, `by` delegates) are not seen; declarations of another Gradle
 //! module are not looked at (that module is no dependency a move can assume).
 
-mod declared;
 mod imports;
 #[cfg(test)]
 mod scan_tests;
@@ -28,9 +27,9 @@ use crate::drivers::kotlin::android::imports::insert_import;
 use crate::drivers::kotlin::android::moved::MovedFile;
 use crate::drivers::kotlin::android::survey::Survey;
 use crate::drivers::kotlin::declarations::declared_package;
+use crate::drivers::kotlin::declarations::top_level::{Declaration, Kind, declarations};
 use crate::drivers::lsp::rename::write::journal::FileWrite;
 use anyhow::Result;
-use declared::{Declaration, Kind, declarations};
 use imports::Imports;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -51,8 +50,10 @@ struct Candidate {
 
 /// The imports to add, as changes to `writes` (the file's text there, when
 /// the Android layer has written it already, is built upon). Returns a note
-/// for every file that got some.
+/// for every file that got some; `root` is the Gradle root the notes show
+/// paths relative to.
 pub fn plan(
+    root: &Path,
     survey: &Survey,
     moved: &[MovedFile],
     writes: &mut Vec<FileWrite>,
@@ -103,7 +104,7 @@ pub fn plan(
         }
         notes.push(format!(
             "Added imports to {}: {}. The file used these names from its old package {old} without an import, and the server left them out.",
-            file.to.display(),
+            file.to.strip_prefix(root).unwrap_or(&file.to).display(),
             wanted.join(", ")
         ));
     }

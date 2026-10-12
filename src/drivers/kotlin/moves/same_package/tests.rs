@@ -53,7 +53,7 @@ impl Project {
             after: after.to_string(),
         }];
         let mut writes = Vec::new();
-        let notes = plan(&survey, &moved, &mut writes).unwrap();
+        let notes = plan(self.dir.path(), &survey, &moved, &mut writes).unwrap();
         let text = match writes.iter().find(|write| write.path == to_path) {
             Some(write) => String::from_utf8(write.bytes.clone()).unwrap(),
             None => after.to_string(),
@@ -98,6 +98,10 @@ fn an_expect_actual_pair_and_overloads_are_imported_by_name() {
     assert!(text.contains("import com.x.util.shout\n"), "{text}");
     assert_eq!(notes.len(), 1, "{notes:?}");
     assert!(notes[0].contains("platformName"), "{notes:?}");
+    assert!(
+        notes[0].starts_with(&format!("Added imports to {NEW}/Moving.kt:")),
+        "the path is relative to the project: {notes:?}"
+    );
 }
 
 #[test]
@@ -265,7 +269,7 @@ fn a_file_that_keeps_its_package_is_not_touched_and_the_android_writes_are_built
         changes: 1,
     }];
 
-    plan(&survey, &moved, &mut writes).unwrap();
+    plan(project.dir.path(), &survey, &moved, &mut writes).unwrap();
 
     assert_eq!(writes.len(), 1, "one write for the file");
     let text = String::from_utf8(writes[0].bytes.clone()).unwrap();

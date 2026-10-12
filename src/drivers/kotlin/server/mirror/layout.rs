@@ -4,8 +4,8 @@
 
 use crate::drivers::kotlin::project::source_root;
 use anyhow::{Context, Result, bail};
+use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 /// The Kotlin version of the mirror's build, for projects whose own build
 /// files do not state one refac can read.
@@ -15,23 +15,36 @@ pub const VERSION_ENV: &str = "REFAC_KOTLIN_MIRROR_VERSION";
 const SKIPPED: &[&str] = &["build", "node_modules", "Pods"];
 
 /// Every `<module>/src/<source set>/kotlin` and `.../java` folder below the
-/// Gradle root, relative to it and sorted.
+/// Gradle root, relative to it and sorted. What `.gitignore` leaves out is not
+/// part of the project: a reference clone or a scratch copy of a project in
+/// the same repository has source folders of its own, and in the mirror they
+/// would be declarations of the same names a second time.
 pub fn source_roots(root: &Path) -> Result<Vec<PathBuf>> {
+    let walker = WalkBuilder::new(root)
+        .hidden(false)
+        .parents(false)
+        .git_global(false)
+        .require_git(false)
+        .filter_entry(|entry| {
+            // The Gradle root itself may be a hidden folder (a temporary one).
+            if entry.depth() == 0 || !entry.file_type().is_some_and(|kind| kind.is_dir()) {
+                return true;
+            }
+            let name = entry.file_name().to_string_lossy();
+            // Not output or tooling, and not inside a source root already
+            // found: its folders are packages.
+            !(name.starts_with('.') || SKIPPED.contains(&name.as_ref()))
+                && source_root(entry.path()).is_none_or(|found| found == entry.path())
+        })
+        .build();
     let mut found = Vec::new();
-    let mut walker = WalkDir::new(root).min_depth(1).into_iter();
-    while let Some(entry) = walker.next() {
+    for entry in walker {
         let entry = entry.with_context(|| format!("Cannot read {}", root.display()))?;
-        if !entry.file_type().is_dir() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy();
-        if name.starts_with('.') || SKIPPED.contains(&name.as_ref()) {
-            walker.skip_current_dir();
-            continue;
-        }
-        if source_root(entry.path()).as_deref() == Some(entry.path()) {
+        if entry.depth() > 0
+            && entry.file_type().is_some_and(|kind| kind.is_dir())
+            && source_root(entry.path()).as_deref() == Some(entry.path())
+        {
             found.push(entry.path().strip_prefix(root)?.to_path_buf());
-            walker.skip_current_dir();
         }
     }
     found.sort();

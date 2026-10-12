@@ -1,9 +1,9 @@
 //! The scanners (declarations, used names, imports) and the source-set rule.
 
-use super::declared::{Kind, declarations};
 use super::imports::Imports;
 use super::used::used_names;
 use super::visible;
+use crate::drivers::kotlin::declarations::top_level::{Kind, declarations};
 
 fn names(text: &str) -> Vec<(String, Kind, bool)> {
     declarations(text)
@@ -125,4 +125,41 @@ fn source_sets_see_their_main_set_and_common_code_but_not_each_other() {
     assert!(!visible(Some("jvmMain"), Some("androidMain")));
     assert!(!visible(Some("jvmMain"), Some("jvmTest")));
     assert!(visible(None, Some("jvmMain")) && visible(Some("main"), None));
+}
+
+#[test]
+fn code_after_a_template_on_the_same_line_and_a_second_template_are_still_read() {
+    let used =
+        used_names("val a = \"${x}\" + shout(y)\nval b = \"${p}${q}\"\nval c = \"${r}$s\"\n");
+
+    for name in ["x", "shout", "y", "p", "q", "r", "s"] {
+        assert!(used.plain.contains(name), "{name} missing: {used:?}");
+    }
+}
+
+/// The scanners run on every moved file and every file of the old package,
+/// whatever is in them. Text cut at any point (an unterminated string, a
+/// comment that never closes, a template without its brace) and text that is
+/// not ASCII (Arabic, emoji, combining marks) must be read to the end.
+#[test]
+fn neither_scanner_stops_on_cut_off_or_non_ascii_text() {
+    let sample = "\u{FEFF}package a.b\n\nimport x.Y as Z\n\n/* وصف /* nested */ */\n@Composable\ninternal fun Ayah(text: String = \"بِسْمِ ${name} اللَّهِ\", n: Int = 0x1F) = Text(\"\"\"سورة\n$title ${a.b(\"}\")}\"\"\") // 🙂\nval `odd name` = 'ع' + '\\u0627' + '\\''\nexpect class Box<T> where T : Any\nfun <T> EntryProviderScope<NavKey>.entries() = 1..n\nprivate val s = \"unterminated ${";
+    let mut cut = 0;
+    for (at, _) in sample.char_indices().chain([(sample.len(), ' ')]) {
+        cut = at;
+        let part = &sample[..at];
+        let _ = used_names(part);
+        let _ = declarations(part);
+        let _ = Imports::parse(part);
+    }
+    assert_eq!(cut, sample.len());
+
+    let used = used_names(sample);
+    assert!(
+        used.plain.contains("Text") && used.plain.contains("title"),
+        "{used:?}"
+    );
+    let names: Vec<String> = declarations(sample).into_iter().map(|d| d.name).collect();
+    assert!(names.contains(&"Ayah".to_string()), "{names:?}");
+    assert!(names.contains(&"entries".to_string()), "{names:?}");
 }

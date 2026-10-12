@@ -1,23 +1,32 @@
-//! Undoing what the mirror's missing libraries make the server do to imports.
+//! Undoing what the server does to imports and layout that nobody asked for.
 //!
 //! A move or a rename makes the server tidy the imports of the files it
-//! edits. In the mirror an import of Compose or Android is unresolved, and so
-//! is anything used through it: `Modifier.padding(...)` is not a use of
+//! edits, and it reformats code there too. In the mirror an import of Compose
+//! or Android is unresolved, and so is anything used through it:
+//! `Modifier.padding(...)` is not a use of
 //! `androidx.compose.foundation.layout.padding` for a server that cannot find
 //! `Modifier`, and `by remember { ... }` reaches `getValue` through its import
 //! alone. The import then looks unused and is deleted, and the real project no
-//! longer compiles. So the answer of the server is checked against the file
-//! before: an import it removed stays, unless the change calls for it. A
-//! move calls for the lines that point into the package a moved file left, a
-//! rename for the lines that name the symbol it renamed.
+//! longer compiles. A plain project loses unused imports as well, which does
+//! not break the build but is not what a move is for. So the answer of the
+//! server is checked against the file before: an import it removed stays,
+//! unless the change calls for it, and a change of layout alone is undone
+//! (`untouched`). A move calls for the imports of what a moved file declares,
+//! which it rewrites; a rename for the lines that name the symbol it renamed.
+//! The import of something that stayed in the old package is not the move's.
 
+use super::edits::edits_between;
+use super::restore::restore;
+use super::untouched::undo_reformatting;
 use crate::drivers::kotlin::android::moved::join_relative;
 use crate::drivers::kotlin::declarations::declared_package;
+use crate::drivers::kotlin::declarations::top_level::declarations;
+use crate::drivers::kotlin::project::{package_of_dir, source_root};
 use crate::drivers::lsp::text::{TextIndex, apply_text_edits};
 use anyhow::{Context, Result, bail};
-use lsp_types::{Range, TextEdit};
+use lsp_types::TextEdit;
 use serde_json::Value;
-use similar::{Algorithm, DiffTag, capture_diff_slices};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use url::Url;
 use walkdir::WalkDir;
@@ -74,8 +83,12 @@ enum Cause {
     Move {
         /// (old, new) of each file or folder.
         pairs: Vec<(PathBuf, PathBuf)>,
-        /// The packages the moved files declared before the move.
-        packages: Vec<String>,
+        /// What the moved files declare at the top level, by the package they
+        /// declared it in before the move, with the package that holds it now
+        /// when the move is only a change of place (a file that is renamed
+        /// takes its class's name along, so its imports cannot be written
+        /// down without the server).
+        left: BTreeMap<String, BTreeMap<String, Option<String>>>,
     },
     Rename {
         /// The name the symbol had.
@@ -94,22 +107,34 @@ impl Cause {
 
     fn read_move(request: &Value) -> Result<Self> {
         let mut pairs = Vec::new();
-        let mut packages = Vec::new();
+        let mut left: BTreeMap<String, BTreeMap<String, Option<String>>> = BTreeMap::new();
         for file in request["files"].as_array().into_iter().flatten() {
             let old = file_path(file["oldUri"].as_str().context("A move without oldUri")?)?;
             let new = file_path(file["newUri"].as_str().context("A move without newUri")?)?;
+            let renamed = old.is_file() && old.file_name() != new.file_name();
             for entry in WalkDir::new(&old) {
                 let path = entry?.into_path();
-                if path.extension().is_some_and(|extension| extension == "kt")
-                    && let Some(package) = declared_package(&std::fs::read_to_string(&path)?)
-                    && !packages.contains(&package)
-                {
-                    packages.push(package);
+                if path.extension().is_none_or(|extension| extension != "kt") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path)
+                    .with_context(|| format!("Cannot read {}", path.display()))?;
+                let Some(package) = declared_package(&text) else {
+                    continue;
+                };
+                let target = match path.strip_prefix(&old) {
+                    Ok(rest) if !rest.as_os_str().is_empty() => new.join(rest),
+                    _ => new.clone(),
+                };
+                let now = if renamed { None } else { package_in(&target) };
+                let names = left.entry(package).or_default();
+                for declaration in declarations(&text) {
+                    names.insert(declaration.name, now.clone());
                 }
             }
             pairs.push((old, new));
         }
-        Ok(Self::Move { pairs, packages })
+        Ok(Self::Move { pairs, left })
     }
 
     /// The symbol is named by the position of the request: the identifier
@@ -146,14 +171,34 @@ impl Cause {
     /// An import the change rewrites or drops on purpose.
     fn accounts_for(&self, fqn: &str) -> bool {
         match self {
-            // It points into the package of a file that moved away.
-            Self::Move { packages, .. } => packages.iter().any(|package| {
-                fqn.strip_prefix(package.as_str())
-                    .is_some_and(|rest| rest.starts_with('.'))
+            // It names something a moved file declared (or all of its
+            // package: `import old.*`), so the move rewrites it. An import of
+            // the same package that names something that stayed is not the
+            // move's to touch, used or not.
+            Self::Move { left, .. } => left.iter().any(|(package, names)| {
+                after_package(fqn, package)
+                    .and_then(|rest| rest.split('.').next())
+                    .is_some_and(|first| first == "*" || names.contains_key(first))
             }),
             // It names the renamed symbol, or something inside it.
             Self::Rename { name } => fqn.split('.').any(|part| part == name),
         }
+    }
+
+    /// What an import the server deleted becomes when the move rewrites it
+    /// instead: a moved class that the file only imported, never used, is
+    /// deleted as unused by the server, and the move would have pointed the
+    /// import to the new package. Not in the package the file is in now,
+    /// where it would be redundant.
+    fn rewritten(&self, fqn: &str, own_package: Option<&str>) -> Option<String> {
+        let Self::Move { left, .. } = self else {
+            return None;
+        };
+        left.iter().find_map(|(package, names)| {
+            let rest = after_package(fqn, package)?;
+            let now = names.get(rest.split('.').next()?)?.as_deref()?;
+            (Some(now) != own_package).then(|| format!("{now}.{rest}"))
+        })
     }
 
     /// The file as the server saw it, and its place: an edit may address the
@@ -191,7 +236,11 @@ impl Cause {
         let sent: Vec<TextEdit> = serde_json::from_value(edits)
             .with_context(|| format!("The server sent edits for {uri} that refac cannot read"))?;
         let after = apply_text_edits(&before, sent.clone())?;
-        let kept = restore(&before, &after, &|fqn| self.accounts_for(fqn));
+        let own_package = declared_package(&after);
+        let kept = restore(&before, &after, &|fqn| self.accounts_for(fqn), &|fqn| {
+            self.rewritten(fqn, own_package.as_deref())
+        });
+        let kept = undo_reformatting(&before, &kept);
         let edits = if kept == after {
             sent
         } else {
@@ -242,116 +291,14 @@ fn file_path(uri: &str) -> Result<PathBuf> {
         .with_context(|| format!("{uri} is not a file URI"))
 }
 
-/// The imported name of an `import` line, without alias or wildcard.
-fn import_fqn(line: &str) -> Option<&str> {
-    let rest = line.trim().strip_prefix("import")?;
-    if !rest.starts_with(char::is_whitespace) {
-        return None;
-    }
-    let rest = rest.split("//").next()?.trim().trim_end_matches(';');
-    rest.split_whitespace().next()
+/// What follows `package.` in an imported name, if it is in that package.
+fn after_package<'a>(fqn: &'a str, package: &str) -> Option<&'a str> {
+    fqn.strip_prefix(package)?.strip_prefix('.')
 }
 
-/// `after`, plus every import line of `before` that it lost without
-/// `accounted` calling for the loss. A restored line goes after the import
-/// that stood before it, so the block keeps its order.
-fn restore(before: &str, after: &str, accounted: &dyn Fn(&str) -> bool) -> String {
-    let mut result: Vec<String> = after.split_inclusive('\n').map(str::to_string).collect();
-    let mut anchor: Option<usize> = None;
-    for line in before.split_inclusive('\n') {
-        let Some(fqn) = import_fqn(line) else {
-            continue;
-        };
-        let key = line.trim();
-        if let Some(at) = result.iter().position(|kept| kept.trim() == key) {
-            anchor = Some(at);
-            continue;
-        }
-        if accounted(fqn) {
-            continue;
-        }
-        let at = anchor.map_or_else(|| first_import_place(&result), |anchor| anchor + 1);
-        let mut restored = line.to_string();
-        if !restored.ends_with('\n') {
-            restored.push('\n');
-        }
-        result.insert(at, restored);
-        anchor = Some(at);
-    }
-    result.concat()
-}
-
-/// Where the import block starts: at its first import, else after the
-/// `package` line, else at the top.
-fn first_import_place(lines: &[String]) -> usize {
-    lines
-        .iter()
-        .position(|line| import_fqn(line).is_some())
-        .or_else(|| {
-            lines
-                .iter()
-                .position(|line| line.trim_start().starts_with("package "))
-                .map(|at| at + 1)
-        })
-        .unwrap_or(0)
-}
-
-/// The edits that turn `before` into `after`, one per changed run of tokens
-/// (names, punctuation, blanks): as fine as the server's own, so a rename
-/// that changes a name changes just the name.
-fn edits_between(before: &str, after: &str) -> Vec<TextEdit> {
-    let (old, new) = (tokens(before), tokens(after));
-    let (old_starts, new_starts) = (offsets(&old), offsets(&new));
-    let index = TextIndex::new(before);
-    capture_diff_slices(Algorithm::Myers, &old, &new)
-        .iter()
-        .filter_map(|op| {
-            let (tag, old_range, new_range) = op.as_tag_tuple();
-            (tag != DiffTag::Equal).then(|| TextEdit {
-                range: Range::new(
-                    index.position(old_starts[old_range.start]),
-                    index.position(old_starts[old_range.end]),
-                ),
-                new_text: after[new_starts[new_range.start]..new_starts[new_range.end]].to_string(),
-            })
-        })
-        .collect()
-}
-
-/// Names (and numbers) and runs of blanks are one token; every other
-/// character, newlines included, is one by itself.
-fn tokens(text: &str) -> Vec<&str> {
-    let class = |ch: char| match ch {
-        _ if ch.is_alphanumeric() || ch == '_' => 1,
-        ' ' | '\t' => 2,
-        _ => 0,
-    };
-    let mut tokens = Vec::new();
-    let (mut start, mut current) = (0, None);
-    for (at, ch) in text.char_indices() {
-        let kind = class(ch);
-        if let Some(previous) = current {
-            if kind != 0 && kind == previous {
-                continue;
-            }
-            tokens.push(&text[start..at]);
-            start = at;
-        }
-        current = Some(kind);
-    }
-    if start < text.len() {
-        tokens.push(&text[start..]);
-    }
-    tokens
-}
-
-/// Where each token starts, and the end of the last one.
-fn offsets(tokens: &[&str]) -> Vec<usize> {
-    let mut offsets = vec![0];
-    for token in tokens {
-        offsets.push(offsets.last().copied().unwrap_or(0) + token.len());
-    }
-    offsets
+/// The package that the directory of a file under a source root stands for.
+fn package_in(file: &Path) -> Option<String> {
+    package_of_dir(&source_root(file)?, file.parent()?)
 }
 
 #[cfg(test)]
