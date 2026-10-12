@@ -22,8 +22,11 @@ WHY IT IS SLOW
 
 THE OPTIONS, BEST FIRST
   1. Collect the changes and make them in ONE call. Moves repeat the flags (the n-th source goes to
-     the n-th target; one call can mix languages), renames take a list (one language per list):
+     the n-th target; one call can mix languages) or take a list from a file, renames take a list
+     (one language per list):
        refac move --source-path a.kt --source-path b.kt --target-path pkg/a.kt --target-path pkg/b.kt
+       echo '[{"source_path": "a.kt", "target_path": "pkg/a.kt"}, {"source_path": "b.kt", "target_path": "pkg/b.kt"}]' | refac move --batch -
+       refac move --batch moves.json            (the same list in a file; check it with --dry-run first)
        echo '[{"file": "a.kt", "symbol": "old", "new_name": "new"}, {"file": "b.kt", "symbol": "x", "new_name": "y"}]' | refac rename --batch -
      A folder is one change that already moves all its files in one start. Renames first (they do not
      change paths), then one move call: two starts instead of one per change.

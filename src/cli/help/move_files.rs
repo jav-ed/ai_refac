@@ -2,6 +2,11 @@
 
 pub(in crate::cli) const ABOUT: &str = "Move or rename files and folders; imports, module lines, package lines and Markdown links follow.";
 
+/// The usage line names both ways to give the moves, so a command that gives
+/// neither is told about the list file in the error clap prints.
+pub(in crate::cli) const USAGE: &str =
+    "refac move [OPTIONS] (--source-path <PATH>... --target-path <PATH>... | --batch <FILE>)";
+
 pub(in crate::cli) const LONG_ABOUT: &str = r#"Move or rename files and folders and rewrite every import, module line, package line and
 Markdown link that pointed at them.
 
@@ -9,6 +14,15 @@ Give the files as paired --source-path / --target-path flags: the first source g
 first target, and so on. Paths may be absolute or relative to --project-path. A target may be
 in a new folder (it is created). Several languages may be mixed in one call; refac groups the
 files by language and moves each group in one go, with one language server per group.
+
+A LONG LIST: --batch moves.json
+  Instead of the flags, write the moves once in a JSON file (or on stdin with `--batch -`):
+    [{"source_path": "src/a.kt", "target_path": "src/pkg/a.kt"},
+     {"source_path": "src/b.kt", "target_path": "src/pkg/b.kt"}]
+  Each entry has exactly those two keys; paths are read as the flags are (absolute, or relative to
+  --project-path). It is the same call as the flags, so the list is moved together and a Kotlin list
+  pays the server start once. Check it with --dry-run, then run it without. A file that is not such
+  a list, or an empty list, is an error that names the file; --batch cannot be mixed with the flags.
 
 --project-path is the PACKAGE root of the language, not the monorepo root:
   TypeScript/JavaScript  the folder with the tsconfig.json that includes every caller
@@ -23,7 +37,7 @@ RULES BY LANGUAGE
                          decides which files are callers: files it does not include are not updated.
   Kotlin/Android         Needs the JetBrains Kotlin language server (REFAC_KOTLIN_SERVER; `refac doctor
                          kotlin`). Every call imports the Gradle build first (about 24 s), so put all
-                         moves in ONE call. The package line, imports, usages and Android XML (manifest,
+                         moves in ONE call (--batch moves.json for a list). The package line, imports, usages and Android XML (manifest,
                          layouts, navigation graphs) follow. .java files, folders that contain Java, and
                          moves between modules or source sets are refused. A Kotlin Multiplatform build
                          (a commonMain, commonTest or <target>Main source set) is planned on a plain-JVM
@@ -72,6 +86,9 @@ pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
     --source-path src/a.ts --source-path docs/a.md \
     --target-path src/x.ts --target-path docs/x.md
 
+  # The same, from a list in a file (JSON; `--batch -` reads stdin). Best for many moves
+  refac move --project-path /my/project --batch moves.json
+
   # A Kotlin file to another package: package line, imports and Android XML follow
   refac move --project-path /my/gradle/project \
     --source-path app/src/main/kotlin/com/example/ui/Home.kt \
@@ -86,7 +103,7 @@ pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   # Machine-readable result
   refac move --json --project-path /my/project --source-path a.go --target-path pkg/a.go
 
-JSON (--json): {"status":"ok","operation":"move","project_path":...,"source_path":[...],"target_path":[...],
+JSON (--json): {"status":"ok","operation":"move","project_path":...,"source_path":[...],"target_path":[...] (also with --batch),
 "result":"<the text above>"}. With --dry-run it adds "dry_run":true, "moved_paths", "edited_files",
 "edits", "files":[{"path","edits"}], "moves":[{"from","to"}] and "notes":[...] (paths relative to the
 project path). A failure prints {"status":"error","error":"..."} on stderr and exits 1.

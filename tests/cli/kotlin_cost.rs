@@ -56,6 +56,12 @@ fn a_single_kotlin_move_is_refused_with_the_batch_command_and_the_way_through() 
         message.contains("--source-path A.kt --source-path <next.kt>"),
         "{message}"
     );
+    // The list in a file is told right away, as the flags are.
+    assert!(
+        message.contains(r#"{"source_path": "A.kt", "target_path": "pkg/A.kt"}"#),
+        "{message}"
+    );
+    assert!(message.contains("refac move --batch -"), "{message}");
     assert!(message.contains("--allow-single"), "{message}");
     assert!(message.contains("REFAC_KOTLIN_BATCH_ONLY=0"), "{message}");
     assert!(message.contains("Nothing was changed"), "{message}");
@@ -202,4 +208,31 @@ fn the_kotlin_guide_topic_prints_the_same_explanation() {
         text(&refac(dir.path(), None, &["guide"])).contains("kotlin"),
         "the topic list lacks kotlin"
     );
+}
+
+#[test]
+fn a_list_file_with_one_kotlin_move_is_refused_like_the_flags_and_one_with_two_is_not() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("one.json"),
+        r#"[{"source_path": "A.kt", "target_path": "pkg/A.kt"}]"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("two.json"),
+        r#"[{"source_path": "A.kt", "target_path": "pkg/A.kt"},
+            {"source_path": "B.kt", "target_path": "pkg/B.kt"}]"#,
+    )
+    .unwrap();
+
+    let refused = refac(dir.path(), None, &["move", "--batch", "one.json"]);
+    let past = refac(dir.path(), None, &["move", "--batch", "two.json"]);
+
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(
+        text(&refused).contains("single Kotlin move"),
+        "{}",
+        text(&refused)
+    );
+    assert!(!text(&past).contains("refuses those"), "{}", text(&past));
 }

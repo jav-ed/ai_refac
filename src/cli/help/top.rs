@@ -7,7 +7,8 @@ pub(in crate::cli) const LONG_ABOUT: &str = r#"Move or rename files and symbols 
 
 COMMANDS
   move         Move or rename files and folders. Imports, module declarations, package lines
-               and Markdown links that pointed at them are rewritten.
+               and Markdown links that pointed at them are rewritten. `--batch moves.json`
+               takes the list of moves from a file instead of flags.
   move-module  Move a whole Rust module subtree: its files and every `crate::` path to it.
   rename       Rename a symbol (variable, parameter, function, type, field, method) and every
                reference to it. `--batch` runs several renames in one language-server session.
@@ -42,7 +43,8 @@ WHAT A COMMAND COSTS
   A server starts for the command and stops after it. Time to start / memory held while it runs:
   Go 2-8 s / 165 MB, Python 1-2 s / 160 MB, Dart under 1 s / 125 MB, Rust 5-35 s / 640 MB and more
   (grows with the project), Kotlin about 24 s / 1.3-1.8 GB. So put several moves into one `move`
-  call and several renames of one project into one `rename --batch` call. `refac guide batching`;
+  call (`--batch moves.json` takes them from a file) and several renames of one project into one
+  `rename --batch` call. `refac guide batching`;
   for Kotlin, which refuses a single change by default, `refac guide kotlin` says why and what to do.
 
 READING THE OUTPUT
@@ -82,6 +84,9 @@ pub(in crate::cli) const AFTER_LONG_HELP: &str = r#"EXAMPLES
   refac move --project-path /my/project \
     --source-path src/a.ts --source-path docs/a.md \
     --target-path src/x.ts --target-path docs/x.md
+
+  # Many moves: write them once in a JSON file, [{"source_path": "a.kt", "target_path": "pkg/a.kt"}, ...]
+  refac move --project-path /my/project --batch moves.json
 
   # Rename a symbol and every reference (the extension picks the language)
   refac rename --project-path /my/module --file shape/shape.go --symbol Area --new-name Surface

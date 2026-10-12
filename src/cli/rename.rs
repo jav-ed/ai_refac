@@ -2,6 +2,7 @@
 //! session.
 
 use super::args::RenameArgs;
+use super::batch;
 use super::output::{RenameBatchOutput, RenameResult, RenameSuccessOutput, RenamedFile};
 use super::{CliError, write_json};
 use crate::drivers::symbol::rename::{RenameReport, RenameRequest};
@@ -10,7 +11,7 @@ use crate::logic::rename::{handle_rename, handle_rename_batch};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::BTreeSet;
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 
 /// One entry of a batch file.
@@ -66,16 +67,7 @@ pub(super) async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
 
 /// The requests of a batch file, or of stdin for `-`.
 fn read_batch(source: &Path, project_path: &Path, dry_run: bool) -> Result<Vec<RenameRequest>> {
-    let text = if source == Path::new("-") {
-        let mut text = String::new();
-        io::stdin()
-            .read_to_string(&mut text)
-            .context("Cannot read the batch from stdin")?;
-        text
-    } else {
-        std::fs::read_to_string(source)
-            .with_context(|| format!("Cannot read the batch file {}", source.display()))?
-    };
+    let text = batch::read_text(source)?;
     let entries: Vec<BatchEntry> = serde_json::from_str(&text).with_context(|| {
         format!(
             "{} is not a batch: expected a JSON list of {{\"file\", \"symbol\", \"new_name\"}} objects, each with an optional \"line\" and \"column\"",

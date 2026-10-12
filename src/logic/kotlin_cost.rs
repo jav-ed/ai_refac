@@ -97,7 +97,7 @@ fn check_move(req: &RefactorRequest, allowed: bool) -> Result<()> {
         return Ok(());
     };
     bail!(
-        "This is a single Kotlin move, and refac refuses those by default. Nothing was changed.\n{COST}. Run one after the other, each change pays that again.\n\nWhat to do with this request:\n  Several moves: do them all in ONE call, repeating the flags:\n    refac move --source-path {source} --source-path <next.kt> --target-path {target} --target-path <next target>\n  This one move is all there is: run the same command again with {ALLOW_FLAG}.\n  Switch the refusal off for good: {BATCH_ONLY_ENV}=0 (a person's choice; see option 4 below).\n\n{EXPLANATION}"
+        "This is a single Kotlin move, and refac refuses those by default. Nothing was changed.\n{COST}. Run one after the other, each change pays that again.\n\nWhat to do with this request:\n  Several moves: do them all in ONE call, repeating the flags:\n    refac move --source-path {source} --source-path <next.kt> --target-path {target} --target-path <next target>\n  or, for a longer list, write it once in a JSON file (`-` reads stdin, the paths are read as the flags are):\n    echo '[{{\"source_path\": \"{source}\", \"target_path\": \"{target}\"}}, {{\"source_path\": \"<next.kt>\", \"target_path\": \"<next target>\"}}]' | refac move --batch -\n    refac move --batch moves.json\n  This one move is all there is: run the same command again with {ALLOW_FLAG}.\n  Switch the refusal off for good: {BATCH_ONLY_ENV}=0 (a person's choice; see option 4 below).\n\n{EXPLANATION}"
     )
 }
 
@@ -128,7 +128,7 @@ pub fn note(what: &str, elapsed: Duration, dry_run: bool) -> String {
         ""
     };
     format!(
-        "This Kotlin {what} took {} s. {COST}; a series of single changes pays that every time. With more than one Kotlin change, do them in one call: moves repeat the flags (`refac move --source-path a.kt --source-path b.kt --target-path pkg/a.kt --target-path pkg/b.kt`), renames take a list (`refac rename --batch renames.json`). refac refuses a single Kotlin change unless you add {ALLOW_FLAG} (or set {BATCH_ONLY_ENV}=0), so add it only when one change is all there is. Why it is slow and every option you have: `refac guide kotlin`.{dry}",
+        "This Kotlin {what} took {} s. {COST}; a series of single changes pays that every time. With more than one Kotlin change, do them in one call: moves repeat the flags (`refac move --source-path a.kt --source-path b.kt --target-path pkg/a.kt --target-path pkg/b.kt`) or take a list from a file (`refac move --batch moves.json`), renames take a list (`refac rename --batch renames.json`). refac refuses a single Kotlin change unless you add {ALLOW_FLAG} (or set {BATCH_ONLY_ENV}=0), so add it only when one change is all there is. Why it is slow and every option you have: `refac guide kotlin`.{dry}",
         elapsed.as_secs()
     )
 }

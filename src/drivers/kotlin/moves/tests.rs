@@ -86,3 +86,36 @@ fn a_folder_moved_and_renamed_passes_the_check_before_the_server_starts() {
     assert_eq!(plan.groups.len(), 2, "move, then rename");
     refuse_declared_pairs(&plan, root).unwrap();
 }
+
+#[test]
+fn the_files_a_move_changed_are_named_once_each_and_relative_to_the_project() {
+    let root = Path::new("/p");
+    let edited = [
+        PathBuf::from("/p/app/B.kt"),
+        PathBuf::from("/p/app/A.kt"),
+        PathBuf::from("/p/app/B.kt"),
+    ];
+
+    let note = edited::note(root, &edited).unwrap();
+
+    assert!(
+        note.contains("changes the content of 2 files: app/A.kt, app/B.kt."),
+        "{note}"
+    );
+    assert!(note.contains("not from this move"), "{note}");
+    assert!(edited::note(root, &[]).is_none());
+}
+
+#[test]
+fn a_long_list_of_changed_files_is_cut_and_says_how_many_more() {
+    let root = Path::new("/p");
+    let edited: Vec<PathBuf> = (0..45)
+        .map(|n| PathBuf::from(format!("/p/f{n:02}.kt")))
+        .collect();
+
+    let note = edited::note(root, &edited).unwrap();
+
+    assert!(note.contains("changes the content of 45 files"), "{note}");
+    assert!(note.contains("f39.kt and 5 more."), "{note}");
+    assert!(!note.contains("f40.kt"), "{note}");
+}

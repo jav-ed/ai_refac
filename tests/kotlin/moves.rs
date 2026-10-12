@@ -54,6 +54,14 @@ async fn a_file_moves_to_a_new_package_and_every_reference_follows() {
     );
     assert!(java.contains("import com.example.common.Helper;"), "{java}");
     assert!(report.edited.len() >= 4, "{:?}", report.edited);
+    // The report names the files it changed, relative to the project.
+    let note = report
+        .notes
+        .iter()
+        .find(|note| note.contains("changes the content of"))
+        .unwrap_or_else(|| panic!("no note about the changed files: {:?}", report.notes));
+    assert!(note.contains(&format!("{K}/common/Helper.kt")), "{note}");
+    assert!(note.contains(&format!("{K}/app/Main.kt")), "{note}");
     project.assert_compiles(COMPILE);
 }
 

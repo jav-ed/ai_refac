@@ -20,6 +20,13 @@ MANY MOVES: one `move` call
       --target-path pkg/a.kt --target-path pkg/b.kt
   Files of one language are moved with one server session; files of several languages in one call are
   fine. TypeScript is limited to 30 source files per call (split larger moves into steps).
+  A long list is easier to keep in a file than in flags. Write it once, the same shape as the rename list:
+    [{"source_path": "a.kt", "target_path": "pkg/a.kt"}, {"source_path": "b.kt", "target_path": "pkg/b.kt"}]
+  Run:  refac move --project-path P --batch moves.json     (or --batch - for stdin)
+  It is the same call as the flags (the paths are read as the flags are, a folder may be an entry, the
+  languages may mix), so the file can be checked with --dry-run, kept, and run again after a fix. An
+  entry needs exactly "source_path" and "target_path"; anything else, or an empty list, is an error
+  that names the file. --batch cannot be combined with --source-path or --target-path.
 
 MANY RENAMES: one `rename --batch`
   Write the list once:  [{"file": "src/a.rs", "symbol": "old_a", "new_name": "new_a"}, ...]

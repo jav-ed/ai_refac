@@ -1,6 +1,7 @@
 //! The move commands: `move` (and `move --dry-run`) and `move-module`.
 
 use super::args::{MoveArgs, MoveModuleArgs};
+use super::batch;
 use super::output::{
     MoveDryRunOutput, MoveModuleSuccessOutput, MoveSuccessOutput, MovedPath, RenamedFile,
 };
@@ -11,20 +12,28 @@ use anyhow::Result;
 use std::io;
 
 pub(super) async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
-    if args.source_path.len() != args.target_path.len() {
+    // The moves come from the flags or, with --batch, from the list in a file.
+    let (source_path, target_path) = match &args.batch {
+        Some(list) => batch::read_moves(list).map_err(|error| CliError {
+            json: args.json,
+            error,
+        })?,
+        None => (args.source_path.clone(), args.target_path.clone()),
+    };
+    if source_path.len() != target_path.len() {
         return Err(CliError {
             json: args.json,
             error: anyhow::anyhow!(
                 "Mismatch check: Source count ({}) != Target count ({})",
-                args.source_path.len(),
-                args.target_path.len()
+                source_path.len(),
+                target_path.len()
             ),
         });
     }
 
     let req = RefactorRequest {
-        source_path: args.source_path.clone(),
-        target_path: Some(args.target_path.clone()),
+        source_path: source_path.clone(),
+        target_path: Some(target_path.clone()),
         operation: "move".to_string(),
         project_path: args
             .project_path
@@ -40,7 +49,7 @@ pub(super) async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
     })?;
 
     if args.dry_run {
-        return execute_move_dry_run(&args, req).await;
+        return execute_move_dry_run(&args, req, &source_path, &target_path).await;
     }
 
     match handle_refactor(req).await {
@@ -53,8 +62,8 @@ pub(super) async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
                         .project_path
                         .as_deref()
                         .and_then(std::path::Path::to_str),
-                    source_path: &args.source_path,
-                    target_path: &args.target_path,
+                    source_path: &source_path,
+                    target_path: &target_path,
                     result: &result,
                 };
                 write_json(io::stdout(), &payload)
@@ -72,7 +81,12 @@ pub(super) async fn execute_move(args: MoveArgs) -> Result<(), CliError> {
     }
 }
 
-async fn execute_move_dry_run(args: &MoveArgs, req: RefactorRequest) -> Result<(), CliError> {
+async fn execute_move_dry_run(
+    args: &MoveArgs,
+    req: RefactorRequest,
+    source_path: &[String],
+    target_path: &[String],
+) -> Result<(), CliError> {
     let plan = plan_refactor(req).await.map_err(|error| CliError {
         json: args.json,
         error,
@@ -89,8 +103,8 @@ async fn execute_move_dry_run(args: &MoveArgs, req: RefactorRequest) -> Result<(
             .project_path
             .as_deref()
             .and_then(std::path::Path::to_str),
-        source_path: &args.source_path,
-        target_path: &args.target_path,
+        source_path,
+        target_path,
         moved_paths: plan.moves.len(),
         edited_files: plan.files.len(),
         edits: plan.files.iter().map(|(_, edits)| edits).sum(),

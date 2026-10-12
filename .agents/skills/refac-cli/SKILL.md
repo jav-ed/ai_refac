@@ -35,6 +35,16 @@ refac move --project-path /path/to/package \
   --source-path src/a.ts --source-path src/b.ts \
   --target-path src/x.ts --target-path src/y.ts
 
+# many moves: write the list once, check it, run it (JSON; `--batch -` reads stdin)
+cat > moves.json <<'JSON'
+[
+  {"source_path": "src/a.ts", "target_path": "src/x.ts"},
+  {"source_path": "src/b.ts", "target_path": "src/y.ts"}
+]
+JSON
+refac move --project-path /path/to/package --batch moves.json --dry-run
+refac move --project-path /path/to/package --batch moves.json
+
 # see the paths that move and the edits per file first; nothing is written
 refac move --dry-run --project-path /path/to/package --source-path src/old.ts --target-path src/new.ts
 
@@ -78,8 +88,8 @@ Paths may be absolute or relative to it. It is the root of the project that owns
 
 ## Rules that change decisions
 
-- `--source-path` and `--target-path` pair one to one in order: three sources need three targets.
-- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (Go and Python 1 to 8 s, Rust 5 to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags and renames use `--batch`. Never start a server yourself.
+- `--source-path` and `--target-path` pair one to one in order: three sources need three targets. `--batch moves.json` takes the same pairs from a file (`[{"source_path": ..., "target_path": ...}, ...]`, exactly those two keys per entry) and cannot be combined with the flags.
+- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (Go and Python 1 to 8 s, Rust 5 to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags or use `--batch moves.json`, and renames use `--batch`. Never start a server yourself.
 - A single Kotlin move or rename is refused by default, dry runs included, before anything starts; the error prints the batch command for that request and then explains why Kotlin is slow and which options exist (the same text as `refac guide kotlin`; read it before turning anything off). When one change really is all there is, add `--allow-single`. `REFAC_KOTLIN_BATCH_ONLY=0` turns the refusal off for a whole environment, but that is the user's choice, not an agent's: do not set it to get past the refusal; collect the changes and make them in one call.
 - TypeScript / JavaScript: at most 30 source files per call (a folder counts the files below it), and only files the tsconfig includes are updated callers.
 - A rename that would clash with or shadow another symbol, an ambiguous name, an unrenameable symbol, a symbol that also lives outside the project, or an unsupported config stops with a message and leaves every file unchanged. An ambiguity lists the `--line`/`--column` candidates.

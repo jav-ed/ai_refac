@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use url::Url;
 use walkdir::WalkDir;
 
+mod edited;
 mod same_package;
 
 #[derive(Debug, Default)]
@@ -116,6 +117,7 @@ async fn run(
             .filter(|path| !report.edited.contains(path))
             .collect::<Vec<_>>(),
     );
+    report.notes.extend(edited::note(root, &report.edited));
     Ok(report)
 }
 
