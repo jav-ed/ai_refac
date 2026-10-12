@@ -38,6 +38,22 @@ impl Project {
 
     /// Run the repair for a file moved to `to`. Returns its text afterwards.
     fn repair(&self, from: &str, to: &str, before: &str, after: &str) -> (String, Vec<String>) {
+        let (writes, notes) = self.repair_all(from, to, before, after);
+        let text = match writes.iter().find(|(path, _)| path.ends_with(to)) {
+            Some((_, text)) => text.clone(),
+            None => after.to_string(),
+        };
+        (text, notes)
+    }
+
+    /// The same, with every file the repair wrote: (path, text).
+    fn repair_all(
+        &self,
+        from: &str,
+        to: &str,
+        before: &str,
+        after: &str,
+    ) -> (Vec<(PathBuf, String)>, Vec<String>) {
         let to_path = write(self.dir.path(), to, after);
         let mut sources = self.stayed.clone();
         sources.push(to_path.clone());
@@ -54,11 +70,11 @@ impl Project {
         }];
         let mut writes = Vec::new();
         let notes = plan(self.dir.path(), &survey, &moved, &mut writes).unwrap();
-        let text = match writes.iter().find(|write| write.path == to_path) {
-            Some(write) => String::from_utf8(write.bytes.clone()).unwrap(),
-            None => after.to_string(),
-        };
-        (text, notes)
+        let written = writes
+            .into_iter()
+            .map(|write| (write.path, String::from_utf8(write.bytes).unwrap()))
+            .collect();
+        (written, notes)
     }
 }
 
@@ -276,3 +292,5 @@ fn a_file_that_keeps_its_package_is_not_touched_and_the_android_writes_are_built
     assert!(text.contains("import com.x.R\n") && text.contains("import com.x.util.shout\n"));
     assert_eq!(writes[0].changes, 2);
 }
+
+mod operators;

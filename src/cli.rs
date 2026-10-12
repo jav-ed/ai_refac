@@ -8,6 +8,7 @@ use clap_mangen::Man;
 use serde::Serialize;
 
 mod args;
+mod batch;
 mod doctor;
 mod guide;
 mod help;
@@ -37,6 +38,7 @@ pub struct Cli {
 enum Commands {
     #[command(
         about = help::move_files::ABOUT,
+        override_usage = help::move_files::USAGE,
         long_about = help::move_files::LONG_ABOUT,
         after_long_help = help::move_files::AFTER_LONG_HELP
     )]

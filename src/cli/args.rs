@@ -20,14 +20,40 @@ pub(super) struct MoveArgs {
     /// File or folder to move (absolute, or relative to --project-path). Repeat for several.
     ///
     /// The n-th --source-path goes to the n-th --target-path, so both flags need the same count.
-    #[arg(long, required = true, num_args = 1.., value_name = "PATH", value_hint = ValueHint::AnyPath)]
+    /// For a long list use --batch instead.
+    #[arg(
+        long,
+        required_unless_present = "batch",
+        conflicts_with = "batch",
+        num_args = 1..,
+        value_name = "PATH",
+        value_hint = ValueHint::AnyPath
+    )]
     pub(super) source_path: Vec<String>,
 
     /// Where it goes (absolute, or relative to --project-path). Repeat for several.
     ///
     /// A folder in the path that does not exist yet is created.
-    #[arg(long, required = true, num_args = 1.., value_name = "PATH", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        required_unless_present = "batch",
+        conflicts_with = "batch",
+        num_args = 1..,
+        value_name = "PATH",
+        value_hint = ValueHint::AnyPath
+    )]
     pub(super) target_path: Vec<String>,
+
+    /// Read the moves from a JSON file instead of flags (`-` for stdin).
+    ///
+    /// The file holds a list: [{"source_path": "src/a.kt", "target_path": "src/pkg/a.kt"}, ...];
+    /// each entry has exactly these two keys, and paths are absolute or relative to --project-path,
+    /// as with the flags. It is the same call as repeating --source-path and --target-path: the
+    /// moves are made together, one language server per language, so a Kotlin list pays the
+    /// 24 s start once. Write the list once, check it with --dry-run, run it. The list may mix
+    /// languages. Replaces --source-path and --target-path.
+    #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath)]
+    pub(super) batch: Option<std::path::PathBuf>,
 
     /// Plan the move, print what it would do, and change no file.
     ///

@@ -35,6 +35,16 @@ refac move --project-path /path/to/package \
   --source-path src/a.ts --source-path src/b.ts \
   --target-path src/x.ts --target-path src/y.ts
 
+# many moves: write the list once, check it, run it (JSON; `--batch -` reads stdin)
+cat > moves.json <<'JSON'
+[
+  {"source_path": "src/a.ts", "target_path": "src/x.ts"},
+  {"source_path": "src/b.ts", "target_path": "src/y.ts"}
+]
+JSON
+refac move --project-path /path/to/package --batch moves.json --dry-run
+refac move --project-path /path/to/package --batch moves.json
+
 # see the paths that move and the edits per file first; nothing is written
 refac move --dry-run --project-path /path/to/package --source-path src/old.ts --target-path src/new.ts
 
@@ -78,9 +88,10 @@ Paths may be absolute or relative to it. It is the root of the project that owns
 
 ## Rules that change decisions
 
-- `--source-path` and `--target-path` pair one to one in order: three sources need three targets.
-- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (Go and Python 1 to 8 s, Rust 5 to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags and renames use `--batch`. Never start a server yourself.
+- `--source-path` and `--target-path` pair one to one in order: three sources need three targets. `--batch moves.json` takes the same pairs from a file (`[{"source_path": ..., "target_path": ...}, ...]`, exactly those two keys per entry) and cannot be combined with the flags.
+- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (Go and Python 1 to 8 s, Rust 5 to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags or use `--batch moves.json`, and renames use `--batch`. Never start a server yourself.
 - A single Kotlin move or rename is refused by default, dry runs included, before anything starts; the error prints the batch command for that request and then explains why Kotlin is slow and which options exist (the same text as `refac guide kotlin`; read it before turning anything off). When one change really is all there is, add `--allow-single`. `REFAC_KOTLIN_BATCH_ONLY=0` turns the refusal off for a whole environment, but that is the user's choice, not an agent's: do not set it to get past the refusal; collect the changes and make them in one call.
+- A failed Kotlin move prints its cause after "every change was undone": a server killed by the out-of-memory killer, a crash with the server's own last lines, a broken Gradle import. Give the user that text whole and read the table in [Kotlin and Android](references/kotlin.md) before retrying; after a Kotlin move that succeeded, run the project's build, because refac proves the package lines, not the compile.
 - TypeScript / JavaScript: at most 30 source files per call (a folder counts the files below it), and only files the tsconfig includes are updated callers.
 - A rename that would clash with or shadow another symbol, an ambiguous name, an unrenameable symbol, a symbol that also lives outside the project, or an unsupported config stops with a message and leaves every file unchanged. An ambiguity lists the `--line`/`--column` candidates.
 - Read the `// Note:` lines after a success: they list where the old name is still written (strings, comments, untyped Python or Dart receivers, ProGuard rules and build scripts, `macro_rules!` bodies marked `ATTENTION`) and end with an `rg -w` command to check them.
@@ -89,6 +100,7 @@ Paths may be absolute or relative to it. It is the root of the project that owns
 
 ## Navigation
 
-- [Language-specific behaviour](references/language_behaviour.md): read when a move or rename involves a language with non-obvious semantics or behaves unexpectedly. Go whole-package moves, semantic Rust module moves and what they refuse, Dart package config, TypeScript tsconfig coverage, memory limit and reference gaps, TypeScript symbol-rename safety rules, symbol rename in Go, Rust, Python and Dart, `--batch` behaviour, Kotlin and Android moves, rename and refusals, Python re-export limits, Markdown links.
+- [Kotlin and Android](references/kotlin.md): read before the first Kotlin or Android move or rename, and whenever one fails or leaves the build broken. The `move --batch moves.json` list, what a move imports for the moved file and for the files left behind (operators, `get`, `for` loops, destructuring, `by`, other Gradle modules), what it leaves alone, a table that explains each reason a failed move prints (a killed server, a crash, a Gradle import error, a timeout), what is refused, multiplatform builds, rename, Android and the notes.
+- [Language-specific behaviour](references/language_behaviour.md): read when a move or rename involves Go, Rust, TypeScript/JavaScript, Python, Dart or Markdown and behaves in a way the command's own help does not explain. Go whole-package moves, semantic Rust module moves and what they refuse, Dart package config, TypeScript tsconfig coverage, memory limit and reference gaps, TypeScript symbol-rename safety rules, symbol rename in Go, Rust, Python and Dart, `--batch` for renames, Python re-export limits, Markdown links.
 - [Install and prerequisites](references/install.md): read when `refac` is not installed or not on the PATH, or a language backend (bun, rope, basedpyright, gopls, Dart SDK, Kotlin server) has to be set up.
 - [Agent integration](references/agent_integration.md): read only to make an agent harness (Claude Code or another) find this skill, by symlink or copy.

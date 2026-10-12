@@ -33,7 +33,7 @@ pub fn undo_reformatting(before: &str, after: &str) -> String {
 }
 
 /// The tokens that are not blanks.
-fn words<'a>(tokens: &[&'a str]) -> Vec<&'a str> {
+pub(super) fn words<'a>(tokens: &[&'a str]) -> Vec<&'a str> {
     tokens
         .iter()
         .copied()
@@ -43,7 +43,7 @@ fn words<'a>(tokens: &[&'a str]) -> Vec<&'a str> {
 
 /// Where the package and import lines end: after the last of them and the
 /// blank lines that follow. What the server adds or removes there is the move.
-fn header_end(text: &str) -> usize {
+pub(super) fn header_end(text: &str) -> usize {
     let (mut end, mut offset) = (0, 0);
     let mut in_header = false;
     for line in text.split_inclusive('\n') {

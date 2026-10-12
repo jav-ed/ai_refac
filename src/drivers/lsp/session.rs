@@ -11,11 +11,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
+use tempfile::NamedTempFile;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use url::Url;
 
+mod exit;
 mod protocol;
 
 pub use protocol::RpcError;
@@ -57,6 +59,9 @@ fn trace(direction: &str, server: &str, body: &str) {
 pub struct LspSession {
     name: String,
     child: Child,
+    /// Where the server's stderr goes. A file, not a pipe: nothing has to read
+    /// it while the server runs, and a crash can be explained afterwards.
+    stderr_log: NamedTempFile,
     stdin: ChildStdin,
     incoming: UnboundedReceiver<Value>,
     keep_notifications: Vec<String>,
@@ -71,6 +76,7 @@ impl LspSession {
     /// `initialize` result so the caller can check the server's capabilities
     /// before calling [`LspSession::initialized`].
     pub async fn start(config: SessionConfig<'_>) -> Result<(Self, Value)> {
+        let (stderr_log, stderr) = exit::stderr_file(config.name)?;
         let mut child = Command::new(config.executable)
             .args(&config.args)
             .current_dir(config.cwd)
@@ -78,7 +84,7 @@ impl LspSession {
             .kill_on_drop(true)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(stderr)
             .spawn()
             .with_context(|| {
                 format!(
@@ -108,6 +114,7 @@ impl LspSession {
         let mut session = Self {
             name: config.name.to_string(),
             child,
+            stderr_log,
             stdin,
             incoming,
             keep_notifications: config
@@ -148,9 +155,17 @@ impl LspSession {
         let body = serde_json::to_string(&message)?;
         trace(">>", &self.name, &body);
         let framed = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
-        self.stdin.write_all(framed.as_bytes()).await?;
-        self.stdin.flush().await?;
+        if let Err(error) = self.write(&framed).await {
+            return Err(self
+                .gone(&format!("stopped reading its input ({error})"))
+                .await);
+        }
         Ok(())
+    }
+
+    async fn write(&mut self, framed: &str) -> std::io::Result<()> {
+        self.stdin.write_all(framed.as_bytes()).await?;
+        self.stdin.flush().await
     }
 
     pub async fn notify(&mut self, method: &str, params: Value) -> Result<()> {
@@ -166,9 +181,11 @@ impl LspSession {
         self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }))
             .await?;
         loop {
-            let message = self.incoming.recv().await.with_context(|| {
-                format!("The {} closed its connection during {method}", self.name)
-            })?;
+            let Some(message) = self.incoming.recv().await else {
+                return Err(self
+                    .gone(&format!("closed its connection during {method}"))
+                    .await);
+            };
             let Some(response) = self.route(message).await? else {
                 continue;
             };
@@ -202,7 +219,7 @@ impl LspSession {
                 return Ok(self.inbox.remove(position));
             }
             let left = deadline.saturating_duration_since(Instant::now());
-            let message = tokio::time::timeout(left, self.incoming.recv())
+            let received = tokio::time::timeout(left, self.incoming.recv())
                 .await
                 .map_err(|_| {
                     anyhow::anyhow!(
@@ -210,13 +227,10 @@ impl LspSession {
                         self.name,
                         timeout.as_secs()
                     )
-                })?
-                .with_context(|| {
-                    format!(
-                        "The {} closed its connection before it was ready",
-                        self.name
-                    )
                 })?;
+            let Some(message) = received else {
+                return Err(self.gone("closed its connection before it was ready").await);
+            };
             self.route(message).await?;
         }
     }

@@ -4,6 +4,7 @@
 //! of a name the file does not use is harmless and a missing one is a build
 //! error.
 
+use super::convention;
 use std::collections::BTreeSet;
 
 const BOM: char = '\u{FEFF}';
@@ -17,6 +18,9 @@ pub struct Used {
     /// Names written after a dot: `x.shout()`. Only an extension function
     /// needs an import for that.
     pub member: BTreeSet<String>,
+    /// Operator functions the syntax calls without writing their names
+    /// (`a[i]`, `for (x in y)`, `by`, destructuring); see `convention`.
+    pub convention: BTreeSet<String>,
 }
 
 pub fn used_names(text: &str) -> Used {
@@ -94,6 +98,7 @@ impl Scanner {
             } else if ch.is_whitespace() {
                 self.at += 1;
             } else {
+                let here = self.at;
                 self.at += 1;
                 if ch == '{' {
                     depth += 1;
@@ -102,6 +107,15 @@ impl Scanner {
                         return;
                     }
                     depth = depth.saturating_sub(1);
+                } else if ch == '[' {
+                    convention::index(&self.chars, here, self.before, &mut self.used.convention);
+                } else if ch == '(' {
+                    convention::lambda_parameters(
+                        &self.chars,
+                        here,
+                        self.before,
+                        &mut self.used.convention,
+                    );
                 }
                 self.mark(ch);
             }
@@ -171,6 +185,7 @@ impl Scanner {
         if after_dot {
             self.used.member.insert(name);
         } else {
+            convention::keyword(&name, &self.chars, self.at, &mut self.used.convention);
             self.used.plain.insert(name);
         }
         self.mark('a');
