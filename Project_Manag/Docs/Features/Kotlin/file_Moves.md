@@ -37,7 +37,20 @@ A Kotlin file sees every top-level declaration of its own package without an imp
 - a file of the old package declares at the top level, not `private`: Kotlin files by their column-0 declarations (functions, properties, classes, objects, typealiases, with modifiers and annotations on the same line), Java files by the class that carries the file name,
 - and the file does not import already, under that simple name (an explicit import of another `Helper`, or an alias, is left alone: a second one would clash) or by a star import of the old package.
 
-A name is only taken from the same Gradle module and from a source set the moved file can see (its own, `main`, `commonMain`; a test set also sees `commonTest` and its platform's main set). A type that a moved file declares itself is not imported. Each file that got imports is named in the notes, so the additions can be checked. It looks at names, so overloads, `expect` and `actual` are no problem. It cannot see calls that need an import without writing the name (operators such as `a + b`, `by` delegates).
+A name is only taken from the same Gradle module and from a source set the moved file can see (its own, `main`, `commonMain`; a test set also sees `commonTest` and its platform's main set). A type that a moved file declares itself is not imported. Each file that got imports is named in the notes, so the additions can be checked. It looks at names, so overloads, `expect` and `actual` are no problem.
+
+### Operators and delegates: calls that need an import without writing the name
+
+The server imports the operators that are written as symbols (`+ - * / % ! ++ -- < > <= >= in .. += invoke`, tested against the real server), and it misses the ones that the syntax calls: `a[i]` and `a[i] = v` (`get`, `set`), `for (x in y)` (`iterator`, `hasNext`, `next`), `val (a, b) = p` and `{ (a, b) -> }` (`componentN`), `val n by d` (`getValue`, `setValue`, `provideDelegate`). Without the import the build says "No 'get' operator method providing array access". `same_package/convention.rs` finds those uses in the moved file (comments and strings are skipped; `for (x in y)` is told from a destructuring by its parenthesis), and `same_package.rs` adds the import when
+
+- the declaration is an `operator` extension of the old package (`Declaration.operator`, read by `declarations/top_level.rs`, which also records the receiver type), and
+- the file writes the receiver type (`Qty` for `operator fun Qty.get`; a type-parameter receiver matches any file). That is the precision rule: `list[0]` or `by lazy` in a file does not import an unrelated `get` or `getValue` of the package.
+
+The server also gets some operators wrong, which is why it is not trusted for them either: it rewrites `a < b` as `a compareTo b`, `x in y` as `y contains x` and `a[i] = v` as the infix call `a set i v` when it adds the import, and the infix call does not compile for a non-infix function. `server/mirror/operators.rs` undoes that by token diff (`undo_operator_calls`, before `undo_reformatting`), keeping the import and the written syntax.
+
+The files that stay behind are served by `same_package/users.rs`: when a moved file declares an `operator` extension, the files of the old package (and the files that star-import it) that use it through the syntax get the import, because the declaration left the package they shared. A note names each file that got imports.
+
+**Other Gradle modules.** A plain name of another module is the server's job and stays so. For an operator, `same_package/dependency.rs` reads the module's build file (`build.gradle.kts` or `build.gradle`) for `project(":lib")` or `projects.lib`, whatever the configuration around it, and takes candidates from the modules it names, direct dependencies only (`api` chains are not followed: a module reached through another module's `api` is not seen). Tests: `same_package/tests/operators.rs` and `dependency_tests.rs` (plan level), `tests/kotlin/moves.rs` with the fixtures `jvm_project/.../ops/` and `multi_module/` (real server and compile).
 
 ## A move changes the package line and the imports, nothing else
 

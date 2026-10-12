@@ -20,6 +20,12 @@ pub struct Declaration {
     /// `fun Helper.undecorate()`: used as `helper.undecorate()`, so a use
     /// after a dot counts.
     pub extension: bool,
+    /// `operator fun Money.get(i: Int)`: used as `money[i]`, `a + b` or
+    /// `by registry` without its name being written.
+    pub operator: bool,
+    /// `Qty` in `fun Qty.get(i: Int)` and `List` in `fun List<Qty>.get(...)`:
+    /// the type whose values the extension is called on.
+    pub receiver: Option<String>,
 }
 
 const MODIFIERS: &[&str] = &[
@@ -141,6 +147,7 @@ fn after_character(chars: &[char], start: usize) -> usize {
 
 fn declaration(line: &str) -> Option<Declaration> {
     let mut rest = line;
+    let mut operator = false;
     loop {
         rest = rest.trim_start();
         if rest.starts_with('@') {
@@ -150,15 +157,20 @@ fn declaration(line: &str) -> Option<Declaration> {
         let (word, after) = split_word(rest);
         match word {
             "private" => return None,
-            word if MODIFIERS.contains(&word) => rest = after,
+            word if MODIFIERS.contains(&word) => {
+                operator |= word == "operator";
+                rest = after;
+            }
             "fun" => {
                 let (next, name_part) = split_word(after.trim_start());
                 if next == "interface" {
                     return type_named(name_part);
                 }
-                return callable_named(after);
+                return callable_named(after).map(|found| Declaration { operator, ..found });
             }
-            "val" | "var" => return callable_named(after),
+            "val" | "var" => {
+                return callable_named(after).map(|found| Declaration { operator, ..found });
+            }
             "class" | "interface" | "object" | "typealias" => return type_named(after),
             _ => return None,
         }
@@ -203,6 +215,8 @@ fn type_named(text: &str) -> Option<Declaration> {
         name: name.to_string(),
         kind: Kind::Type,
         extension: false,
+        operator: false,
+        receiver: None,
     })
 }
 
@@ -213,6 +227,7 @@ fn callable_named(text: &str) -> Option<Declaration> {
     let mut depth = 0i32;
     let mut current = String::new();
     let mut extension = false;
+    let mut receiver = None;
     let mut chars = text.trim_start().chars();
     while let Some(ch) = chars.next() {
         match ch {
@@ -225,6 +240,10 @@ fn callable_named(text: &str) -> Option<Declaration> {
             }
             '.' => {
                 extension = true;
+                // The last name before the dot: `List` in `List<Qty>.get`.
+                if !current.is_empty() {
+                    receiver = Some(std::mem::take(&mut current));
+                }
                 current.clear();
             }
             '?' => {}
@@ -237,5 +256,7 @@ fn callable_named(text: &str) -> Option<Declaration> {
         name: current,
         kind: Kind::Callable,
         extension,
+        operator: false,
+        receiver,
     })
 }

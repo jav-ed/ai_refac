@@ -16,6 +16,7 @@
 //! The import of something that stayed in the old package is not the move's.
 
 use super::edits::edits_between;
+use super::operators::undo_operator_calls;
 use super::restore::restore;
 use super::untouched::undo_reformatting;
 use crate::drivers::kotlin::android::moved::join_relative;
@@ -240,6 +241,7 @@ impl Cause {
         let kept = restore(&before, &after, &|fqn| self.accounts_for(fqn), &|fqn| {
             self.rewritten(fqn, own_package.as_deref())
         });
+        let kept = undo_operator_calls(&before, &kept);
         let kept = undo_reformatting(&before, &kept);
         let edits = if kept == after {
             sent

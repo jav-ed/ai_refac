@@ -163,3 +163,52 @@ fn neither_scanner_stops_on_cut_off_or_non_ascii_text() {
     assert!(names.contains(&"Ayah".to_string()), "{names:?}");
     assert!(names.contains(&"entries".to_string()), "{names:?}");
 }
+
+fn convention(text: &str) -> Vec<String> {
+    used_names(text).convention.into_iter().collect()
+}
+
+#[test]
+fn operators_the_syntax_calls_are_found_without_their_names_being_written() {
+    assert_eq!(convention("fun f(a: Qty) = a[1]\n"), ["get"]);
+    assert_eq!(
+        convention("fun f(bag: Bag) { for (v in bag) println(v) }\n"),
+        ["hasNext", "iterator", "next"]
+    );
+    assert_eq!(
+        convention("fun f(a: Qty) { val (x, y) = a }\n"),
+        ["component1", "component2"]
+    );
+    assert_eq!(
+        convention("val n by registry\n"),
+        ["getValue", "provideDelegate", "setValue"]
+    );
+    assert_eq!(
+        convention("fun f(m: List<Qty>) = m.map { (x, y, z) -> x }\n"),
+        ["component1", "component2", "component3"]
+    );
+    assert_eq!(
+        convention("fun f(l: List<Qty>) { for ((x, y) in l) {} }\n"),
+        ["component1", "component2", "hasNext", "iterator", "next"]
+    );
+}
+
+#[test]
+fn a_plain_loop_or_a_call_does_not_name_a_component_and_an_assignment_calls_set_only() {
+    // `for (x in y)` has one header, not a list of components.
+    assert!(
+        !convention("fun f(l: List<Int>) { for (x in l) {} }\n").contains(&"component1".into())
+    );
+    // An assignment calls `set` only; a comparison is not an assignment; `+=`
+    // and `++` read and then write.
+    assert_eq!(convention("fun f(a: Qty) { a[1] = 2 }\n"), ["set"]);
+    assert_eq!(convention("fun f(a: Qty) = a[1] == 2\n"), ["get"]);
+    assert_eq!(convention("fun f(a: Qty) { a[1] += 2 }\n"), ["get", "set"]);
+    assert_eq!(convention("fun f(a: Qty) { a[1]++ }\n"), ["get", "set"]);
+    assert_eq!(convention("fun f(a: Qty) = a[1] - 2\n"), ["get"]);
+    // An annotation array, a string and a comment are no index.
+    assert!(convention("@Foo([1, 2]) @Bar(values = [3]) class C\n").is_empty());
+    assert!(convention("val s = \"a[1] by x\" // for (v in w)\n").is_empty());
+    // Generics and function types in a parameter list are no lambda list.
+    assert!(convention("fun f(cb: (Int, Int) -> Int) = cb\n").is_empty());
+}

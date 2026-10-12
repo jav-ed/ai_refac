@@ -22,6 +22,7 @@ mod edits;
 mod imports;
 mod layout;
 mod modifiers;
+mod operators;
 mod restore;
 #[cfg(test)]
 mod tests;

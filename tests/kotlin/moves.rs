@@ -12,6 +12,9 @@ use crate::common;
 use refac::drivers::kotlin::moves::{MoveReport, move_files};
 use std::path::Path;
 
+// Operators and the modules of a split package: tests/kotlin/moves/operators.rs
+mod operators;
+
 const K: &str = "src/main/kotlin/com/example";
 const COMPILE: &[&str] = &["compileKotlin", "compileJava"];
 
