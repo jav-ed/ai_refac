@@ -32,7 +32,7 @@ const UNREADABLE_TARGETS: &str = "Failed to find 'target' in Kotlin extension";
 /// What to tell the user about a change on this Gradle root: that it was
 /// planned on a plain-JVM copy, when the build is multiplatform.
 pub fn multiplatform_note(root: &Path) -> Result<Option<String>> {
-    Ok(Mirror::applies_to(root)?.then(Mirror::note))
+    Mirror::note(root)
 }
 
 pub use cache::CACHE_ENV;
@@ -234,10 +234,20 @@ impl KotlinServer {
                         self.timeout.as_secs()
                     )
                 })??;
-        if let Some(mirror) = &self.mirror {
-            if !answer.is_null() {
-                mirror::keep_imports(method, &mut answer, &params, &|path| mirror.to_real(path))?;
+        // A move or a rename changes what it was asked to change. The server
+        // tidies the imports and the layout of the files it edits too; that is
+        // undone here, in a mirror and in a plain project alike.
+        if !answer.is_null() {
+            match &self.mirror {
+                Some(mirror) => mirror::keep_imports(method, &mut answer, &params, &|path| {
+                    mirror.to_real(path)
+                })?,
+                None => {
+                    mirror::keep_imports(method, &mut answer, &params, &|path| path.to_path_buf())?
+                }
             }
+        }
+        if let Some(mirror) = &self.mirror {
             mirror.uris_to_real(&mut answer);
         }
         Ok(answer)

@@ -18,11 +18,14 @@
 //! (`modifiers`), because a plain module has no place for an expect
 //! declaration; for the same reason a file that declares one is not moved.
 
+mod edits;
 mod imports;
 mod layout;
 mod modifiers;
+mod restore;
 #[cfg(test)]
 mod tests;
+mod untouched;
 
 pub use imports::keep_imports;
 use modifiers::{blank_expect_actual, first_declaration_of, first_expect_actual_line};
@@ -210,9 +213,23 @@ impl Mirror {
         Ok(serde_json::json!({ "changes": forwarded }))
     }
 
-    /// A line for the user: this change was planned on the mirror.
-    pub fn note() -> String {
-        "Kotlin Multiplatform: the Kotlin server cannot read this build, so it planned the change on a plain-JVM copy of every source set. Package lines and references to the project's own classes follow and imports of libraries it cannot see are kept. Compile every target afterwards.".to_string()
+    /// A line for the user: this change was planned on the mirror, and what
+    /// the copy held. `None` when the server reads the project as it is.
+    pub fn note(real: &Path) -> Result<Option<String>> {
+        let roots = layout::source_roots(real)?;
+        if !layout::is_multiplatform(&roots) {
+            return Ok(None);
+        }
+        let mut files = 0;
+        for root in &roots {
+            for entry in WalkDir::new(real.join(root)) {
+                files += usize::from(is_source(&entry?.into_path()));
+            }
+        }
+        Ok(Some(format!(
+            "Kotlin Multiplatform: the Kotlin server cannot read this build, so it planned the change on a plain-JVM copy of {files} Kotlin and Java files from {} source folders (every src/<source set>/kotlin and java folder of the Gradle root; what .gitignore leaves out and nothing else was copied). Package lines and references to the project's own classes follow and imports of libraries it cannot see are kept. refac did not compile anything: compile every target afterwards.",
+            roots.len()
+        )))
     }
 }
 

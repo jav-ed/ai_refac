@@ -11,7 +11,7 @@ refac move --project-path /path/to/gradle/root \
 ## What a request may be
 
 - **Files:** `.kt` source or a directory, inside a source root `src/<source set>/kotlin` or `src/<source set>/java`. The server derives the new package from the target directory, so a target outside a source root is refused.
-- **Move, rename, or both:** a pure move keeps the file name, a rename keeps the directory, and a move to a new directory with a new name is done as two steps (move, then rename) because the server cannot do both at once. The output says when that happened. A temporary name that is already taken is refused with a request to split the call.
+- **Move, rename, or both:** a pure move keeps the file name, a rename keeps the directory, and a move to a new directory with a new name is done as two steps (move, then rename) because the server cannot do both at once (a folder too: `util` to `lib/helpers`). The output says when that happened. A temporary name that is already taken is refused with a request to split the call.
 - **Renaming a file renames its class:** renaming `Helper.kt` to `Utils.kt` also renames the top-level type `Helper` to `Utils` when the file declares a type named like the file, and every usage follows. This is how the IDE behaves. It also applies to the rename step of a move with a new name. Refac checks that it happened and says so in the notes. Files without a type of that name are only renamed.
 - **Directories:** a package directory moves with its files and every subpackage.
 - **Several requests in one call:** requests are grouped by kind and target directory, one server request per group, all inside one server session. Requests must not overlap: no source inside another, no duplicate target, no target that is another request's source.
@@ -39,9 +39,23 @@ A Kotlin file sees every top-level declaration of its own package without an imp
 
 A name is only taken from the same Gradle module and from a source set the moved file can see (its own, `main`, `commonMain`; a test set also sees `commonTest` and its platform's main set). A type that a moved file declares itself is not imported. Each file that got imports is named in the notes, so the additions can be checked. It looks at names, so overloads, `expect` and `actual` are no problem. It cannot see calls that need an import without writing the name (operators such as `a + b`, `by` delegates).
 
+## A move changes the package line and the imports, nothing else
+
+The server tidies the files it edits: it deletes imports it takes for unused and it can re-wrap code. A move is not for that, so refac undoes it (`src/drivers/kotlin/server/mirror/{imports,restore,untouched}.rs`, for every Kotlin project; the details are in [the mirror's page](multiplatform_Mirror.md#what-the-servers-answer-is-checked-for)):
+
+- an unused import stays, unless it names a class or function that a moved file declared. That import is rewritten to the new package, as for a used one, also when the server deleted it;
+- a change that only moves blanks and line breaks below the import lines is undone;
+- what refac does add is the missing imports of the section above.
+
+A rename of a file also renames its class; an unused import of that class is left to the server.
+
+## What refac reads of the rest of the project
+
+After the server has answered, three layers read files of the project: the Android layer (manifest, layouts), the scan for old class names (ProGuard rules, build scripts, configuration, string literals) and the imports for the names that stayed behind. They read what `.gitignore` leaves in, like the Markdown pass: a reference clone or a scratch folder in the same repository is not the project. The scan for old names only reports, so a file it cannot read, or that is not UTF-8 (a data file in Windows-1256), does not undo a move: it is read as far as it is text, or named in a note ("X could not be read (...), so refac did not check it for old class names"). Until 2026-10-12 one such file anywhere under the Gradle root made every Kotlin move of that project fail after the server was done, and the report said only "The move failed and every change was undone".
+
 ## All or nothing
 
-Every write and every move goes through an undo log. When anything fails, whether a server error, a failed check, or a write error, the log restores every edited file and every moved path and the error says that the move was undone. A rollback that itself fails is reported with the failure, never hidden.
+Every write and every move goes through an undo log. When anything fails, whether a server error, a failed check, or a write error, the log restores every edited file and every moved path and the error says that the move was undone, followed by the cause (`Kotlin — The move failed and every change was undone: Moving a -> b: <reason>`; the whole chain of causes is printed, not only the outer line). A rollback that itself fails is reported with the failure, never hidden.
 
 ## A single file says what it cost
 

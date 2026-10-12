@@ -3,6 +3,8 @@
 //! full parser lives in the language server, and these facts only back up
 //! checks on the server's work.
 
+pub mod top_level;
+
 const BOM: char = '\u{FEFF}';
 
 const MODIFIERS: &[&str] = &[

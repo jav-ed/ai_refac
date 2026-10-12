@@ -135,6 +135,62 @@ async fn a_move_with_a_new_name_runs_as_move_then_rename() {
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_folder_with_a_new_parent_and_a_new_name_is_moved_in_two_steps() {
+    let project = common::pool::lease("kotlin/jvm_project").await;
+
+    // The second step starts at a path the first one creates; the check before
+    // the server starts used to fail on it ("IO error ... No such file").
+    let report = run(project.path(), &[pair("util", "lib/helpers")]).await;
+
+    assert!(!project.path().join(K).join("util").exists());
+    let helper = text(project.path(), "lib/helpers/Helper.kt");
+    assert!(
+        helper.starts_with("package com.example.lib.helpers"),
+        "{helper}"
+    );
+    assert!(text(project.path(), "app/Main.kt").contains("import com.example.lib.helpers.shout"));
+    assert!(
+        report.notes.iter().any(|note| note.contains("two steps")),
+        "{:?}",
+        report.notes
+    );
+    project.assert_compiles(COMPILE);
+}
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_file_that_is_not_utf8_somewhere_in_the_project_does_not_undo_the_move() {
+    let project = common::pool::lease("kotlin/jvm_project").await;
+    // A data file in another encoding (Arabic in Windows-1256). The scan for
+    // old class names read every such file strictly, after the server was done,
+    // and the move of any Kotlin file failed with no word about the cause.
+    std::fs::create_dir_all(project.path().join("data")).unwrap();
+    std::fs::write(
+        project.path().join("data/quran_ar.json"),
+        b"\xC7\xE1\xE1\xE5 {\"main\": \"com.example.util.HelperKt\"}",
+    )
+    .unwrap();
+
+    let report = run(
+        project.path(),
+        &[pair("util/Helper.kt", "common/Helper.kt")],
+    )
+    .await;
+
+    assert!(text(project.path(), "common/Helper.kt").starts_with("package com.example.common"));
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|note| note.starts_with("data/quran_ar.json still mentions")),
+        "{:?}",
+        report.notes
+    );
+    project.assert_compiles(COMPILE);
+}
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_failure_in_a_later_group_restores_the_first_group() {
     let project = common::pool::lease("kotlin/jvm_project").await;
     // A file where the second target directory has to be created.

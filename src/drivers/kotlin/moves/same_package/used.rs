@@ -222,8 +222,8 @@ impl Scanner {
                 self.at += 1;
                 let (before, before_that) = (self.before, self.before_that);
                 self.mark('{');
+                // `code` has read the closing brace already.
                 self.code(true);
-                self.at += 1;
                 self.before = before;
                 self.before_that = before_that;
             }

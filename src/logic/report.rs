@@ -17,6 +17,20 @@ pub(super) struct FailedGroup {
     pub error: String,
 }
 
+impl FailedGroup {
+    /// The error is written with its whole chain of causes. A driver wraps the
+    /// real failure in a context ("The move failed and every change was
+    /// undone"), and `to_string` would print only that outermost line and
+    /// hide the reason, which is the one thing the reader needs.
+    pub fn new(lang: String, files: Pairs, error: &anyhow::Error) -> Self {
+        Self {
+            lang,
+            files,
+            error: format!("{error:#}"),
+        }
+    }
+}
+
 /// Everything a finished `move` has to say.
 pub(super) struct MoveOutcome<'a> {
     pub root: Option<&'a Path>,

@@ -99,6 +99,28 @@ async fn files_of_a_multiplatform_module_move_and_every_source_set_follows() {
 
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
+async fn a_move_leaves_an_unused_import_of_a_file_it_edits_alone() {
+    let project = lease().await;
+    let greeter = |dir: &str| format!("{COMMON}/{dir}/Greeter.kt");
+
+    run(project.path(), &[pair(&greeter("app"), &greeter("ui"))]).await;
+
+    // Keeper.kt is edited for the new place of Greeter. Its imports of Screen
+    // (still in the package Greeter left) and DEFAULT_GREETING are unused,
+    // which the server tidies away; that is not the move's to do.
+    let keeper = common::read_file(project.path(), &format!("{COMMON}/other/Keeper.kt"));
+    assert!(keeper.contains("import com.example.ui.Greeter"), "{keeper}");
+    for kept in [
+        "import com.example.app.Screen",
+        "import com.example.util.DEFAULT_GREETING",
+    ] {
+        assert!(keeper.contains(kept), "{kept} is gone:\n{keeper}");
+    }
+    project.assert_compiles(COMPILE);
+}
+
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn imports_that_only_a_library_the_server_cannot_see_explains_stay() {
     let project = lease().await;
 

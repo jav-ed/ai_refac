@@ -86,11 +86,7 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
                 notes.insert(lang.clone(), driver_notes);
                 moved.insert(lang, files);
             }
-            Err(error) => failed.push(FailedGroup {
-                lang,
-                files,
-                error: error.to_string(),
-            }),
+            Err(error) => failed.push(FailedGroup::new(lang, files, &error)),
         }
     }
 

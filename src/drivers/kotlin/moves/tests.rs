@@ -56,3 +56,33 @@ fn a_directory_step_lists_its_source_files_with_their_new_place() {
     assert_eq!(files[0].1, dir.path().join("common/A.kt"));
     assert_eq!(files[1].1, dir.path().join("common/deep/B.java"));
 }
+
+/// A folder that changes its parent and its name is two steps, and the second
+/// starts at a path the first one creates. The check before the server starts
+/// failed on that path ("IO error ... No such file") in every Kotlin project.
+#[test]
+fn a_folder_moved_and_renamed_passes_the_check_before_the_server_starts() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let kotlin = root.join("src/main/kotlin/com/x");
+    std::fs::create_dir_all(kotlin.join("core/personal")).unwrap();
+    std::fs::create_dir_all(kotlin.join("feature/personal")).unwrap();
+    std::fs::write(
+        kotlin.join("core/personal/Notes.kt"),
+        "package com.x.core.personal\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("settings.gradle.kts"), "").unwrap();
+
+    let plan = plan::build(
+        &[(
+            kotlin.join("core/personal").display().to_string(),
+            kotlin.join("feature/personal/data").display().to_string(),
+        )],
+        root,
+    )
+    .unwrap();
+
+    assert_eq!(plan.groups.len(), 2, "move, then rename");
+    refuse_declared_pairs(&plan, root).unwrap();
+}
