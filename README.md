@@ -85,7 +85,7 @@ Other agent tools that support a skills or prompts directory can be wired up the
 | Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR; symbol rename via rust-analyzer |
 | Go | ✅ | ❌ | — | gopls (LSP), also for symbol rename |
 | Dart | ✅ | ❌ | — | Dart analysis server (LSP), also for symbol rename |
-| Markdown | ✅ | ❌ | — | Native (no external tooling) |
+| Markdown | ✅ | ✅ | — | Native (no external tooling) |
 | Kotlin / Android | ✅ | ✅ | — | JetBrains Kotlin language server, plus refac's own Android XML layer |
 
 Symbol rename (`refac rename`) is available for TypeScript / JavaScript, Kotlin, Go, Rust, Python, and Dart. Language servers are started for the command and stopped afterwards, never left running. If one is not installed, the error lists where it looked and names `refac doctor <language>`, which prints the install steps; `refac doctor` alone shows every language.

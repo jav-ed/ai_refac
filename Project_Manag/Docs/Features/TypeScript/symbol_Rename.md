@@ -53,7 +53,7 @@ Each of these stops the command with a message and leaves every file unchanged: 
 - **Legacy configs:** projects whose tsconfig uses options TypeScript 7 removed (`baseUrl`, `moduleResolution: node10`) are rejected until the config is migrated. File moves are not affected, because they run on TypeScript 6.
 - **Project references:** a rename from a referenced package is refused when the engine finds usages in a referencing package, because they lie outside the project path. Run it from a project path that owns both.
 - **False refusals:** if the new name is already spelled as an alias of the same symbol (`import { total as grandTotal }`, renaming `total` to `grandTotal`), the count check refuses a legitimate rename. This is the safe direction.
-- **Other languages:** rename is TypeScript and JavaScript only. Other languages could inshallah reuse the same planning and verification shape with their language servers.
+- **Other languages:** this page covers TypeScript and JavaScript. Kotlin, Go, Rust, Python and Dart rename through their own language servers, with the rules in [Symbol rename](../Symbol_Rename/linker_Symbol_Rename.md). Markdown has no symbols to rename.
 
 ## Why this engine
 
