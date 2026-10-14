@@ -1,0 +1,28 @@
+# Build and atomically install one Rust binary from the local Woodpecker backend.
+skip_clone: true
+
+variables:
+  - &base_step
+    image: bash
+    environment:
+      CI_REPO_PATH: __SET_ABSOLUTE_REPO_PATH__
+
+steps:
+  - name: 01_Quality
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/01_Quality.sh"
+
+  - name: 02_Build
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/02_Build.sh"
+
+  - name: 03_Install
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/03_Install.sh"
+
+when:
+  - event: push
+    branch: [main]

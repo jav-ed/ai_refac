@@ -1,0 +1,55 @@
+# =============================================================================
+# Woodpecker CI Pipeline for Astro Site (LOCAL BACKEND)
+# =============================================================================
+# Runs commands directly on the host.
+#
+# Variable ownership:
+# - `CI_REPO_PATH` must live here because Woodpecker starts in a temporary
+#   local-backend workspace, not in the real checkout.
+# - Project/deploy variables live in Code/CI_CD/Config/env.env and are loaded
+#   by the CI scripts themselves.
+# - Just is only a local shortcut wrapper; Woodpecker calls scripts directly.
+#
+# Woodpecker is intentionally thin here. It only chooses the event/branch and
+# starts the preconfigured scripts through their absolute checkout paths.
+# =============================================================================
+
+skip_clone: true
+
+variables:
+  - &base_step
+    image: bash
+    environment:
+      # Mandatory per project. This must be the absolute repo checkout path on the Woodpecker agent host.
+      CI_REPO_PATH: __SET_ABSOLUTE_REPO_PATH__
+
+steps:
+  - name: 01_Install
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/01_Install.sh"
+
+  - name: 02_Build
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/02_Build.sh"
+
+  - name: 03_Og_Images
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/03_Og_Images.sh"
+
+  - name: 04_Compress
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/04_Compress.sh"
+
+  - name: 05_Deploy
+    <<: *base_step
+    commands:
+      - "$CI_REPO_PATH/Code/CI_CD/Steps/05_Deploy.sh"
+
+when:
+  - event: push
+    # `main` is mandatory. Use [main, test] only if this project intentionally uses the optional test branch.
+    branch: [main]

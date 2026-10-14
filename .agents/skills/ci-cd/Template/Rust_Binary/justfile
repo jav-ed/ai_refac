@@ -1,0 +1,12 @@
+# Root command index. Keep implementations grouped under Code/Just.
+import 'Code/Just/quality.just'
+import 'Code/Just/build.just'
+import 'Code/Just/deployment.just'
+import 'Code/Just/forgejo.just'
+
+default: help
+
+[doc('List every local command with its description and command group.')]
+[group('help')]
+help:
+    @just --list

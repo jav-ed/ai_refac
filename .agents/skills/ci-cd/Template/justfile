@@ -1,0 +1,19 @@
+set shell := ["bash", "-cu"]
+
+Default:
+    @just --list
+
+Step_01_Install:
+    Code/CI_CD/Steps/01_Install.sh
+
+Step_02_Build:
+    Code/CI_CD/Steps/02_Build.sh
+
+Step_03_Og_Images:
+    Code/CI_CD/Steps/03_Og_Images.sh
+
+Step_04_Compress:
+    Code/CI_CD/Steps/04_Compress.sh
+
+Step_05_Deploy:
+    Code/CI_CD/Steps/05_Deploy.sh
