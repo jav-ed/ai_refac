@@ -53,7 +53,7 @@ Every file directly in `tests/` would be its own program linking the whole libra
 
 Run one group with `cargo test --test <group>`, a part of it with a module filter (`cargo test --test rename go::`), the real-server ones with `-- --ignored`. A header comment in each file says the same.
 
-The CI definition ([`ci_workflow.yml`](../Setup/ci_workflow.yml), activated by copying it to `.github/workflows/ci.yml`, see the [handoff](../Setup/handoff_Continuation.md)) runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and the plain `cargo test`, so the same three commands are the check before a push. The `#[ignore]`d tests need real servers and run by hand.
+The CI definition (`.github/workflows/ci.yml`, see the [release process](../Setup/release_Process.md)) runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and the plain `cargo test`, so the same three commands are the check before a push. The `#[ignore]`d tests need real servers and run by hand.
 
 ### Layout: the shape of the code is a test
 

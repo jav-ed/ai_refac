@@ -30,3 +30,9 @@ Scratch/
 # Claude tooling
 skills-lock.json
 .claude/skills
+
+# Release archives (scripts/package_release.sh)
+dist/
+
+# Woodpecker and Forgejo skill: internal hosts and encrypted secrets, not for a public repository
+.agents/skills/ci-cd/

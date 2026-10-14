@@ -43,5 +43,7 @@ Language servers are never left running: a command starts the server it needs, u
 - [Language servers](Setup/language_Servers.md): `refac doctor`, where each server is looked for, the environment variables (`REFAC_GOPLS`, `REFAC_RUST_ANALYZER`, `REFAC_PYTHON_SERVER`, `REFAC_DART`, `REFAC_KOTLIN_SERVER`), the install command per server, why nothing stays running, and the measured cost of a rename per language.
 - [Kotlin server setup](Setup/kotlin_Server.md): downloading and verifying the JetBrains Kotlin language server, `REFAC_KOTLIN_SERVER`, the timeout variable, measured startup time and memory, and how to run the real-server tests.
 - [Handoff](Setup/handoff_Continuation.md): where the work stands (TypeScript rename and the Kotlin backend done), what is not in git, what is untested, and the first commands to run.
+- [Release process](Setup/release_Process.md): the GitHub Actions `ci` and `release` workflows, why Linux x86_64 is the only target, and how to cut a release with a tag.
+- [Logo](Brand/logo.md): the moving-tile mark (eight-point star with a lifted gold tile), its files, sizes, and colors.
 
 Note: this file lives at `Project_Manag/Docs/doc_Start.md`, so all link paths above are relative to `Project_Manag/Docs/`.

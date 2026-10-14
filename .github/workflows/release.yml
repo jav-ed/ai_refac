@@ -1,0 +1,79 @@
+# Builds the release archive for every tested target and publishes it as a GitHub Release.
+# Start it by pushing a tag that matches the version in Cargo.toml: `git tag v0.1.5 && git push origin v0.1.5`.
+# What the archive holds and how it is installed: Project_Manag/Docs/Setup/release_Process.md.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # refac is tested on Linux x86_64 only. Add a target here after running refac on it,
+          # for example { target: linux-aarch64, runner: ubuntu-24.04-arm }. The oldest Ubuntu
+          # keeps the binary runnable on older glibc versions.
+          - { target: linux-x86_64, runner: ubuntu-22.04 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The tag must match the version in Cargo.toml
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml. Delete the tag, bump the version, tag again." >&2
+            exit 1
+          fi
+
+      # rust-toolchain.toml pins the version; rustup installs exactly that.
+      - name: Install the pinned Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        run: scripts/package_release.sh "${{ matrix.target }}"
+
+      - name: The packed binary starts and reports the tagged version
+        run: |
+          dir="$(mktemp -d)"
+          tar -C "$dir" -xzf dist/refac-*-"${{ matrix.target }}".tar.gz
+          "$dir"/refac-*/refac --version | grep -F "refac ${GITHUB_REF_NAME#v} "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: cd dist && sha256sum *.tar.gz > SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "refac ${GITHUB_REF_NAME#v}" \
+            --generate-notes
