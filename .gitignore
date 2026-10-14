@@ -27,9 +27,8 @@ Scratch/
 # Playwright CLI session snapshots
 .playwright-cli/
 
-# Claude tooling
+# Claude tooling (.claude/skills is a tracked symlink to .agents/skills)
 skills-lock.json
-.claude/skills
 
 # Release archives (scripts/package_release.sh)
 dist/
