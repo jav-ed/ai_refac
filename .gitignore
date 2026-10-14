@@ -32,6 +32,3 @@ skills-lock.json
 
 # Release archives (scripts/package_release.sh)
 dist/
-
-# Encrypted secrets of the Woodpecker and Forgejo setup stay with their own repository; the skill's guides are tracked
-.agents/skills/ci-cd/Platform/Secrets/fnox.toml
