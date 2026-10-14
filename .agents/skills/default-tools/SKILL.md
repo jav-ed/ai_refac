@@ -65,6 +65,8 @@ The Playwright CLI binary is installed as a shared system tool (`npm:@playwright
 playwright-cli install --skills=agents
 ```
 
+Pick the browser with `--browser` (`chrome`, `firefox`, `webkit`, `msedge`). Without it, playwright-cli uses an installed Chrome and downloads nothing.
+
 Then load the `playwright-cli` skill for its full command reference (open, snapshot, click, fill, screenshot, network mocking, tabs, tracing, etc.).
 
 ### Scratch/ — where visual outputs go

@@ -13,6 +13,8 @@ Install hk and Pkl as shared system tools (tool names `hk` and `pkl`, procedure 
 
 > Don't run both. If global is active, per-repo install on top fires hooks **twice per event** because Git aggregates `hook.<name>.command` across scopes.
 
+Global mode writes the hooks into `~/.gitconfig`, so `.git/hooks` stays empty. `git config --global --get-regexp '^hook\.'` lists them, and the command of each entry must start with `/usr/local/bin/hk`.
+
 ## Core commands
 
 | Command | What it does |
@@ -33,25 +35,27 @@ The first line is always the `amends` URL. It pins the Pkl schema version indepe
 
 ### Task trigger (primary use case)
 
-Run a script on `post-merge` when specific files changed — no Builtins import needed:
+Run a script on `post-merge` when specific files came in with the merge. Do not use `glob` for that: on `post-merge` hk takes its file list from the working tree, which is clean after a merge, so the step is skipped (`no files to run`). Ask git for the merge's own diff inside the step instead:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 hooks {
   ["post-merge"] {
     steps {
       ["redeploy"] {
-        glob = List("Code/**/*.go", "Code/go.mod", "Code/go.sum")
-        check = "bash Code/deploy/redeploy.sh"
+        check = """
+          git diff --name-only ORIG_HEAD HEAD | grep -qE '^Code/(.*[.]go|go[.](mod|sum))$' || exit 0
+          exec bash Code/deploy/redeploy.sh
+          """
       }
     }
   }
 }
 ```
 
-- `glob` — which files trigger this step. If none of those files changed in the merge, the step is skipped silently.
-- `check` — the command to run. Non-zero exit fails the hook.
+- `git diff --name-only ORIG_HEAD HEAD` lists exactly what the merge brought in; a merge without a watched file ends the step with `exit 0`.
+- `check` is the command to run. Non-zero exit fails the hook.
 - Multiple steps run in parallel by default; use `exclusive = true` on a step to block others until it finishes.
 
 ### Linting (optional, when needed)
