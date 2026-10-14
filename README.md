@@ -1,8 +1,10 @@
+<p align="center"><img src="Project_Manag/Docs/Brand/refac-mark.svg" width="96" alt="refac logo: a teal eight-point star with a gold tile above it"></p>
+
 # refac
 
 A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames symbols (variables, parameters, functions, methods, fields, types) with every reference in TypeScript/JavaScript, Kotlin, Go, Rust, Python, and Dart. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
 
-> Built for personal use. If it's useful to you, go ahead — no guarantees.
+> Built for personal use. If it inshallah turns out useful to you, go ahead. No guarantees.
 
 Public user documentation is maintained independently in [`jav-ed/refac-docs`](https://github.com/jav-ed/refac-docs). This repository remains the source of truth for CLI behavior and limitations.
 
@@ -10,13 +12,13 @@ Public user documentation is maintained independently in [`jav-ed/refac-docs`](h
 
 ## The story
 
-I was building out an AI agent workflow and kept running into the same problem: when an agent needs to move a file, it does it the hard way — reads every file that imports it, rewrites the paths manually, hopes it got them all. That is slow, token-heavy, and fragile. A missed import means a broken build, a retry, more context burned.
+I was building out an AI agent workflow and kept running into the same problem: when an agent needs to move a file, it does it the hard way: it reads every file that imports it, rewrites the paths manually, and hopes it got them all. That is slow, token-heavy, and fragile. A missed import means a broken build, a retry, more context burned.
 
 Moving files and updating references is exactly what refactoring tools are built for. The agent should call the right tool, get a clean result, and move on.
 
 `refac` is that tool. Three things make it agent-friendly by design:
 
-**1. Ships with a skill file — no MCP needed.**
+**1. Ships with a skill file, no MCP needed.**
 The repo includes a `.agents/skills/refac-cli/` folder. Drop it into your agent setup and it loads only when relevant. The agent reads what it needs, skips the rest. No persistent context overhead, no server to run.
 
 **2. Structured output an agent can actually use.**
@@ -53,13 +55,13 @@ Read @Project_Manag/Docs/doc_Start.md and tell me what languages are supported a
 Read @Project_Manag/Docs/doc_Start.md and explain semantic Rust module moves.
 ```
 
-The agent will navigate to the relevant doc, read only what it needs, and answer directly.
+The agent will inshallah navigate to the relevant doc, read only what it needs, and answer directly.
 
 ---
 
 ## Agent integration
 
-The skill file lives in `.agents/skills/refac-cli/` — this is the single source of truth. To wire it into your agent tool, symlink from wherever that tool expects skills rather than copying.
+The skill file lives in `.agents/skills/refac-cli/`, the single source of truth. To wire it into your agent tool, symlink from wherever that tool expects skills rather than copying.
 
 ### Claude Code
 
@@ -68,11 +70,11 @@ mkdir -p .claude
 ln -s ../.agents/skills .claude/skills
 ```
 
-Claude Code picks up skills from `.claude/skills/`. The symlink points back to `.agents/skills/`, so there is no duplication — one folder, two entry points.
+Claude Code picks up skills from `.claude/skills/`. The symlink points back to `.agents/skills/`, so there is no duplication: one folder, two entry points.
 
 The `.claude/` directory is tracked in git. `.claude/skills` is listed in `.gitignore` so the symlink itself is not committed (the skills are already tracked under `.agents/`).
 
-Other agent tools that support a skills or prompts directory can be wired up the same way — just symlink from their expected path into `.agents/skills/`.
+Other agent tools that support a skills or prompts directory can be wired up the same way: just symlink from their expected path into `.agents/skills/`.
 
 ---
 
@@ -80,13 +82,13 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 | Language | Files | Directories | Logical modules | Engine |
 |---|---|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ | — | Oxc parser + TypeScript resolver via Bun; symbol rename via the TypeScript 7 native language server |
-| Python | ✅ | ❌ | — | Rope (automatic fallback: Pyrefly); symbol rename via basedpyright |
+| TypeScript / JavaScript | ✅ | ✅ | n/a | Oxc parser + TypeScript resolver via Bun; symbol rename via the TypeScript 7 native language server |
+| Python | ✅ | ❌ | n/a | Rope (automatic fallback: Pyrefly); symbol rename via basedpyright |
 | Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR; symbol rename via rust-analyzer |
-| Go | ✅ | ❌ | — | gopls (LSP), also for symbol rename |
-| Dart | ✅ | ❌ | — | Dart analysis server (LSP), also for symbol rename |
-| Markdown | ✅ | ✅ | — | Native (no external tooling) |
-| Kotlin / Android | ✅ | ✅ | — | JetBrains Kotlin language server, plus refac's own Android XML layer |
+| Go | ✅ | ❌ | n/a | gopls (LSP), also for symbol rename |
+| Dart | ✅ | ❌ | n/a | Dart analysis server (LSP), also for symbol rename |
+| Markdown | ✅ | ✅ | n/a | Native (no external tooling) |
+| Kotlin / Android | ✅ | ✅ | n/a | JetBrains Kotlin language server, plus refac's own Android XML layer |
 
 Symbol rename (`refac rename`) is available for TypeScript / JavaScript, Kotlin, Go, Rust, Python, and Dart. Language servers are started for the command and stopped afterwards, never left running. If one is not installed, the error lists where it looked and names `refac doctor <language>`, which prints the install steps; `refac doctor` alone shows every language.
 
@@ -112,7 +114,7 @@ The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds
 
 **Platform:** Linux. macOS and Windows are not targets (not needed), so nothing is tested or promised for them.
 
-Each language backend requires its own tooling — see [Prerequisites](#prerequisites).
+Each language backend requires its own tooling. See [Prerequisites](#prerequisites).
 
 ---
 
@@ -127,7 +129,7 @@ refac move \
   --target-path src/new/module.ts
 ```
 
-For `move`, `--project-path` must be the **package root** — the directory that contains `tsconfig.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, etc. For monorepos or workspaces, point it at the sub-package being operated on, not the workspace root.
+For `move`, `--project-path` must be the **package root**, the directory that contains `tsconfig.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, etc. For monorepos or workspaces, point it at the sub-package being operated on, not the workspace root.
 
 Paths given to `--source-path` and `--target-path` can be absolute or relative to `--project-path`.
 
@@ -140,7 +142,7 @@ refac move --source-path src/old.ts --target-path src/new.ts
 
 ### Batch move
 
-Repeat the flags in matching order — first source maps to first target, and so on:
+Repeat the flags in matching order: the first source maps to the first target, and so on:
 
 ```bash
 refac move \
@@ -149,7 +151,7 @@ refac move \
   --target-path src/x.ts --target-path src/y.ts
 ```
 
-Mixed languages in one call work — the tool groups files by language and dispatches each batch to its correct backend. If one language's batch fails, the others still run. The response reports which succeeded and which failed.
+Mixed languages in one call work: the tool groups files by language and dispatches each batch to its correct backend. If one language's batch fails, the others still run. The response reports which succeeded and which failed.
 
 A long list is easier to keep in a file. Write the moves once as JSON, the same shape as the list of `rename --batch`, and read it with `--batch` (`--batch -` reads stdin):
 
@@ -276,8 +278,8 @@ On failure, `"status"` is `"error"` and `"error"` contains the descriptive failu
 
 ### Exit codes
 
-- `0` — all requested moves completed
-- `1` — one or more moves failed (or all failed)
+- `0`: all requested moves completed
+- `1`: one or more moves failed (or all failed)
 
 ---
 
@@ -301,8 +303,8 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - The semantic command never adds `#[path]` or compatibility re-export shims. It validates after applying and rolls planned source changes back on failure.
 
 **Go**
-- **Moving any `.go` file cross-directory renames the entire package.** All files in the source directory move together. If `pkg/` contains `a.go`, `b.go`, and `c.go`, asking to move `pkg/a.go` will cause gopls to move all three. Partial-package moves are not supported.
-- Same-directory moves (rename only, no package change) are a filesystem-only operation — gopls is not involved and no import paths change.
+- **Moving any `.go` file cross-directory renames the entire package.** All files in the source directory move together. If `pkg/` contains `a.go`, `b.go`, and `c.go`, asking to move `pkg/a.go` makes gopls move all three. Partial-package moves are not supported.
+- Same-directory moves (rename only, no package change) are a filesystem-only operation: gopls is not involved and no import paths change.
 - Requires `go.mod` at the project root for cross-directory moves.
 
 **Dart**
@@ -345,7 +347,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
 | Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
 | Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER`), JDK 17+, a Gradle project; `ANDROID_HOME` for Android | [Kotlin server setup](Project_Manag/Docs/Setup/kotlin_Server.md) |
-| Markdown | none | — |
+| Markdown | none | n/a |
 
 `refac doctor <language>` prints these steps for the machine it runs on and proves the server starts. No specific minimum version is enforced for external language tools, but use recent releases. This checkout pins rust-analyzer 1.99.0 for ordinary Rust file renames and locks the embedded rust-analyzer crates in Cargo.
 
@@ -388,10 +390,10 @@ The suite covers unit tests and integration tests for all supported languages. I
 
 ## Contributing
 
-Issues and pull requests are welcome. There is no formal contribution guide yet — open an issue first if you are planning a significant change.
+Issues and pull requests are welcome. There is no formal contribution guide yet, so open an issue first if you are planning a significant change.
 
 ---
 
 ## License
 
-Hippocratic License HL3 — see [LICENSE](LICENSE).
+Hippocratic License HL3, see [LICENSE](LICENSE).
