@@ -6,8 +6,10 @@
 #
 #   scripts/install.sh
 #
-# Run it after every pull, checkout or source change. It stops with a message
-# and exit code 1 when the installed command is not this checkout's build.
+# Run it after every pull, checkout or source change, and once more after the
+# checkout is moved or renamed (the link stores its absolute path and dangles
+# until this replaces it). It stops with a message and exit code 1 when the
+# installed command is not this checkout's build.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

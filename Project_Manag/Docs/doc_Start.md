@@ -10,6 +10,8 @@ Operational decision: `scripts/install.sh` builds the release binary, links it a
 
 **Keep the global install current:** run `scripts/install.sh` after every pull, checkout or source change. It takes seconds when nothing changed and stops with a reason when the installed command is not this checkout's build. `refac --version` shows the commit the installed binary was built from. See [Install & Build](Guides/dev_guide.md) § 6 for the full workflow.
 
+**If `refac` is "command not found":** the `~/.local/bin/refac` link dangles after the checkout is moved or renamed. Run `scripts/install.sh` from its new location instead of working by hand. Details: [Install & Build](Guides/dev_guide.md) § 2.
+
 Entry points: `src/bin/refac.rs` and `src/cli.rs` (commands `move`, `move-module`, `rename`, `doctor`), `src/cli/doctor.rs` (`refac doctor`, the self-help for missing language servers), `src/logic/mod.rs` (move dispatch by language), `src/logic/rename.rs` (rename dispatch by file extension), `src/logic/route.rs` (which language a path belongs to), `src/drivers/` (one backend per language), `src/drivers/lsp/` (the language-server client and session shared by every backend, and in `lsp/rename/` the symbol-rename engine for Go, Rust, Python, Dart, and Kotlin), `src/servers/` (finding, checking, and explaining the language servers), `scripts/ts_refactor.ts` (TypeScript move helper run by Bun).
 
 Language servers are never left running: a command starts the server it needs, uses it, and stops it. When one is not installed the error lists where it looked and names `refac doctor <language>`, which prints the install steps, so an agent can fix a machine by itself.

@@ -109,6 +109,8 @@ scripts/install.sh
 
 `scripts/install.sh` builds the release binary, links it as `~/.local/bin/refac`, and checks that the `refac` on your PATH is that build and was built from the commit that is checked out. It prints `installed and current: refac 0.1.4 (55b157a, built 2026-10-09 20:09 UTC)` or stops with the reason. Run it again after every pull, checkout or source change: it takes seconds when nothing changed. `refac --version` shows the same stamp at any time (`+dirty` means the sources differ from that commit). The binary is one 36 MB file in `target/release`; the 1.5 GB around it is build cache (compiled dependencies) that keeps repeat builds fast. Test builds add a separate cache under `target/debug` (see `Project_Manag/Docs/Setup/resource_Use.md`).
 
+The link is what makes updates reach every folder and shell: it points `~/.local/bin/refac` at `target/release/refac`, so an update in this checkout will inshallah reach every folder and shell with no copy step. The link stores this checkout's absolute path, so if you move, rename or delete the checkout, `refac` turns into `command not found`: run `scripts/install.sh` once from the new location.
+
 By hand, the same is `cargo build --release` plus `ln -sf "$(pwd)/target/release/refac" ~/.local/bin/refac`; `cargo install --path .` or `cp target/release/refac ~/.local/bin/refac` give a fixed snapshot that does not follow rebuilds.
 
 The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds them next to the binary (`target/release`), or in the checkout it was built from, so keep the checkout where you built it. When it cannot find one, the error lists every place it looked.

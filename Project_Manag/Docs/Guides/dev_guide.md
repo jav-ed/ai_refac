@@ -42,6 +42,10 @@ Why this is the preferred setup:
 - rebuilding `target/release/refac` updates what the symlink points to
 - no extra copy step is needed after each rebuild
 
+The install is two steps: build here, then link `~/.local/bin/refac` to the build. Once the link exists, `refac` in every folder and every shell runs whatever this checkout last built, so after an update here (`git pull`, a source change, `scripts/install.sh`) everything else inshallah gets the latest version with nothing more to do.
+
+The link stores the absolute path of this checkout. If the checkout is moved, renamed or deleted, the link is left pointing at the old path and `refac` fails with `command not found` (`ls -l ~/.local/bin/refac` shows the dead target). The fix is the same one command, run from the checkout's new location: `scripts/install.sh` replaces the link and verifies it. Do not work around a missing `refac` by editing imports by hand.
+
 If `~/.local/bin` is not already in `PATH`, add it in your shell setup.
 
 If you need a fixed snapshot instead of a live development link, you can copy the binary instead:
