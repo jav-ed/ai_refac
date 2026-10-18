@@ -42,6 +42,15 @@ ci_indexnow_require_common_config() {
     echo "Refusing IndexNow operation: CI_INDEXNOW_REPORT_DIR_NAME must be one safe directory name, received '$CI_INDEXNOW_REPORT_DIR_NAME'." >&2
     exit 1
   fi
+  # Optional switch, off when unset. "true" makes the binary accept page URLs without a trailing
+  # slash or file extension (/docs/usage), for a host that serves them as <path>/index.html.
+  case "${CI_INDEXNOW_EXTENSIONLESS_URLS:-false}" in
+    true|false) ;;
+    *)
+      echo "Refusing IndexNow operation: CI_INDEXNOW_EXTENSIONLESS_URLS must be true or false, received '${CI_INDEXNOW_EXTENSIONLESS_URLS}'." >&2
+      exit 1
+      ;;
+  esac
 }
 
 ci_indexnow_require_local_config() {

@@ -55,11 +55,17 @@ else
     "$PREVIOUS_FIXTURE/"
 fi
 
+page_url_flags=()
+if [[ "${CI_INDEXNOW_EXTENSIONLESS_URLS:-false}" == "true" ]]; then
+  page_url_flags=(--extensionless-page-urls)
+fi
+
 "$CI_INDEXNOW_LOCAL_BIN" compare-releases \
   --site-url "$CI_INDEXNOW_SITE_URL" \
   --sitemap "$CI_INDEXNOW_SITEMAP_PATH" \
   --previous-root "$PREVIOUS_FIXTURE" \
   --current-root "$CI_PROJECT_DIR/dist" \
+  ${page_url_flags[@]+"${page_url_flags[@]}"} \
   --report "$REPORT_PATH"
 
 jq '{

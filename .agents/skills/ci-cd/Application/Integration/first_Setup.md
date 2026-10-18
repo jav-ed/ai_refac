@@ -88,7 +88,7 @@ test -x "$CI_COMPRESSOR_BIN"
 test -f "$CI_OG_IMAGE_DIR/src/main.js"
 ```
 
-If either check fails, fix the shared tool installation from its own repo before continuing.
+If either check fails, build or install the tool as the `web-comp-tools` skill says (its `path_File.md` names the folder and binary these two variables must point to) before continuing.
 
 ## 5. Dry-Run The Pipeline Locally
 
@@ -113,17 +113,7 @@ The deploy target is derived as:
 CI_DEPLOYMENT_ROOT / CI_DEPLOY_DOMAIN / main
 ```
 
-The runtime folder should contain the domain folder and the mandatory `main/releases` lane:
-
-```text
-<deployment-root>/<domain>/
-|-- domain.caddy
-`-- main/
-    |-- dist -> releases/<release-id>
-    `-- releases/
-```
-
-The deploy script creates missing release folders, but the domain folder and Caddy route should be intentional runtime setup, not guessed by the pipeline.
+The runtime folder should contain the domain folder with its `domain.caddy` and the mandatory `main` lane. The deploy script creates `releases/` and the `dist` symlink itself (see [Release layout, retention and rollback](../../Architecture/release_Layout.md)), but the domain folder and Caddy route should be intentional runtime setup, not guessed by the pipeline.
 
 If the site emits same-origin proxy paths for private services, the matching `domain.caddy` routes are part of runtime setup. Example for self-hosted Umami behind private infrastructure:
 

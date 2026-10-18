@@ -2,16 +2,6 @@
 
 Read this file when `refac` is not installed or not on the PATH, or when a language backend has to be set up. `refac doctor` shows what is found on this machine and `refac doctor <language>` prints exact install steps, so run them instead of guessing.
 
-## `refac: command not found`
-
-Do not move or rename by hand. `~/.local/bin/refac` is a symlink to `target/release/refac` inside the refac checkout, so it dangles when that checkout is moved, renamed or deleted.
-
-```bash
-ls -l ~/.local/bin/refac        # the target after -> is where the link expects the checkout
-```
-
-Find the checkout (a folder with `scripts/install.sh` and `Cargo.toml` naming `refac`; the target path above shows where it used to be) and run `scripts/install.sh` from there. It rebuilds, replaces the link, and prints `installed and current`. From then on every rebuild in that checkout is the `refac` you run in every folder.
-
 ## Build from source
 
 Requires **Rust 1.99+ (edition 2024)**. This checkout pins Rust 1.99.0 and the rustfmt/rust-analyzer components in `rust-toolchain.toml`. Install via [rustup](https://rustup.rs) if needed.

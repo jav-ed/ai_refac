@@ -1,14 +1,16 @@
-# IndexNow Architecture And Maintenance
+# IndexNow Adapter Contract
 
-Use this developer detail only when changing IndexNow behavior or diagnosing an
-invariant failure. For installation, configuration, dry runs, recovery, and
+Use this developer detail only when changing how a site's deployment calls IndexNow
+(ordering, bootstrap state, locking, report placement) or diagnosing an invariant
+failure of that adapter. How the `indexnow` binary itself works (sitemap parsing,
+fingerprints, comparison, submission, report fields) is documented with the binary;
+the `web-comp-tools` skill names those docs. For installation, configuration, dry runs, recovery, and
 normal deployment, use the [IndexNow operator guide](../indexNow_Notifications.md).
 
 ## Contents
 
 - [Ownership boundaries](#ownership-boundaries)
-- [Sitemap boundary](#sitemap-boundary)
-- [Release comparison](#release-comparison)
+- [Release selection](#release-selection)
 - [Bootstrap and incremental state](#bootstrap-and-incremental-state)
 - [Deployment transaction](#deployment-transaction)
 - [Failure and concurrency](#failure-and-concurrency)
@@ -36,57 +38,17 @@ The website repository owns:
 - retained-release selection and activation ordering;
 - deployment-host report, lock, and recovery behavior.
 
-The separate Rust `indexnow` utility owns:
-
-- sitemap-index and leaf-sitemap parsing;
-- URL, origin, path, and document validation;
-- semantic HTML fingerprints and release comparison;
-- ownership verification and HTTP submission;
-- typed comparison and submission reports.
+The separate Rust `indexnow` binary owns everything about reading sitemaps, fingerprinting pages,
+comparing releases, verifying ownership, submitting, and typed reports; see its own docs.
 
 Woodpecker calls shell steps directly. Just exposes human-facing commands and is
 not a CI dependency.
 
-## Sitemap Boundary
+## Release Selection
 
-Validation is not a second sitemap pipeline. It is a safety check on the exact
-artifact that IndexNow is about to use.
-
-For each release, the Rust utility:
-
-1. Reads the configured sitemap entry file produced by Astro.
-2. Resolves same-origin leaf sitemaps when the entry is a sitemap index.
-3. Maps each sitemap URL to a page inside that release root.
-4. Rejects malformed XML, external origins, traversal, and missing pages.
-5. Uses those URLs as the public comparison allowlist.
-
-This preserves Astro's ownership while preventing IndexNow from submitting an
-incomplete, malformed, or unrelated URL set. Removed URLs remain detectable
-because the previous release has its own sitemap-approved set.
-
-## Release Comparison
-
-Compare the exact release that was active before deployment with the exact
-release activated by the current deployment. Never infer ancestry from the
-second-newest directory; manual activation and rollback can change that order.
-
-Source-file diffs are insufficient because shared layouts, navigation, schema,
-or rendering can change many public pages. Raw HTML bytes are also too noisy
-because formatting, minification, classes, and generated asset identifiers can
-change without changing page meaning.
-
-The Rust fingerprint therefore represents search-relevant content such as:
-
-- title, description, canonical, hreflang, and robots metadata;
-- structured data;
-- headings and visible body text;
-- link destinations;
-- meaningful image sources and alternative text.
-
-It excludes ordinary formatting and generated presentation noise. URLs are
-classified as `added`, `changed`, `removed`, or `unchanged`; only the first
-three classes are submission candidates. Fingerprint changes belong in the
-Rust utility with focused fixtures and tests.
+Compare the exact release that was active before deployment with the exact release activated by
+the current deployment. Never infer ancestry from the second-newest directory: manual activation
+and rollback can change that order.
 
 ## Bootstrap And Incremental State
 
@@ -148,19 +110,10 @@ does not contact IndexNow.
 
 ## Report Contract
 
-Reports live on the deployment host beside the lane's releases, outside the
-Caddy-served `dist/` tree and outside Git.
-
-Consumers rely on:
-
-- comparison counts and URL classifications;
-- submitted URL count;
-- public-key verification state;
-- submission batches and HTTP results;
-- final report placement through atomic rename.
-
-Treat field or invariant changes as interface changes because bootstrap state,
-operator summaries, recovery, and diagnosis consume this data.
+Reports live on the deployment host beside the lane's releases, outside the Caddy-served `dist/` tree
+and outside Git, and reach their final path through an atomic rename. The fields and invariants of a
+report are the binary's contract; bootstrap state, operator summaries, recovery, and diagnosis consume
+them, so treat a field change there as an interface change here.
 
 ## Maintenance Checklist
 
@@ -172,7 +125,7 @@ When changing the integration:
    reasoning and invariants here.
 3. Keep the project adapter and `Template/IndexNow/` behavior synchronized.
 4. Change fingerprinting, sitemap parsing, HTTP behavior, and report types in
-   the Rust utility with tests.
+   the Rust binary with tests, not in this adapter.
 5. Run shell syntax checks, `git diff --check`, the full local site pipeline,
    and `just IndexNow_Dry_Run`.
 6. For live proof, inspect Woodpecker, the active target, public key, sitemap,

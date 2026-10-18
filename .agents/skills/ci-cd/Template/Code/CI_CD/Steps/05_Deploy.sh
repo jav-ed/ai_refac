@@ -2,16 +2,11 @@
 # =============================================================================
 # Woodpecker CI - Deploy static site
 # =============================================================================
-# rsync dist/ to the configured deploy host, then perform an atomic symlink swap.
+# rsync dist/ to a new release folder on the deploy host, then switch the
+# `dist` symlink that Caddy serves. Keeps the newest CI_DEPLOY_KEEP_RELEASES
+# releases for rollback.
 #
-# Structure on the deploy host:
-#   <deployment-root>/zetunweb.com/
-#   ├── main/
-#   │   ├── releases/<date>_<hash>/      ← production deployments
-#   │   └── dist -> releases/<date>_...  ← Caddy serves zetunweb.com
-#   └── shared/                      ← persistent data across deploys
-#
-# Keeps the 5 most recent releases for rollback.
+# Layout, naming, retention and rollback: the ci-cd skill, Architecture/release_Layout.md
 # =============================================================================
 set -e
 
@@ -32,11 +27,12 @@ export RSYNC_RSH="$SSH"
 ci_require_value CI_DEPLOY_HOST
 ci_require_value CI_DEPLOYMENT_ROOT
 ci_require_value CI_DEPLOY_DOMAIN
+ci_require_value CI_DEPLOY_KEEP_RELEASES
 
 DEPLOY_HOST="$CI_DEPLOY_HOST"
 DEPLOYMENT_ROOT="${CI_DEPLOYMENT_ROOT%/}"
 DEPLOY_DOMAIN="$CI_DEPLOY_DOMAIN"
-KEEP_RELEASES="${CI_DEPLOY_KEEP_RELEASES:-5}"
+KEEP_RELEASES="$CI_DEPLOY_KEEP_RELEASES"
 
 # --- Sanity checks ---
 # Refuse broad or non-runtime roots before deriving the domain-specific site path.

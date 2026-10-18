@@ -42,7 +42,7 @@ ci_indexnow_run_remote_submission() {
     "$CI_INDEXNOW_SITEMAP_PATH" "$CI_INDEXNOW_KEY_FILE_NAME" \
     "$CI_INDEXNOW_ENDPOINT" "$CI_INDEXNOW_TIMEOUT_SECONDS" "$active_link" \
     "$current_target" "$previous_root" "$current_root" "$lane_dir" \
-    "$report_path" < "$remote_worker"
+    "$report_path" "${CI_INDEXNOW_EXTENSIONLESS_URLS:-false}" < "$remote_worker"
 
   ci_indexnow_print_report "$deploy_host" "$report_path"
   ci_info "IndexNow report: ${deploy_host}:${report_path}"

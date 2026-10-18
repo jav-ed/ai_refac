@@ -66,11 +66,11 @@ Do not pass sensitive values as shell arguments unless the user explicitly accep
 
 ```toml
 [secrets]
-# Email password for javed@javedab.com
+# Email password for user@example.com
 # Used by: Himalaya CLI → ~/.config/himalaya/config.toml (backend.auth.cmd = "fnox get ...")
-JAVED_JAVEDAB_EMAIL_PASS = { provider = "age", value = "..." }
+USER_EXAMPLE_EMAIL_PASS = { provider = "age", value = "..." }
 
-# Cloudflare API token — DNS management for zetunweb.com and javedab.com
+# Cloudflare API token — DNS management for example.com and example.org
 # Permissions needed: Zone:DNS:Edit on both zones
 CF_API_TOKEN = { provider = "age", value = "..." }
 ```

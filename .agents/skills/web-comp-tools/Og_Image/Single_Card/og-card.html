@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>social card</title>
+<!-- Source of public/og.png (1200 by 630). Replace the colors, the mark, and the texts, then render it with
+     og_Image.sh. The font path is relative to this file: point it at the font the site itself uses. -->
+<style>
+  @font-face { font-family: "Geist"; src: url("../../public/fonts/Geist%5Bwght%5D.woff2") format("woff2"); font-weight: 100 900; }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body { background: #0d1311; font-family: "Geist", sans-serif; color: #f2f5f4; position: relative; }
+  .mark { position: absolute; left: 80px; top: 125px; width: 380px; height: 380px; }
+  .text { position: absolute; left: 520px; top: 0; right: 64px; height: 630px; display: flex; flex-direction: column; justify-content: center; }
+  h1 { margin: 0 0 24px; font-size: 150px; font-weight: 700; letter-spacing: -4px; line-height: 1; }
+  .tagline { margin: 0 0 32px; font-size: 38px; line-height: 1.25; font-weight: 400; color: #d5dcd9; }
+  .languages { margin: 0; font-size: 24px; line-height: 1.45; white-space: nowrap; color: #8fa39b; }
+  .domain { position: absolute; left: 520px; bottom: 48px; font-size: 26px; color: #1d9e75; font-weight: 500; }
+</style>
+</head>
+<body>
+  <svg class="mark" viewBox="0 0 100 100" role="img" aria-label="site mark">
+    <!-- the logo of the site -->
+    <rect fill="#1D9E75" x="20" y="20" width="60" height="60"/>
+  </svg>
+  <div class="text">
+    <h1>Site name</h1>
+    <p class="tagline">One sentence that says what the site is for.</p>
+    <p class="languages">A line of detail, kept short enough for one line</p>
+  </div>
+  <div class="domain">docs.example.com</div>
+</body>
+</html>

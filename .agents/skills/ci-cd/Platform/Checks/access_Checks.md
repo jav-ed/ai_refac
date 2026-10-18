@@ -36,11 +36,7 @@ If these pass, continue to [application trigger checks](../../Application/Trigge
 
 ## 2. If Access Is Missing
 
-If the regular check fails, setup or access may be missing or stale. Do not rebuild it from this skill. Read the runtime CI/CD repo:
-
-```text
-/home/jav/Schreibtisch/Javed/0_Right_Sirat/1_Code/01_Projects/1_Web_Service/02_Workfl_Comp/CI_CD/Project_Manag/Docs/doc_Start.md
-```
+If the regular check fails, setup or access may be missing or stale. Do not rebuild it from this skill. Read the runtime CI/CD repo (`CI_CD_Home`, its folder is in `path_File.md` of the `web-comp-tools` skill): `Project_Manag/Docs/doc_Start.md` inside it.
 
 For setup routing inside that repo, start with:
 

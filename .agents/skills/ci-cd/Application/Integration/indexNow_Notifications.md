@@ -2,9 +2,9 @@
 
 Use this opt-in path for a retained-release Astro site that should notify IndexNow only when its rendered, search-relevant pages genuinely change. The shared Rust `indexnow` binary owns parsing, semantic fingerprints, comparison, key verification, HTTP submission, and report generation. The website owns this adapter and its explicit site values.
 
-Do not add IndexNow automatically to every static site. The site must have an existing active release symlink, retained releases, an HTTPS public origin, a sitemap, and a reviewed root ownership key.
+Do not add IndexNow automatically to every static site. What the binary does, its subcommands, and what a site needs before it qualifies (an active release symlink, a retained previous release, an HTTPS origin, a sitemap, a reviewed ownership key) are in the `web-comp-tools` skill, on its Index_Now page. This page covers the adapter: the overlay, the variables, the bootstrap state, the deploy call, and recovery.
 
-Stay in this guide for routine integration and operation. Read [IndexNow architecture and maintenance](Detail/indexNow_Architecture.md) only when changing sitemap consumption, comparison behavior, deployment ordering, bootstrap state, locking, or report contracts.
+Stay in this guide for routine integration and operation. Read the [IndexNow adapter contract](Detail/indexNow_Architecture.md) only when changing deployment ordering, bootstrap state, locking, or where reports are stored. Changing sitemap consumption, comparison behavior, or the report fields happens in the binary itself: the `web-comp-tools` skill names its docs.
 
 ## Contents
 
@@ -14,7 +14,6 @@ Stay in this guide for routine integration and operation. Read [IndexNow archite
 - [Bootstrap state](#bootstrap-state)
 - [Deploy integration](#deploy-integration)
 - [Failure and recovery](#failure-and-recovery)
-- [Sitemap contract](#sitemap-contract)
 - [Verification](#verification)
 
 ## Reusable Overlay
@@ -74,6 +73,12 @@ CI_INDEXNOW_REPORT_DIR_NAME="indexnow-reports"
 
 Do not invent defaults. A copied adapter must fail until every binary path, origin, sitemap, ownership filename, endpoint, timeout, and report location is explicit.
 
+`CI_INDEXNOW_LOCAL_BIN` is the binary the dry run uses on the developer machine. Point it at a symlink in a folder that is on `PATH` (for example `~/.local/bin/indexnow`, linked to the tool repository's `target/release/indexnow`), written as an absolute path because the scripts test it with `-x`. A rebuild then updates the link's target in place, and a moved tool repository needs one new link instead of an edit in every site.
+
+One optional switch: `CI_INDEXNOW_EXTENSIONLESS_URLS="true"` for a site whose sitemap lists page URLs without a trailing slash or file extension (`/docs/usage`, as Fumadocs links them) on a host that serves them as `<path>/index.html`. Unset or `false` keeps the binary strict (only `/` and `.html` URLs), any other value is a hard error. The binary must be new enough to know `--extensionless-page-urls`; an older one stops with an unknown-argument error.
+
+The overlay assumes the Astro build folder `dist`. A site with another build root (Fumadocs: `dist/client`) changes the `dist` references in `Tools/indexnow_Dry_Run.sh` and passes its own root to `ci_indexnow_verify_local_key` in the deploy step.
+
 The ownership value is public, not secret. The root URL proves submission authority for that host. File content must exactly match the filename without `.txt`, with at most one final newline.
 
 ## Bootstrap State
@@ -97,7 +102,7 @@ Integrate the adapter into `Code/CI_CD/Steps/05_Deploy.sh`:
 1. Source `Code/CI_CD/Lib/indexnow.sh`.
 2. Keep the site's existing validation, upload, and atomic activation flow.
 3. Call `ci_indexnow_notify_remote` with the exact previous target, current target, and release name after activation.
-4. Apply retention only after notification and report finalization succeed.
+4. Apply retention only after notification and report finalization succeed (retention rule: [Release layout, retention and rollback](../../Architecture/release_Layout.md)).
 
 Do not change build steps 01 through 04 for IndexNow. The deployment state machine and exact-release invariants live in the architecture detail.
 
@@ -120,12 +125,6 @@ IndexNow_Bootstrap:
 `IndexNow_Bootstrap` is a one-shot recovery path. It refuses before contacting IndexNow when a valid bootstrap report already exists. Automatic deployment and manual recovery share the same remote lock, so they cannot submit concurrently.
 
 A stale lock or malformed report requires explicit diagnosis. Do not delete either automatically because it may represent interrupted external state.
-
-## Sitemap Contract
-
-Prefer the public `sitemap-index.xml`. An index linking one or several leaf sitemaps is correct and must not be flattened.
-
-Astro continues to generate the sitemap. IndexNow only validates and consumes that completed artifact; it does not generate, rewrite, or repair it. The Rust utility resolves same-origin leaf sitemap URLs inside each release root, and those URLs form the comparison allowlist.
 
 ## Verification
 

@@ -25,7 +25,7 @@ when:
 2. The forge webhook sends a push event to Woodpecker.
 3. Woodpecker reads `.woodpecker.yml`.
 4. The local agent runs `$CI_REPO_PATH/Code/CI_CD/Steps/*.sh` on the host.
-5. Deploy copies `dist/` into a fresh release folder and swaps the lane `dist` symlink.
+5. Deploy copies `dist/` into a fresh release folder and swaps the lane `dist` symlink ([release layout](../../Architecture/release_Layout.md)).
 
 ## Manual Runs
 
@@ -48,19 +48,7 @@ just Step_05_Deploy
 
 ## Rollback
 
-Releases live at:
-
-```text
-<deployment-root>/<domain>/main/releases/<release-id>/
-```
-
-The live path is:
-
-```text
-<deployment-root>/<domain>/main/dist -> releases/<release-id>
-```
-
-List releases:
+Releases and the live `dist` symlink are described in [Release layout, retention and rollback](../../Architecture/release_Layout.md), which also says when a deploy rolls back by itself. To go back by hand, list the releases:
 
 ```bash
 ssh <deploy-host> "ls -lt <deployment-root>/<domain>/main/releases/"

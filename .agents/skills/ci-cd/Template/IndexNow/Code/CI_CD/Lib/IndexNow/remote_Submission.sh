@@ -15,9 +15,19 @@ previous_root="${10}"
 current_root="${11}"
 lane_dir="${12}"
 report_path="${13}"
+extensionless_urls="${14}"
 temp_report="$report_path.tmp"
 lock_path="$report_path.lock"
 bootstrap_root=""
+
+if [[ "$extensionless_urls" != "true" && "$extensionless_urls" != "false" ]]; then
+  echo "Refusing IndexNow submission: extensionless_urls must be true or false, received '$extensionless_urls'." >&2
+  exit 1
+fi
+page_url_flags=()
+if [[ "$extensionless_urls" == "true" ]]; then
+  page_url_flags=(--extensionless-page-urls)
+fi
 
 if [[ "$mode" != "bootstrap" && "$mode" != "incremental" ]]; then
   echo "Refusing IndexNow submission: unsupported mode '$mode'." >&2
@@ -81,6 +91,7 @@ fi
   --sitemap "$sitemap_path" \
   --previous-root "$previous_root" \
   --current-root "$current_root" \
+  ${page_url_flags[@]+"${page_url_flags[@]}"} \
   --key-file "$current_root/$key_file_name" \
   --endpoint "$endpoint" \
   --timeout-seconds "$timeout_seconds" \

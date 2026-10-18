@@ -32,3 +32,6 @@ skills-lock.json
 
 # Release archives (scripts/package_release.sh)
 dist/
+
+# Impeccable ships a 21 MB platform binary; its launcher downloads one when none sits next to it
+.agents/skills/impeccable/scripts/bin/

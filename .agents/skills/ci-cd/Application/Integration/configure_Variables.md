@@ -59,6 +59,10 @@ CI_COMPRESSOR_BIN="/path/to/compressor"
 CI_OG_IMAGE_DIR="/path/to/Og_Image"
 ```
 
+`CI_DEPLOY_KEEP_RELEASES` is how many release folders stay on the host for rollback. It is required; the rule behind it and the order of pruning are in [Release layout, retention and rollback](../../Architecture/release_Layout.md).
+
+The values come from the `web-comp-tools` skill's `path_File.md` (`Compressor_Bin` for `CI_COMPRESSOR_BIN`, `Og_Image_Home` for `CI_OG_IMAGE_DIR`). The project's `env.env` keeps its own copy, because the pipeline has to work without that skill installed; when a tool folder moves, update the copy.
+
 The template intentionally has broken syntax at `CI_DEPLOY_DOMAIN`. Complete it before running the pipeline.
 
 ## Do Not Define Woodpecker Built-Ins

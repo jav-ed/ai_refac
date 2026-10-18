@@ -10,8 +10,7 @@ How the pipeline works and why it is shaped this way. Read once to understand th
 - [Just boundary](#justfile-boundary)
 - [Non-interactive tools](#non-interactive-tool-environments)
 - [`skip_clone`](#skip_clone-true)
-- [Release naming and retention](#release-naming-and-retention)
-- [Atomic activation](#atomic-symlink-swap)
+- [Releases](#releases)
 - [Footguns](#footguns)
 
 ## Pipeline Shape
@@ -41,9 +40,11 @@ Woodpecker calls `Code/CI_CD/Steps/*.sh` directly. Each step sources `Code/CI_CD
 |------|-------------|--------------|
 | `01_Install` | `Code/CI_CD/Steps/01_Install.sh` | `bun install` |
 | `02_Build` | `Code/CI_CD/Steps/02_Build.sh` | `bun run build` (Astro -> `dist/`) |
-| `03_Og_Images` | `Code/CI_CD/Steps/03_Og_Images.sh` | Calls the external OG generator with `--project_Root "$CI_PROJECT_DIR"` |
+| `03_Og_Images` | `Code/CI_CD/Steps/03_Og_Images.sh` | Calls the external OG generator with `--project_Root "$CI_PROJECT_DIR"`. The cards are build output: ignored by git, written into `dist/`, copied to the host with it (the `web-comp-tools` skill, Og_Image page) |
 | `04_Compress` | `Code/CI_CD/Steps/04_Compress.sh` | Runs the shared compressor over `dist/` |
 | `05_Deploy` | `Code/CI_CD/Steps/05_Deploy.sh` | Checks target shape, rsyncs `dist/` to a release directory, and swaps the active `dist` symlink |
+
+What each tool in these steps does and how it fails is described in the `web-comp-tools` skill.
 
 `.woodpecker.yml` sets `CI_REPO_PATH` and calls each step script through that absolute checkout path. `Code/CI_CD/Lib/runtime.sh` derives `CI_PROJECT_DIR` from the script location, loads `Code/CI_CD/Config/env.env`, and provides required-variable checks.
 
@@ -133,42 +134,9 @@ Implications:
 - uncommitted local changes can affect manual reruns,
 - caches such as `node_modules/` and `.astro/` persist across runs.
 
-## Release Naming And Retention
+## Releases
 
-Deploy names each release with date, pipeline number, and commit prefix:
-
-```text
-2026-06-16_p12_abc12345
-```
-
-For the mandatory `main` lane, releases land under:
-
-```text
-<deployment-root>/<domain>/main/releases/<release-id>/
-```
-
-The active served path is:
-
-```text
-<deployment-root>/<domain>/main/dist -> releases/<release-id>
-```
-
-`dist` is a symlink, not the directory rsync writes into. The script keeps the configured number of newest release folders.
-
-## Atomic Symlink Swap
-
-The deploy step:
-
-1. refuses if the exact release folder already exists,
-2. refuses if `main/dist` exists and is not a symlink,
-3. creates `main/releases/<release-id>/`,
-4. rsyncs local `dist/` into that release folder,
-5. switches `main/dist` to `releases/<release-id>`,
-6. removes old release folders beyond the retention count.
-
-The generic template does not require `dist/index.html`, because valid Astro sites may use language-folder entrypoints such as `dist/de/index.html`. An individual project may validate its own known entrypoint, but that project-specific check must not be copied into the generic template as a universal Astro rule.
-
-No Caddy reload is needed when only the symlink changes.
+Deploy writes every build into its own dated release folder and activates it by switching the `main/dist` symlink that Caddy serves, so a deploy is atomic, needs no Caddy reload, and keeps older releases for rollback. The layout, naming, activation steps, retention count and rollback are described once in [Release layout, retention and rollback](release_Layout.md), together with what a repository may override.
 
 ## Footguns
 
@@ -186,4 +154,4 @@ The template intentionally leaves `CI_REPO_PATH` as `__SET_ABSOLUTE_REPO_PATH__`
 
 ### External Tool Drift
 
-The compressor and OG generator live outside the Astro repo. If either changes its CLI or output contract, rerun the matching script locally before trusting a webhook run.
+The compressor and OG generator live outside the Astro repo. If either changes its CLI or output contract, update the `web-comp-tools` skill, then rerun the matching script locally before trusting a webhook run.

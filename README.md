@@ -3,11 +3,11 @@
 
 <p align="center"><img src="Project_Manag/Docs/Brand/refac-mark.svg" width="96" alt="refac logo: a teal eight-point star with a gold tile above it"></p>
 
-# refac
+# AI refac
 
 A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames symbols (variables, parameters, functions, methods, fields, types) with every reference in TypeScript/JavaScript, Kotlin, Go, Rust, Python, and Dart. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
 
-Public user documentation is maintained independently in [`jav-ed/refac-docs`](https://github.com/jav-ed/refac-docs). This repository remains the source of truth for CLI behavior and limitations.
+User documentation is published at [refac.javedab.com/docs](https://refac.javedab.com/docs) and is built from a separate repository. This repository remains the source of truth for CLI behavior and limitations.
 
 ---
 

@@ -54,6 +54,10 @@ second_code
 
 If you create, run, or change a test, you must read [Testing](Tooling/Testing/testing.md) first.
 
+## Searching code
+
+Before you change code you do not know, find its definitions, callers and implementors with the `search` skill.
+
 ## File and Folder Structure
 
 Group related work by purpose so developers can easily find and understand it. Two skills can help here: `file-tree-optimization` for grouping rules, ownership, naming, and inspection commands, and `refac-cli` for moving or renaming files, folders, and symbols with their references updated, in the languages it supports. They work well together: first decide where things belong, then move them.

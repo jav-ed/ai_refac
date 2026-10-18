@@ -4,13 +4,11 @@ Verify the base CI platform before debugging project-specific pipeline files. Th
 
 ## Runtime Context Repo
 
-The current org runtime repo for Woodpecker is:
-
-```text
-/home/jav/Schreibtisch/Javed/0_Right_Sirat/1_Code/01_Projects/1_Web_Service/02_Workfl_Comp/CI_CD
-```
+The current org runtime repo for Woodpecker is `CI_CD_Home`; its folder is in `path_File.md` of the `web-comp-tools` skill.
 
 It owns local service docs, runtime config, encrypted secrets, ignored upstream reference clones under `Repos/`, and broader source/debugging context. Go there for setup or repair details that are larger than a project pipeline check.
+
+Woodpecker itself runs from the official release binaries `Bin/Woodpecker/server` and `agent` of that repo, as user-level systemd services. It is not built from source: `Repos/woodpecker` is a reference clone for reading the docs and code. To change the version, follow the binary update checklist in the repo's `Project_Manag/Docs/Maintenance/`; the deployment page next to it records the version in use.
 
 ## Check Forgejo Reachability
 
