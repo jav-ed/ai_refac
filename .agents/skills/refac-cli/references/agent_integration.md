@@ -18,4 +18,17 @@ For one user across all projects, copy or symlink `refac-cli/` into `~/.claude/s
 
 ## Other agent harnesses
 
-The same pattern applies to any harness that resolves skills from a local directory: point it at `refac-cli/` (or at the folder that holds all skills) and it finds `SKILL.md` as the entry point.
+The same pattern applies to any harness that resolves skills from a local directory: point it at `refac-cli/` (or at the folder that holds all skills) and it finds `SKILL.md` as the entry point. The skill is a plain Agent Skills folder (https://agentskills.io). What each tool documents, checked on 2026-10-19:
+
+| Tool | Project folder | User folder |
+|---|---|---|
+| Claude Code | `.claude/skills/` | `~/.claude/skills/` |
+| Codex | `.agents/skills/` | `~/.agents/skills/` |
+| Gemini CLI | `.gemini/skills/` or `.agents/skills/` | `~/.gemini/skills/` or `~/.agents/skills/` |
+| Cursor | `.cursor/skills/` or `.agents/skills/` (also reads `.claude/skills/`) | `~/.cursor/skills/` or `~/.agents/skills/` |
+| VS Code with GitHub Copilot | `.github/skills/`, `.claude/skills/` or `.agents/skills/` | `~/.copilot/skills/`, `~/.claude/skills/` or `~/.agents/skills/` |
+| OpenCode | `.opencode/skills/`, `.claude/skills/` or `.agents/skills/` | `~/.config/opencode/skills/`, `~/.claude/skills/` or `~/.agents/skills/` |
+| Kilo Code | `.kilo/skills/` or `.agents/skills/` | `~/.kilo/skills/` or `~/.agents/skills/` |
+| Roo Code | `.roo/skills/` or `.agents/skills/` | `~/.roo/skills/` or `~/.agents/skills/` |
+
+`.agents/skills/` works for every tool above except Claude Code, which reads `.claude/skills/`: keep the skill in `.agents/skills/` and link it from `.claude/skills/`. Tools change these folders, so open the tool's own skills page before relying on a row.
