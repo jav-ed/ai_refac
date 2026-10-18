@@ -1,7 +1,7 @@
 > [!WARNING]
 > **Pre-alpha.** refac is built for personal use and is not finished. Commands, output, and behavior change whenever I need them to, and there is no guarantee that I keep working on this repository, or that it works for you. If it inshallah turns out useful to you, go ahead, at your own risk.
 
-<p align="center"><img src="Project_Manag/Docs/Brand/refac-mark.svg" width="96" alt="refac logo: a teal eight-point star with a gold tile above it"></p>
+<p align="center"><img src="Project_Manag/Docs/Brand/refac-mark.svg" width="96" alt="refac logo: a gold tile passing up through a teal pointed arch"></p>
 
 # AI refac
 

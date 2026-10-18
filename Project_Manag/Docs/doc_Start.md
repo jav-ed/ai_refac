@@ -46,6 +46,6 @@ Language servers are never left running: a command starts the server it needs, u
 - [Kotlin server setup](Setup/kotlin_Server.md): downloading and verifying the JetBrains Kotlin language server, `REFAC_KOTLIN_SERVER`, the timeout variable, measured startup time and memory, and how to run the real-server tests.
 - [Handoff](Setup/handoff_Continuation.md): where the work stands (TypeScript rename and the Kotlin backend done), what is not in git, what is untested, and the first commands to run.
 - [Release process](Setup/release_Process.md): the GitHub Actions `ci` and `release` workflows, why Linux x86_64 is the only target, and how to cut a release with a tag.
-- [Logo](Brand/logo.md): the moving-tile mark (eight-point star with a lifted gold tile), its files, sizes, and colors.
+- [Logo](Brand/logo.md): the doorway mark (a gold tile passing up through a teal pointed arch), the favicon version, the avatar, what was retired, and the colors.
 
 Note: this file lives at `Project_Manag/Docs/doc_Start.md`, so all link paths above are relative to `Project_Manag/Docs/`.

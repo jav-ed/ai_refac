@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img">
   <title>refac</title>
-  <polygon fill="#1D9E75" points="16.00,7.90 19.46,11.36 24.34,11.36 24.34,16.24 27.80,19.70 24.34,23.16 24.34,28.04 19.46,28.04 16.00,31.50 12.54,28.04 7.66,28.04 7.66,23.16 4.20,19.70 7.66,16.24 7.66,11.36 12.54,11.36"/>
-  <rect fill="#EF9F27" x="13.00" y="0.5" width="6" height="6"/>
+  <path fill="none" stroke="#1D9E75" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" d="M6.5 29.2 V19.4 A19 19 0 0 1 16 2.95 A19 19 0 0 1 25.5 19.4 V29.2"/>
+  <rect fill="#EF9F27" x="11.5" y="16.5" width="9" height="9"/>
 </svg>
