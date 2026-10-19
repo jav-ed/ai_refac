@@ -115,6 +115,8 @@ By hand, the same is `cargo build --release` plus `ln -sf "$(pwd)/target/release
 
 The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds them next to the binary (`target/release`), or in the checkout it was built from, so keep the checkout where you built it. When it cannot find one, the error lists every place it looked.
 
+**No Rust?** Each [release](https://github.com/jav-ed/ai_refac/releases) has a Linux x86_64 archive with a `SHA256SUMS` file, and the binary comes with the helper scripts it needs. Unpack it, link the `refac` inside it, and check `refac --version`: the steps are in [Release process](Project_Manag/Docs/Setup/release_Process.md) and in the [docs](https://refac.javedab.com/docs/getting-started/installation).
+
 **Platform:** Linux. macOS and Windows are not targets (not needed), so nothing is tested or promised for them.
 
 Each language backend requires its own tooling. See [Prerequisites](#prerequisites).
