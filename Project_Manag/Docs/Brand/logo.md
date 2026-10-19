@@ -9,6 +9,7 @@ On 2026-10-19 the doorway replaced the earlier mark, the moving-tile star (an ei
 | `refac-mark.svg` | The logo. Transparent, works on light and dark backgrounds (teal and gold only). README, docs header, sidebar and footer. Good from about 24 px up. |
 | `refac-favicon.svg` | The arch with the gold tile only, heavier lines. No arrow and no faint tile: at tab size they would be a smear. Browser tab icon, and the mark on the social cards. |
 | `refac-mark-512.png`, `refac-avatar-512.png` | Raster copies: transparent, and on a dark square (`#14181A`) for the GitHub avatar. |
+| `refac-social-preview.png` | The GitHub social preview (1280 by 640): the docs site's home card on its own dark background, padded to the size GitHub asks for. GitHub has no API for it: upload it by hand under Settings, General, Social preview. Make it again from the docs repository's `dist/client/og/home.webp` when that card changes. |
 | `refac-doorway.svg` | The same drawing with a finer arrow, for large empty spaces. The landing page draws it itself (`HeroArt` in the docs repository) and animates it: the arch draws itself, the tile rises through the arrow. |
 | `Retired/` | The star mark, its favicon and rasters. The star lives on as the pattern behind the landing page. |
 

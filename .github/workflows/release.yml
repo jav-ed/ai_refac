@@ -73,7 +73,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Pre-release while the README says pre-alpha: GitHub then does not show it as the "Latest" release.
+          # Drop --prerelease here when the project leaves pre-alpha.
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "refac ${GITHUB_REF_NAME#v}" \
-            --generate-notes
+            --generate-notes \
+            --prerelease
