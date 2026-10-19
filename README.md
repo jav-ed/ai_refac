@@ -7,7 +7,10 @@
 
 A CLI tool that moves source files and updates affected import paths, module references, and links across a project, and renames symbols (variables, parameters, functions, methods, fields, types) with every reference in TypeScript/JavaScript, Kotlin, Go, Rust, Python, and Dart. Designed for scripted and agent-driven workflows where an IDE is not in the loop.
 
-User documentation is published at [refac.javedab.com/docs](https://refac.javedab.com/docs) and is built from a separate repository. This repository remains the source of truth for CLI behavior and limitations.
+- **Documentation:** [refac.javedab.com](https://refac.javedab.com/docs)
+- **AI and skills:** [refac.javedab.com/docs/ai](https://refac.javedab.com/docs/ai), how to get the refac skill and which folder your agent tool reads it from
+
+The documentation site is built from a separate repository. This repository remains the source of truth for CLI behavior and limitations.
 
 ---
 
@@ -76,6 +79,8 @@ Claude Code picks up skills from `.claude/skills/`. The symlink points back to `
 The `.claude/` directory is tracked in git. `.claude/skills` is listed in `.gitignore` so the symlink itself is not committed (the skills are already tracked under `.agents/`).
 
 Other agent tools that support a skills or prompts directory can be wired up the same way: just symlink from their expected path into `.agents/skills/`.
+
+**AI and skills:** the folder each tool reads (Claude Code, Codex, Gemini CLI, Cursor, VS Code with GitHub Copilot, OpenCode, Kilo Code, Roo Code) and how to fetch only the skill are on [refac.javedab.com/docs/ai/skills](https://refac.javedab.com/docs/ai/skills).
 
 ---
 
