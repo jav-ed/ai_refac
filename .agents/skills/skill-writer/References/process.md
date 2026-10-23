@@ -11,6 +11,7 @@ Ask the user:
 - Does it need executable helpers (deterministic operations) or only instructions?
 - Are there reference materials, examples, or existing docs to bundle?
 - Does the skill serve both an operator using an existing tool and a developer changing it? Which knowledge does each audience actually need?
+- Would two projects using it reasonably make different choices (design, voice, structure)? If so, add the override mechanism from [Repository overrides](repository_Overrides.md).
 
 The most common use case is what gets inlined in SKILL.md. If the user cannot name a clear common case, the scope is probably too broad to be one skill.
 

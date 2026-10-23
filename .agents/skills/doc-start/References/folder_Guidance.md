@@ -12,7 +12,7 @@ Two more folders sit at the repo root: `/Repos/` for shallow clones of third-par
 | Folder | Required? | Use for |
 |---|---|---|
 | `Architecture` | required | Structure, systems, technical layout, integration boundaries |
-| `Decisions` | required | Important decisions, tradeoffs, ADR-like notes |
+| `Decisions` | required | Important decisions, tradeoffs, ADR-like notes. Also the home of the override maps of skills that need project customization: `Decisions/<Skill_Name>/linker_<Skill_Name>.md`, which links to the documents that own each rule |
 | `Descr` | required | What the repo or product does, domain model, conceptual descriptions |
 | `Research` | required | Quick lookups, online finds, lightweight external content gathered for context |
 | `Setup` | required | Local setup, environment bootstrap, install steps. Also home to `internal_Repo_Paths.md` for first-party repo shortcuts and `repos_List.md` for external clones in gitignored `/Repos/` |

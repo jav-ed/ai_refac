@@ -47,3 +47,7 @@ The skill links to one repository's docs, tells the agent to run a recipe only t
 ## Gotcha dump
 
 Every pitfall anyone hit once is added to the skill, until the few that change decisions drown. Record a new gotcha beside the affected code and in that repository's docs first, and promote it to the skill only when it keeps changing decisions.
+
+## Project rules written into the skill
+
+A project edits its copy of a skill to fit itself, or a rule that only one project needs is added to the vault's skill. The next sync erases the first, and the second reaches every project. Keep the skill general and give a customisable subject an override map in the project's docs. See [Repository overrides](repository_Overrides.md).
