@@ -5,6 +5,7 @@
 mod common;
 
 mod alias_move;
+mod astro;
 mod directory_limit;
 mod large_project;
 mod moves;

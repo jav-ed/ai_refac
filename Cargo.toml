@@ -24,6 +24,9 @@ url = "2.5.7"
 pulldown-cmark = { version = "0.13", default-features = false }
 # Finds the Markdown files a move can affect, honouring .gitignore like git does.
 ignore = "0.4"
+# Finds the requested file names in the code of a project in one pass (already
+# part of the dependency tree through `ignore`).
+aho-corasick = "1"
 # Link destinations are URLs: `My%20Notes.md` is the file `My Notes.md`.
 percent-encoding = "2"
 which = "8.0.0"

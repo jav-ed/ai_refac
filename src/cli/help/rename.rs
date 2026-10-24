@@ -9,7 +9,8 @@ extension. A language server finds the symbol's real references (not a text sear
 symbol with the same name is left alone and one that is imported under another name is still found.
 
   Extensions                              Language         Done by
-  .ts .tsx .js .jsx .mts .cts .mjs .cjs  TypeScript / JS   Oxc parser + TypeScript native language server
+  .ts .tsx .js .jsx .mts .cts .mjs .cjs  TypeScript / JS   TypeScript native language server (7.1 beta)
+  .astro (with --astro)                   Astro             the same server, through @astrojs/ts-content-mapper
   .kt                                     Kotlin / Java    JetBrains Kotlin language server (+ Android XML)
   .go                                     Go               gopls
   .rs                                     Rust             rust-analyzer
@@ -20,6 +21,15 @@ symbol with the same name is left alone and one that is imported under another n
   TypeScript/JS  folder with the authoritative tsconfig.json    Kotlin  Gradle root (settings.gradle.kts)
   Go             folder with go.mod       Rust    Cargo package or workspace root
   Python         the pyright root         Dart    package folder with pubspec.yaml
+
+ASTRO AND MDX
+  The language server does not read .astro or .mdx files. A TypeScript rename that such a file would
+  not follow (it imports from a file the rename edits and writes the name) is refused before any file
+  changes, and the files are listed. --astro (or REFAC_ASTRO=1) lets the engine run the project's Astro
+  content mapper, which is code in node_modules, so .astro files are renamed too and a symbol declared
+  in an .astro file can be renamed. It needs Node.js, @astrojs/ts-content-mapper in the project, and
+  "contentMappers": [{ "package": "@astrojs/ts-content-mapper", "extensions": [".astro"] }] in
+  tsconfig.json; a tsconfig that lists mappers is refused without the flag. .mdx files stay out of reach.
 
 WHEN THE NAME IS NOT UNIQUE
   If the name means several symbols in the file (a local `count` in two functions), nothing is

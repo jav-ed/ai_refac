@@ -3,6 +3,7 @@ use anyhow::{Result, bail};
 use report::{FailedGroup, MoveOutcome, Pairs};
 use std::collections::{BTreeMap, HashMap};
 
+mod code_imports;
 mod dry_run;
 mod go_collaterals;
 mod grouping;
@@ -58,9 +59,10 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     let req = absolute_project(req)?;
     let Prepared {
         root,
-        groups,
+        mut groups,
         skipped,
         typescript_source_count,
+        companion,
     } = prepare(&req).await?;
 
     // Folders are gone once moved, so ask now for the Markdown link pass later.
@@ -69,6 +71,21 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // What each driver reports beyond success, by language.
     let mut notes: HashMap<String, Vec<String>> = HashMap::new();
     let mut failed: Vec<FailedGroup> = Vec::new();
+
+    // Code that imports the pages and pictures the Markdown driver is about to
+    // move is fixed first. If the engine cannot, nothing has moved and the
+    // whole request fails.
+    if !companion.is_empty() {
+        let fixed = code_imports::fix_before_moving(&mut groups, &companion, root).await?;
+        if !fixed.typescript_files.is_empty() {
+            moved.insert("typescript".to_string(), fixed.typescript_files);
+        }
+        notes
+            .entry("markdown".to_string())
+            .or_default()
+            .extend(fixed.notes);
+    }
+
     let single_kotlin = kotlin_cost::is_single_move(
         groups
             .iter()
@@ -83,10 +100,20 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
                 if single_kotlin && lang == "kotlin" {
                     driver_notes.push(kotlin_cost::note("move", started.elapsed(), false));
                 }
-                notes.insert(lang.clone(), driver_notes);
+                notes.entry(lang.clone()).or_default().extend(driver_notes);
                 moved.insert(lang, files);
             }
-            Err(error) => failed.push(FailedGroup::new(lang, files, &error)),
+            Err(error) => {
+                // The code was already fixed for the files this group did not move.
+                let error = if lang == "markdown" && !companion.is_empty() {
+                    error.context(
+                        "The imports in code were already updated for these pages and pictures;                          restore them from version control or move the files by hand",
+                    )
+                } else {
+                    error
+                };
+                failed.push(FailedGroup::new(lang, files, &error));
+            }
         }
     }
 

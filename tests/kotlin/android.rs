@@ -167,6 +167,7 @@ fn request(project: &Path, file: &str, symbol: &str, new_name: &str) -> RenameRe
         line: None,
         column: None,
         dry_run: false,
+        astro: false,
     }
 }
 

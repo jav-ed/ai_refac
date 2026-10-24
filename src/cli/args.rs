@@ -131,7 +131,7 @@ pub(super) struct RenameArgs {
 
     /// File that contains the symbol (absolute, or relative to --project-path).
     ///
-    /// Its extension picks the language: ts tsx js jsx mts cts mjs cjs, kt, go, rs, py, dart.
+    /// Its extension picks the language: ts tsx js jsx mts cts mjs cjs, kt, go, rs, py, dart (astro with --astro).
     #[arg(long, value_name = "FILE", value_hint = ValueHint::FilePath, required_unless_present = "batch", conflicts_with = "batch")]
     pub(super) file: Option<std::path::PathBuf>,
 
@@ -177,6 +177,16 @@ pub(super) struct RenameArgs {
     /// Plan and prove the rename, print it, and change no file.
     #[arg(long)]
     pub(super) dry_run: bool,
+
+    /// TypeScript only: also rename inside `.astro` files, with the project's Astro content mapper.
+    ///
+    /// The TypeScript language server reads `.astro` files through a content mapper that the
+    /// project lists in tsconfig.json (`contentMappers`, package `@astrojs/ts-content-mapper`).
+    /// Mappers are code from the project's node_modules, so the engine runs them only when you
+    /// say so here (or with REFAC_ASTRO=1). Without it, a rename that `.astro` files would not
+    /// follow is refused and a tsconfig that lists mappers is refused with this hint.
+    #[arg(long, env = "REFAC_ASTRO")]
+    pub(super) astro: bool,
 
     /// Kotlin only: let a single Kotlin change through; refac refuses it by default.
     ///

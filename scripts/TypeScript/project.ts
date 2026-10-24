@@ -9,6 +9,18 @@ export interface ProjectConfig {
     options: ts.CompilerOptions;
 }
 
+// Component and style files that name other files. TypeScript lists them in a project only
+// when told, the way an editor tells it about .vue files; their code is read by
+// Embedded/, never by the compiler.
+const COMPONENT_EXTENSIONS: ts.FileExtensionInfo[] = [
+    { extension: ".astro", isMixedContent: true, scriptKind: ts.ScriptKind.Deferred },
+    { extension: ".mdx", isMixedContent: true, scriptKind: ts.ScriptKind.Deferred },
+    // A stylesheet names files with url() and @import.
+    { extension: ".css", isMixedContent: false, scriptKind: ts.ScriptKind.Deferred },
+    // A page names files in its frontmatter.
+    { extension: ".md", isMixedContent: true, scriptKind: ts.ScriptKind.Deferred },
+];
+
 export function readProject(root: string): ProjectConfig {
     const configPath = path.join(root, "tsconfig.json");
     // TypeScript owns config inheritance and include/exclude semantics. Reading
@@ -20,8 +32,8 @@ export function readProject(root: string): ProjectConfig {
             onUnRecoverableConfigFileDiagnostic(diagnostic) {
                 throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
             },
-        })
-        : ts.parseJsonConfigFileContent({ compilerOptions: { allowJs: true, moduleResolution: "bundler", module: "esnext" } }, ts.sys, root);
+        }, undefined, undefined, COMPONENT_EXTENSIONS)
+        : ts.parseJsonConfigFileContent({ compilerOptions: { allowJs: true, moduleResolution: "bundler", module: "esnext" } }, ts.sys, root, undefined, undefined, undefined, COMPONENT_EXTENSIONS);
     if (!config || config.errors.length) {
         throw new Error(`Cannot read TypeScript project ${configPath}: ${config?.errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, "\n")).join("\n")}`);
     }
@@ -32,5 +44,5 @@ export function readProject(root: string): ProjectConfig {
 }
 
 export function isSource(file: string): boolean {
-    return /\.(?:[cm]?[jt]sx?)$/.test(file);
+    return /\.(?:[cm]?[jt]sx?|astro|mdx?|css)$/.test(file);
 }

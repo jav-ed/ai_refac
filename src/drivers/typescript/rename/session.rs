@@ -8,7 +8,11 @@ pub use crate::drivers::lsp::session::{LspSession as Session, RpcError};
 /// Start the TypeScript 7 native engine on a project. rootUri is mandatory for
 /// this server; UTF-8 positions keep every offset a plain byte offset in the
 /// Rust-side text.
-pub async fn start(executable: &Path, root: &Path) -> Result<Session> {
+///
+/// With `astro` the engine may run the project's content mappers
+/// (`runExternalCode`) and is told that the editor handles `.astro` files, so
+/// they are read through the mapper like TypeScript files.
+pub async fn start(executable: &Path, root: &Path, astro: bool) -> Result<Session> {
     let (mut session, init) = LspSession::start(SessionConfig {
         name: "TypeScript native engine",
         executable,
@@ -22,7 +26,7 @@ pub async fn start(executable: &Path, root: &Path) -> Result<Session> {
         keep_notifications: &[],
         language_id,
         env: Vec::new(),
-        initialization_options: None,
+        initialization_options: astro.then(|| json!({ "runExternalCode": true })),
     })
     .await?;
     let capabilities = &init["capabilities"];
@@ -36,6 +40,17 @@ pub async fn start(executable: &Path, root: &Path) -> Result<Session> {
         bail!("The TypeScript engine does not offer rename and references");
     }
     session.initialized().await?;
+    if astro {
+        session
+            .request(
+                "custom/setContentMapperContributions",
+                json!({
+                    "contributions": [{ "contributorId": "refac", "extensions": [".astro"] }],
+                    "openDocuments": [],
+                }),
+            )
+            .await?;
+    }
     Ok(session)
 }
 
@@ -44,6 +59,7 @@ fn language_id(path: &Path) -> &'static str {
         Some("tsx") => "typescriptreact",
         Some("jsx") => "javascriptreact",
         Some("js" | "mjs" | "cjs") => "javascript",
+        Some("astro") => "astro",
         _ => "typescript",
     }
 }

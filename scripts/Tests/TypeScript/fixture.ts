@@ -22,8 +22,9 @@ export function fixture(config: unknown = { compilerOptions: { module: "esnext",
         root, write,
         read(file: string) { return fs.readFileSync(path.join(root, file), "utf8"); },
         exists(file: string) { return fs.existsSync(path.join(root, file)); },
-        move(pairs: [string, string][]) {
-            const moves = prepareMoves(root, pairs);
+        /** `external` are moves another tool carries out afterwards: planned, never renamed. */
+        move(pairs: [string, string][], external: [string, string][] = []) {
+            const moves = prepareMoves(root, pairs, external);
             const project = readProject(root);
             const plan = planMoves(project, moves);
             applyPlan(project, plan);

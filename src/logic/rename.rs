@@ -27,13 +27,20 @@ enum Backend {
 }
 
 impl Backend {
-    fn of(file: &Path) -> Result<Self> {
+    /// `astro` is the request's `--astro`: it makes `.astro` files renameable
+    /// (the TypeScript engine reads them through the project's content mapper).
+    fn of(file: &Path, astro: bool) -> Result<Self> {
         let extension = file
             .extension()
             .and_then(|extension| extension.to_str())
             .unwrap_or("");
         match extension {
             "ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs" => Ok(Self::TypeScript),
+            "astro" if astro => Ok(Self::TypeScript),
+            "astro" => bail!(
+                "{} is an Astro component: the TypeScript language server reads it only through the project's content mapper. Add --astro (see `refac rename --help`) to rename a symbol declared in it.",
+                file.display()
+            ),
             "kt" => Ok(Self::Kotlin),
             "go" => Ok(Self::Go),
             "rs" => Ok(Self::Rust),
@@ -61,7 +68,7 @@ impl Backend {
 /// Central entry point for symbol renames: picks the language backend from the
 /// file extension.
 pub async fn handle_rename(request: RenameRequest) -> Result<RenameReport> {
-    match Backend::of(&request.file)? {
+    match Backend::of(&request.file, request.astro)? {
         Backend::TypeScript => rename_typescript_symbol(request).await,
         Backend::Kotlin => {
             let (started, dry_run) = (std::time::Instant::now(), request.dry_run);
@@ -87,9 +94,9 @@ pub async fn handle_rename_batch(requests: Vec<RenameRequest>) -> Result<Vec<Ren
     let Some(first) = requests.first() else {
         bail!("A batch needs at least one rename");
     };
-    let backend = Backend::of(&first.file)?;
+    let backend = Backend::of(&first.file, first.astro)?;
     for (index, request) in requests.iter().enumerate().skip(1) {
-        let other = Backend::of(&request.file)?;
+        let other = Backend::of(&request.file, request.astro)?;
         if other != backend {
             bail!(
                 "A batch renames in one language, but rename {} is a {} file ({}) and rename 1 a {} file ({}). Run one batch per language.",

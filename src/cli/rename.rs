@@ -36,7 +36,8 @@ pub(super) async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
         .map_err(|error| fail(error.into()))?;
     match args.batch {
         Some(ref batch) => {
-            let requests = read_batch(batch, &project_path, args.dry_run).map_err(fail)?;
+            let requests =
+                read_batch(batch, &project_path, args.dry_run, args.astro).map_err(fail)?;
             let reports = handle_rename_batch(requests.clone()).await.map_err(fail)?;
             print_batch(&project_path, &requests, &reports, args.dry_run, json)
         }
@@ -57,6 +58,7 @@ pub(super) async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
                 line: args.line,
                 column: args.column,
                 dry_run: args.dry_run,
+                astro: args.astro,
             };
             kotlin_cost::refuse_single_rename(&request, args.allow_single).map_err(fail)?;
             let report = handle_rename(request.clone()).await.map_err(fail)?;
@@ -66,7 +68,12 @@ pub(super) async fn execute_rename(args: RenameArgs) -> Result<(), CliError> {
 }
 
 /// The requests of a batch file, or of stdin for `-`.
-fn read_batch(source: &Path, project_path: &Path, dry_run: bool) -> Result<Vec<RenameRequest>> {
+fn read_batch(
+    source: &Path,
+    project_path: &Path,
+    dry_run: bool,
+    astro: bool,
+) -> Result<Vec<RenameRequest>> {
     let text = batch::read_text(source)?;
     let entries: Vec<BatchEntry> = serde_json::from_str(&text).with_context(|| {
         format!(
@@ -84,6 +91,7 @@ fn read_batch(source: &Path, project_path: &Path, dry_run: bool) -> Result<Vec<R
             line: entry.line,
             column: entry.column,
             dry_run,
+            astro,
         })
         .collect())
 }

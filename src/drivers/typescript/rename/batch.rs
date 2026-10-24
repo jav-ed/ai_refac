@@ -35,6 +35,8 @@ pub async fn rename_symbols(requests: Vec<RenameRequest>) -> Result<Vec<RenameRe
 
 async fn run(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>> {
     let checked = check_requests(&requests)?;
+    // One engine serves the whole batch, so the first request decides.
+    let astro = requests.iter().any(|request| request.astro);
     let limits = Limits::from_env()?;
     let executable = engine::locate().await?;
     engine::preflight(
@@ -42,10 +44,11 @@ async fn run(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>> {
         &checked.project,
         &checked.files,
         limits.timeout,
+        astro,
     )
     .await?;
 
-    let mut session = Some(session::start(&executable, &checked.project).await?);
+    let mut session = Some(session::start(&executable, &checked.project, astro).await?);
     let pid = session
         .as_ref()
         .and_then(|session| session.pid())
@@ -58,7 +61,7 @@ async fn run(requests: Vec<RenameRequest>) -> Result<Vec<RenameReport>> {
                 // Planning and verification only read; a limit failure here
                 // leaves this rename's files untouched.
                 tokio::select! {
-                    result = plan_and_verify(live, request, &checked.files[index], &checked.project) => result,
+                    result = plan_and_verify(live, request, &checked.files[index], &checked.project, astro) => result,
                     _ = tokio::time::sleep(limits.timeout) => Err(anyhow::anyhow!(
                         "TypeScript engine timed out after {} seconds. No files were changed", limits.timeout.as_secs_f64()
                     )),

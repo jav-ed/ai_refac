@@ -19,6 +19,7 @@ fn rename(file: &str) -> RenameRequest {
         line: None,
         column: None,
         dry_run: false,
+        astro: false,
     }
 }
 

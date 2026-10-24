@@ -4,6 +4,7 @@
 
 use crate::drivers::RefactorDriver;
 use crate::logic::RefactorRequest;
+use crate::logic::grouping::referenced;
 use crate::logic::grouping::route;
 use crate::logic::grouping::typescript;
 use crate::logic::grouping::unavailable;
@@ -21,6 +22,9 @@ pub(in crate::logic) struct Prepared<'a> {
     /// Sources whose extension no driver handles.
     pub skipped: Vec<String>,
     pub typescript_source_count: usize,
+    /// Pairs of the Markdown group that code uses: the TypeScript engine fixes
+    /// that code before the Markdown driver moves the files.
+    pub companion: Pairs,
 }
 
 pub(in crate::logic) async fn prepare(req: &RefactorRequest) -> Result<Prepared<'_>> {
@@ -55,8 +59,12 @@ pub(in crate::logic) async fn prepare(req: &RefactorRequest) -> Result<Prepared<
             .push((src.clone(), tgt.clone()));
     }
 
-    // 3. Sorted for deterministic output order
+    // Pictures, pages and folders that code imports still belong to the
+    // Markdown driver; the TypeScript engine fixes the imports.
     let root = req.project_path.as_deref().map(Path::new);
+    let companion = referenced::used_pairs(&batch_map, root)?;
+
+    // 3. Sorted for deterministic output order
     let mut dispatch_order: Vec<(String, Pairs)> = batch_map.into_iter().collect();
     dispatch_order.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -86,10 +94,23 @@ pub(in crate::logic) async fn prepare(req: &RefactorRequest) -> Result<Prepared<
         groups.push((lang, files, driver));
     }
 
+    // The engine that fixes the code is a tool the request needs even when it
+    // moves no TypeScript of its own.
+    if !companion.is_empty() && !groups.iter().any(|(lang, ..)| lang == "typescript") {
+        let driver = route::driver_for("typescript")?;
+        if !driver.check_availability().await? {
+            bail!(
+                "Code in this project imports files you are moving, and the TypeScript engine fixes those imports. {}",
+                unavailable::message("typescript", root)
+            );
+        }
+    }
+
     Ok(Prepared {
         root,
         groups,
         skipped,
         typescript_source_count,
+        companion,
     })
 }

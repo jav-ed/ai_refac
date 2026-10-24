@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 
 mod dependencies;
+pub mod files;
 mod process;
 pub mod rename;
 
@@ -55,8 +56,7 @@ impl RefactorDriver for TypeScriptDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<()> {
-        let stdout = run_helper(&file_map, root_path, false).await?;
-        tracing::info!("TypeScript/Oxc batch output: {}", stdout);
+        self.move_alongside(file_map, Vec::new(), root_path).await?;
         Ok(())
     }
 
@@ -70,59 +70,133 @@ impl RefactorDriver for TypeScriptDriver {
         file_map: Vec<(String, String)>,
         root_path: Option<&std::path::Path>,
     ) -> Result<MovePreview> {
-        let stdout = run_helper(&file_map, root_path, true).await?;
+        self.plan_alongside(file_map, Vec::new(), root_path).await
+    }
+}
+
+impl TypeScriptDriver {
+    /// Moves `file_map` and fixes the code that imports `alongside` as well: the
+    /// pages and pictures another driver moves right after this returns. The
+    /// files of `alongside` are not renamed here. Returns a note naming the
+    /// files whose imports changed, or nothing when none did.
+    pub async fn move_alongside(
+        &self,
+        file_map: Vec<(String, String)>,
+        alongside: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<Vec<String>> {
+        let stdout = run_helper(&file_map, &alongside, root_path, false).await?;
+        tracing::info!("TypeScript/Oxc batch output: {}", stdout);
+        let plan = parse_helper_plan(&stdout)?;
+        if alongside.is_empty() || plan.files.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(vec![format!(
+            "Updated the imports in {} code file(s) for the moved pages and pictures.",
+            plan.files.len()
+        )])
+    }
+
+    /// The plan of `move_alongside`.
+    pub async fn plan_alongside(
+        &self,
+        file_map: Vec<(String, String)>,
+        alongside: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<MovePreview> {
+        let stdout = run_helper(&file_map, &alongside, root_path, true).await?;
         parse_plan(&stdout)
     }
 }
 
-/// Runs `scripts/ts_refactor.ts` on the pairs and returns what it printed.
-async fn run_helper(
-    file_map: &[(String, String)],
-    root_path: Option<&std::path::Path>,
-    dry_run: bool,
-) -> Result<String> {
+/// `bun scripts/ts_refactor.ts`, with the locked parser and resolver installed
+/// when this checkout is new.
+async fn helper_command() -> Result<tokio::process::Command> {
     let script_path = super::resolve_resource_path("scripts/ts_refactor.ts")?;
     let bun_cmd = dependencies::bun_command();
-
-    // Install the locked parser/resolver dependencies when this checkout is new.
     let script_dir = script_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Could not determine scripts directory"))?;
     dependencies::ensure_installed(
         &bun_cmd,
         script_dir,
-        &["oxc-parser", "oxc-resolver", "typescript"],
+        &[
+            "oxc-parser",
+            "oxc-resolver",
+            "typescript",
+            "@astrojs/compiler-rs",
+        ],
     )
     .await?;
-
-    let payload = serde_json::to_string(file_map)?;
-
-    // Call the script using found bun
     let mut cmd = tokio::process::Command::new(&bun_cmd);
-    cmd.arg(script_path).arg("batch").arg(&payload);
+    cmd.arg(script_path);
+    Ok(cmd)
+}
 
+/// Runs the helper and returns what it printed. A failure carries the
+/// helper's stderr to the caller; logging it as well would put a second copy
+/// in front of the JSON error (`--json`).
+async fn run_command(mut cmd: tokio::process::Command, what: &str) -> Result<String> {
+    let output = process::run(&mut cmd, process::Limits::from_env()?).await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("{what} failed: {}", stderr);
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Runs `scripts/ts_refactor.ts` on the pairs and returns what it printed.
+/// `alongside` are moves another tool carries out: the helper plans them but
+/// does not rename them.
+async fn run_helper(
+    file_map: &[(String, String)],
+    alongside: &[(String, String)],
+    root_path: Option<&std::path::Path>,
+    dry_run: bool,
+) -> Result<String> {
+    let mut cmd = helper_command().await?;
+    cmd.arg("batch").arg(serde_json::to_string(file_map)?);
     if let Some(r) = root_path {
         cmd.arg(r.to_string_lossy().to_string());
+    }
+    if !alongside.is_empty() {
+        cmd.arg("--external").arg(serde_json::to_string(alongside)?);
     }
     if dry_run {
         cmd.arg("--dry-run");
     }
-
-    let output = process::run(&mut cmd, process::Limits::from_env()?).await?;
-
-    if !output.status.success() {
-        // The error carries the helper's stderr to the caller; logging it as
-        // well would put a second copy in front of the JSON error (`--json`).
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("TypeScript/Oxc batch failed: {}", stderr);
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    run_command(cmd, "TypeScript/Oxc batch").await
 }
 
-/// The plan the helper prints with `--dry-run`: `{"moves": [{from, to}],
-/// "files": [{path, edits}], "unchecked": n}`, one JSON line. `unchecked` counts
-/// the rewritten imports the helper could not resolve without the moved files.
+/// The component files of the project (`extensions`: `astro`, `mdx`) that
+/// import from one of `defining` and write `name`: the files a symbol rename
+/// would leave behind, because the language server cannot read inside them.
+pub async fn component_users(
+    project: &std::path::Path,
+    name: &str,
+    defining: &[PathBuf],
+    extensions: &[&str],
+) -> Result<Vec<PathBuf>> {
+    let mut cmd = helper_command().await?;
+    cmd.arg("users")
+        .arg(project)
+        .arg(name)
+        .arg(serde_json::to_string(defining)?)
+        .arg(serde_json::to_string(extensions)?);
+    let stdout = run_command(cmd, "Reading the component files").await?;
+    let line = stdout
+        .lines()
+        .rev()
+        .find(|line| line.trim_start().starts_with('['))
+        .ok_or_else(|| anyhow::anyhow!("The TypeScript helper printed no file list: {stdout:?}"))?;
+    serde_json::from_str(line)
+        .context("The TypeScript helper printed a file list refac cannot read")
+}
+
+/// The plan the helper prints as its last line, with `--dry-run` and after a
+/// real move: `{"moves": [{from, to}], "files": [{path, edits}], "unchecked":
+/// n}`. `unchecked` counts the rewritten imports the helper could not resolve
+/// without the moved files.
 #[derive(serde::Deserialize)]
 struct HelperPlan {
     moves: Vec<HelperMove>,
@@ -142,14 +216,17 @@ struct HelperFile {
     edits: usize,
 }
 
-fn parse_plan(stdout: &str) -> Result<MovePreview> {
+fn parse_helper_plan(stdout: &str) -> Result<HelperPlan> {
     let line = stdout
         .lines()
         .rev()
         .find(|line| line.trim_start().starts_with('{'))
         .ok_or_else(|| anyhow::anyhow!("The TypeScript helper printed no plan: {stdout:?}"))?;
-    let plan: HelperPlan = serde_json::from_str(line)
-        .context("The TypeScript helper printed a plan refac cannot read")?;
+    serde_json::from_str(line).context("The TypeScript helper printed a plan refac cannot read")
+}
+
+fn parse_plan(stdout: &str) -> Result<MovePreview> {
+    let plan = parse_helper_plan(stdout)?;
     let mut preview = MovePreview {
         moves: plan
             .moves

@@ -11,6 +11,7 @@ fn request(file: &str) -> RenameRequest {
         line: None,
         column: None,
         dry_run: true,
+        astro: false,
     }
 }
 
@@ -69,7 +70,7 @@ async fn an_unknown_extension_is_named() {
 
 #[test]
 fn the_extension_picks_the_backend() {
-    let backend = |file: &str| Backend::of(Path::new(file)).unwrap();
+    let backend = |file: &str| Backend::of(Path::new(file), false).unwrap();
 
     assert_eq!(backend("src/a.tsx"), Backend::TypeScript);
     assert_eq!(backend("A.kt"), Backend::Kotlin);
@@ -77,4 +78,16 @@ fn the_extension_picks_the_backend() {
     assert_eq!(backend("a.rs"), Backend::Rust);
     assert_eq!(backend("a.py"), Backend::Python);
     assert_eq!(backend("a.dart"), Backend::Dart);
+}
+
+/// An Astro component is renamed through the project's content mapper, which
+/// runs code from `node_modules`; without `--astro` the refusal names the flag.
+#[test]
+fn an_astro_file_needs_the_astro_flag() {
+    let error = Backend::of(Path::new("src/Card.astro"), false).unwrap_err();
+    assert!(error.to_string().contains("--astro"), "{error}");
+    assert_eq!(
+        Backend::of(Path::new("src/Card.astro"), true).unwrap(),
+        Backend::TypeScript
+    );
 }

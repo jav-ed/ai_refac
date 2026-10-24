@@ -5,10 +5,11 @@ use walkdir::WalkDir;
 
 pub const MAX_FILES_PER_MOVE: usize = 30;
 
+/// A file the TypeScript engine moves: a script, or an Astro component.
 fn is_typescript_or_javascript(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|extension| extension.to_str()),
-        Some("ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs")
+        Some("ts" | "tsx" | "js" | "jsx" | "mts" | "cts" | "mjs" | "cjs" | "astro")
     )
 }
 

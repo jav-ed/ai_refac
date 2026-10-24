@@ -7,6 +7,7 @@
 use super::RefactorRequest;
 use super::report::{FailedGroup, Pairs, capitalize, render_failed};
 use crate::drivers::MovePreview;
+use crate::drivers::typescript::TypeScriptDriver;
 use crate::logic::grouping::prepare::{Prepared, prepare};
 use anyhow::{Result, bail};
 use std::collections::BTreeMap;
@@ -32,6 +33,7 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
         groups,
         skipped,
         typescript_source_count: _,
+        companion,
     } = prepare(&req).await?;
 
     let mut planned: BTreeMap<String, MovePreview> = BTreeMap::new();
@@ -44,13 +46,37 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
             .map(|(lang, files, _)| (lang.as_str(), files.as_slice())),
         root,
     );
+    // The code that imports pages and pictures is planned with the TypeScript
+    // of the request, in one pass, as the move does it.
+    if !companion.is_empty() && !groups.iter().any(|(lang, ..)| lang == "typescript") {
+        match TypeScriptDriver
+            .plan_alongside(Vec::new(), companion.clone(), root)
+            .await
+        {
+            Ok(preview) => {
+                planned.insert("typescript".to_string(), preview);
+            }
+            Err(error) => failed.push(FailedGroup::new(
+                "typescript".to_string(),
+                companion.clone(),
+                &error,
+            )),
+        }
+    }
     for (lang, files, driver) in groups {
         if lang == "markdown" {
             markdown_pairs = files;
             continue;
         }
         let started = std::time::Instant::now();
-        match driver.plan_move(files.clone(), root).await {
+        let plan = if lang == "typescript" && !companion.is_empty() {
+            TypeScriptDriver
+                .plan_alongside(files.clone(), companion.clone(), root)
+                .await
+        } else {
+            driver.plan_move(files.clone(), root).await
+        };
+        match plan {
             Ok(mut preview) => {
                 if single_kotlin && lang == "kotlin" {
                     preview

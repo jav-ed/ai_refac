@@ -4,7 +4,12 @@ import ts from "typescript";
 import type { ProjectConfig } from "./project";
 import type { ResolutionMode } from "./imports";
 
-const ASSET = /\.(?:css|scss|sass|less|svg|png|jpe?g|webp|avif|gif|ico|woff2?|ttf|otf|wasm|txt|html|md|surql)$/i;
+// Files the compiler cannot resolve but a bundler can: the resolver for these
+// reads the disk. An `.astro` or `.mdx` import is one of them. A list, not "any
+// extension": `lodash.merge` is a package, not a file. It includes every format
+// refac moves as an asset (ASSET_EXTENSIONS in src/logic/grouping/route.rs), or
+// an import of a moved PDF would stay behind unnoticed.
+const ASSET = /\.(?:css|scss|sass|less|svg|png|jpe?g|webp|avif|gif|ico|bmp|tiff?|heic|pdf|mp4|webm|mov|mp3|wav|ogg|flac|zip|woff2?|ttf|otf|wasm|txt|html|md|mdx|astro|surql)$/i;
 
 /**
  * `host` says which files exist. The default is the disk; a dry run passes the
@@ -30,15 +35,21 @@ export function makeResolver(project: ProjectConfig, host: ts.ModuleResolutionHo
         checkable(specifier: string): boolean {
             return !(virtual && isAsset(specifier) && !specifier.startsWith("."));
         },
-        resolve(file: string, specifier: string, requestedMode: ResolutionMode): string | undefined {
+        /**
+         * `stylesheet`: the request is a path written in a stylesheet. It is a file of the disk
+         * whatever its extension, and it may leave out `.css` (`@import "./base"`).
+         */
+        resolve(file: string, specifier: string, requestedMode: ResolutionMode, stylesheet = false): string | undefined {
             const [request] = splitSuffix(specifier);
+            const onDisk = (name: string) => {
+                if (!virtual) return assets.sync(path.dirname(file), name).path;
+                const candidate = path.resolve(path.dirname(file), name);
+                return host.fileExists(candidate) ? candidate : undefined;
+            };
+            if (stylesheet) return onDisk(request) ?? (/\.css$/i.test(request) ? undefined : onDisk(`${request}.css`));
             // Asset requests have bundler filesystem semantics; TS/JS requests
             // always use the compiler's resolver, without constructing a Program.
-            if (isAsset(specifier)) {
-                if (!virtual) return assets.sync(path.dirname(file), request).path;
-                const candidate = path.resolve(path.dirname(file), request);
-                return host.fileExists(candidate) ? candidate : undefined;
-            }
+            if (isAsset(specifier)) return onDisk(request);
             const nodeMode = project.options.moduleResolution === ts.ModuleResolutionKind.Node16
                 || project.options.moduleResolution === ts.ModuleResolutionKind.NodeNext;
             const mode = requestedMode === "require" ? ts.ModuleKind.CommonJS : requestedMode === "import" ? ts.ModuleKind.ESNext : nodeMode

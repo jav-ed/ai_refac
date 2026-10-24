@@ -98,6 +98,7 @@ async fn a_kotlin_rename_is_routed_by_the_file_extension() {
         line: None,
         column: None,
         dry_run: false,
+        astro: false,
     })
     .await
     .unwrap_or_else(|error| panic!("the rename failed: {error:#}"));
@@ -125,6 +126,7 @@ async fn symbol_rename_names_both_supported_languages_when_it_refuses_a_file() {
         line: None,
         column: None,
         dry_run: true,
+        astro: false,
     })
     .await
     .err()

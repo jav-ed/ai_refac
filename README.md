@@ -88,7 +88,7 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 | Language | Files | Directories | Logical modules | Engine |
 |---|---|---|---|---|
-| TypeScript / JavaScript | ✅ | ✅ | n/a | Oxc parser + TypeScript resolver via Bun; symbol rename via the TypeScript 7 native language server |
+| TypeScript / JavaScript, Astro, MDX | ✅ | ✅ | n/a | Oxc parser + TypeScript resolver via Bun, `.astro` read with Astro's compiler; symbol rename via the TypeScript 7 native language server (`.astro` with `--astro`) |
 | Python | ✅ | ❌ | n/a | Rope (automatic fallback: Pyrefly); symbol rename via basedpyright |
 | Rust | ✅ | ❌ | ✅ | rust-analyzer LSP + embedded HIR; symbol rename via rust-analyzer |
 | Go | ✅ | ❌ | n/a | gopls (LSP), also for symbol rename |
@@ -98,7 +98,7 @@ Other agent tools that support a skills or prompts directory can be wired up the
 
 Symbol rename (`refac rename`) is available for TypeScript / JavaScript, Kotlin, Go, Rust, Python, and Dart. Language servers are started for the command and stopped afterwards, never left running. If one is not installed, the error lists where it looked and names `refac doctor <language>`, which prints the install steps; `refac doctor` alone shows every language.
 
-Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.py`, `.rs`, `.go`, `.dart`, `.kt`, `.md`). A directory source is routed by what it contains: TypeScript/JavaScript files, or Kotlin files anywhere below it; all other languages require individual files.
+Language is detected by file extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.astro`, `.py`, `.rs`, `.go`, `.dart`, `.kt`, `.md`, `.mdx`). A directory source is routed by what it contains: TypeScript/JavaScript or Astro files, or Kotlin files anywhere below it; all other languages require individual files. Importers in `.astro` and `.mdx` files follow a moved module, and `.mdx` pages and pictures that code imports are fixed too: see [Astro and MDX](Project_Manag/Docs/Features/TypeScript/astro_And_Mdx.md).
 
 ---
 
@@ -301,6 +301,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 - Point `--project-path` at the package with the authoritative `tsconfig.json`; its `include` or `files` configuration must cover all local TS/JS sources. External packages in `node_modules` do not need to be included.
 - Without tsconfig, Refac globs local source files but alias and module resolution is weaker.
 - Each invocation is limited to 30 contained TS/JS source files, including files inside requested directories.
+- **Astro and MDX:** `public/` URLs, content-collection ids and the files a glob matches are not rewritten (a glob's folder is), template attributes such as `<img src>` are left alone because Astro treats them as URLs, `.scss`/`.sass`/`.less` files are not moved or read, and `.vue`/`.svelte` importers are not read yet. `url()` and `@import` paths in `<style>` blocks and `.css` files, bundled `<script src>`, `base` folders of content collections and other root-relative path strings, `import.meta.glob` folders and the relative picture paths in the frontmatter of `.mdx`/`.md` pages (`image: ../assets/hero.webp`) are rewritten. Search for the old path afterwards and run the site's build. Details: [Astro and MDX](Project_Manag/Docs/Features/TypeScript/astro_And_Mdx.md).
 
 **Python**
 - Rope cannot trace imports that go through `__init__.py` re-exports. If a package re-exports a symbol and callers import via the re-export, those callers are not updated.
@@ -336,6 +337,8 @@ These are not edge cases. Read them before deciding whether this tool is right f
 **TypeScript symbol rename**
 - Only usages in projects the engine loads are renamed: keep every caller in the package's tsconfig and search for the old name afterwards.
 - The tsconfig must be accepted by TypeScript 7. `baseUrl` and `moduleResolution: node10` are rejected with the engine's diagnostic. File moves are not affected.
+- The engine is the TypeScript 7.1 beta; check now and then whether a newer version is out.
+- It does not read `.astro` or `.mdx` files. A rename that those files would not follow is refused and the files are listed. `--astro` (or `REFAC_ASTRO=1`) lets the engine run the project's Astro content mapper (`@astrojs/ts-content-mapper`, listed in the tsconfig as `contentMappers`; needs Node.js), after which `.astro` files are renamed too. `.mdx` files stay out of reach and still stop the rename.
 - A name that clashes with or shadows another symbol is refused, and an ambiguous name asks for `--line`.
 
 **General**
@@ -350,6 +353,7 @@ These are not edge cases. Read them before deciding whether this tool is right f
 | Language | Required | Install |
 |---|---|---|
 | TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
+| Astro rename (`--astro`) | `node`, and `@astrojs/ts-content-mapper` in the project | [nodejs.org](https://nodejs.org), `npm i -D @astrojs/ts-content-mapper` |
 | Python | `rope` importable from `.venv` or `python3` | `pip install rope` |
 | Python (fallback) | `pyrefly` (only if Rope is absent) | `pip install pyrefly` |
 | Python (`rename`) | `basedpyright` | `pip install basedpyright` |

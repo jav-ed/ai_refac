@@ -177,12 +177,18 @@ fn moving_an_image_updates_markdown_and_html_references_and_keeps_its_bytes() {
         edited(
             &before,
             "docs/page.mdx",
-            &[(
-                "<img src=\"./img/logo.png\" />",
-                "<img src=\"../assets/logo.png\" />"
-            )]
+            &[
+                (
+                    "import Logo from './img/logo.png'",
+                    "import Logo from '../assets/logo.png'"
+                ),
+                (
+                    "<img src=\"./img/logo.png\" />",
+                    "<img src=\"../assets/logo.png\" />"
+                ),
+            ]
         ),
-        "the import line is code, not a link, and stays"
+        "the import line is code: the TypeScript engine fixes it, the Markdown driver the rest"
     );
     assert_links_follow(&before, &after, &|path| {
         if path == "docs/img/logo.png" {

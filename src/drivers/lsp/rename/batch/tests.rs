@@ -108,6 +108,7 @@ fn request(dir: &Path, file: &str, symbol: &str, new_name: &str, dry_run: bool) 
         line: None,
         column: None,
         dry_run,
+        astro: false,
     }
 }
 

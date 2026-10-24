@@ -53,16 +53,25 @@ pub async fn locate() -> Result<PathBuf> {
 /// guessing. The listing must also contain the target, otherwise the engine
 /// would rename inside a different tsconfig than the one the caller named.
 /// A batch checks every file it renames in, with the one listing.
+///
+/// `astro` lets the engine run the project's content mappers, which is what
+/// puts `.astro` files in the listing. A tsconfig that lists mappers is refused
+/// without it, and the refusal says how to allow them.
 pub async fn preflight(
     executable: &Path,
     project_root: &Path,
     targets: &[PathBuf],
     timeout: Duration,
+    astro: bool,
 ) -> Result<()> {
+    let mut command = Command::new(executable);
+    command.args(["-p", ".", "--listFilesOnly"]);
+    if astro {
+        command.arg("--runExternalCode");
+    }
     let output = tokio::time::timeout(
         timeout,
-        Command::new(executable)
-            .args(["-p", ".", "--listFilesOnly"])
+        command
             .current_dir(project_root)
             .kill_on_drop(true)
             .output(),
@@ -76,6 +85,11 @@ pub async fn preflight(
             .lines()
             .filter(|line| line.contains("error TS"))
             .collect();
+        if errors.iter().any(|line| line.contains("TS18068")) {
+            bail!(
+                "This project's tsconfig.json lists `contentMappers`, which run code from the project's node_modules (for example @astrojs/ts-content-mapper) so that .astro files are part of the program. Add --astro (or REFAC_ASTRO=1) to allow that. Nothing was changed."
+            );
+        }
         bail!(
             "The TypeScript 7 native engine rejects this project's tsconfig:\n{}\nSymbol rename needs a configuration TypeScript 7 accepts. Nothing was changed.",
             if errors.is_empty() {
@@ -84,6 +98,10 @@ pub async fn preflight(
                 errors.join("\n")
             }
         );
+    }
+    if astro {
+        require_node()?;
+        require_astro_files(project_root, &stdout)?;
     }
     for target in targets {
         let name = target.file_name();
@@ -106,4 +124,28 @@ pub async fn preflight(
         }
     }
     Ok(())
+}
+
+/// `--astro` renames inside `.astro` files only if the engine reads them. A
+/// project that has such files and lists none of them has no content mapper
+/// for them, and the rename would silently skip every one.
+fn require_astro_files(project_root: &Path, listing: &str) -> Result<()> {
+    let has_components =
+        !crate::drivers::typescript::files::find(project_root, &["astro"])?.is_empty();
+    if has_components && !listing.lines().any(|line| line.ends_with(".astro")) {
+        bail!(
+            "--astro was given, but the TypeScript engine lists no .astro file of {}. Install @astrojs/ts-content-mapper in the project and list it in tsconfig.json:\n  \"contentMappers\": [{{ \"package\": \"@astrojs/ts-content-mapper\", \"extensions\": [\".astro\"] }}]\nNothing was changed.",
+            project_root.display()
+        );
+    }
+    Ok(())
+}
+
+/// The Astro content mapper is a Node.js program that the engine starts.
+fn require_node() -> Result<()> {
+    which::which("node").map(|_| ()).map_err(|_| {
+        anyhow::anyhow!(
+            "--astro needs Node.js on the PATH: the TypeScript engine starts the Astro content mapper (@astrojs/ts-content-mapper) with `node`. Install Node.js and run again. Nothing was changed."
+        )
+    })
 }

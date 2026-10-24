@@ -1,4 +1,7 @@
-import { parseSync, Visitor, type Expression, type ImportAttribute, type ObjectExpression } from "oxc-parser";
+import { Visitor, type CallExpression, type Expression, type ImportAttribute, type ObjectExpression } from "oxc-parser";
+import { cssReferences } from "./Embedded/css";
+import { partsOf } from "./Embedded/regions";
+import { looksLikeRootPath, type PathString } from "./strings";
 
 export type ResolutionMode = "source" | "import" | "require";
 
@@ -7,6 +10,14 @@ export interface ModuleReference {
     start: number;
     end: number;
     mode: ResolutionMode;
+    /**
+     * Set for a path in a stylesheet. Its span is the path alone (no quotes), `quote`
+     * is the one around it (empty for `url(path)`), and a path without a leading `.`
+     * is relative to the file too.
+     */
+    css?: { quote: string };
+    /** Set for a specifier written as an attribute value of the template (`<script src="...">`); the span includes its quotes. */
+    html?: true;
 }
 
 function attributeMode(attributes: ImportAttribute[]): ResolutionMode {
@@ -32,11 +43,20 @@ function typeMode(options: ObjectExpression | null): ResolutionMode {
 }
 
 export function collectImports(file: string, source: string): ModuleReference[] {
-    const parsed = parseSync(file, source);
-    if (parsed.errors.length) {
-        throw new Error(`Cannot parse ${file}:\n${parsed.errors.map(error => error.message).join("\n")}`);
-    }
+    return scanFile(file, source).modules;
+}
+
+/**
+ * What a file names: its module specifiers, the patterns of its `import.meta.glob` and
+ * `Astro.glob` calls, the paths relative to the file that its frontmatter holds and, apart
+ * from those, the strings of its code that may be root paths.
+ */
+export function scanFile(file: string, source: string): { modules: ModuleReference[]; strings: PathString[]; globs: PathString[]; paths: PathString[] } {
     const references: ModuleReference[] = [];
+    const strings: PathString[] = [];
+    const globs: PathString[] = [];
+    // Offsets of the region being visited, turned into offsets of the whole file.
+    let shift = 0;
     let boundRequire = false;
     let requireCall = false;
     // A locally bound require may be an arbitrary function or use another base
@@ -57,11 +77,36 @@ export function collectImports(file: string, source: string): ModuleReference[] 
         if (node.type === "Literal" && typeof node.value === "string") value = node.value;
         else if (node.type === "TemplateLiteral" && node.expressions.length === 0) value = node.quasis[0]!.value.cooked!;
         else return; // Computed module paths have no statically knowable target.
-        references.push({ value, start: node.start, end: node.end, mode });
+        references.push({ value, start: node.start + shift, end: node.end + shift, mode });
+    }
+    function candidate(node: Expression) {
+        const value = node.type === "Literal" && typeof node.value === "string" ? node.value
+            : node.type === "TemplateLiteral" && node.expressions.length === 0 ? node.quasis[0]!.value.cooked
+            : undefined;
+        if (value && looksLikeRootPath(value)) strings.push({ value, start: node.start + shift, end: node.end + shift });
+    }
+    // `import.meta.glob(patterns, options)` and `Astro.glob(patterns)`. With a `base` option the
+    // patterns are relative to that folder, which is not read here, so they are left alone.
+    function globCall(node: CallExpression) {
+        const callee = node.callee;
+        const isGlob = callee.type === "MemberExpression" && !callee.computed && callee.property.type === "Identifier" && callee.property.name === "glob"
+            && (callee.object.type === "MetaProperty" || (callee.object.type === "Identifier" && callee.object.name === "Astro"));
+        if (!isGlob) return;
+        const [patterns, options] = node.arguments;
+        if (options?.type === "ObjectExpression" && options.properties.some(property => property.type === "Property" && (property.key.type === "Identifier" ? property.key.name : property.key.type === "Literal" ? property.key.value : undefined) === "base")) return;
+        for (const item of patterns?.type === "ArrayExpression" ? patterns.elements : [patterns]) {
+            if (!item || item.type === "SpreadElement") continue;
+            const value = item.type === "Literal" && typeof item.value === "string" ? item.value
+                : item.type === "TemplateLiteral" && item.expressions.length === 0 ? item.quasis[0]!.value.cooked
+                : undefined;
+            if (value) globs.push({ value, start: item.start + shift, end: item.end + shift });
+        }
     }
     // Oxc nodes are scoped to one source file; only spans and decoded paths
-    // survive this visit. Unrelated strings and comments are never candidates.
-    new Visitor({
+    // survive this visit. Comments are never candidates.
+    const visitor = new Visitor({
+        Literal(node) { candidate(node as Expression); },
+        TemplateLiteral(node) { candidate(node as Expression); },
         ImportDeclaration(node) { add(node.source, attributeMode(node.attributes)); },
         ExportNamedDeclaration(node) { add(node.source, attributeMode(node.attributes)); },
         ExportAllDeclaration(node) { add(node.source, attributeMode(node.attributes)); },
@@ -82,15 +127,46 @@ export function collectImports(file: string, source: string): ModuleReference[] 
         ImportNamespaceSpecifier(node) { binding(node.local); },
         TSImportEqualsDeclaration(node) { binding(node.id); },
         CallExpression(node) {
+            globCall(node);
             if (node.callee.type === "Identifier" && node.callee.name === "require") {
                 requireCall = true;
                 const argument = node.arguments[0];
                 if (argument?.type !== "SpreadElement") add(argument, "require");
             }
         },
-    }).visit(parsed.program);
+    });
+    const parts = partsOf(file, source);
+    for (const region of parts.code) {
+        shift = region.shift;
+        visitor.visit(region.program);
+    }
+    for (const style of parts.styles) {
+        for (const reference of cssReferences(style.text)) {
+            references.push({ value: reference.value, start: reference.start + style.shift, end: reference.end + style.shift, mode: "source", css: { quote: reference.quote } });
+        }
+    }
+    for (const specifier of parts.specifiers) {
+        references.push({ ...specifier, mode: "source", html: true });
+    }
     if (boundRequire && requireCall) throw new Error(`Cannot safely resolve locally bound require calls in ${file}; lexical require wrappers need explicit handling.`);
-    return references.sort((a, b) => a.start - b.start);
+    // An import's own string is a module, not a root path.
+    const taken = new Set([...references, ...globs].map(reference => reference.start));
+    return { modules: references.sort((a, b) => a.start - b.start), strings: strings.filter(item => !taken.has(item.start)), globs, paths: parts.paths };
+}
+
+/** A path written inside the quotes of a stylesheet (or without any, in `url(...)`), without the quotes. */
+export function quoteCssPath(value: string, quote: string): string {
+    if (quote === "") {
+        if (/[\s"'()\\]/.test(value)) throw new Error(`Cannot write ${JSON.stringify(value)} in an unquoted url(): it has a space, quote, parenthesis or backslash. Quote it in the stylesheet first.`);
+        return value;
+    }
+    return value.replaceAll("\\", "\\\\").replaceAll(quote, `\\${quote}`);
+}
+
+/** A specifier inside the quotes of an HTML attribute: no escapes exist there, so a character that would need one is refused. */
+export function quoteAttribute(value: string, quote: string): string {
+    if (value.includes(quote) || /[&<>\\]/.test(value)) throw new Error(`Cannot write ${JSON.stringify(value)} in an HTML attribute: it has a quote, &, <, > or a backslash.`);
+    return `${quote}${value}${quote}`;
 }
 
 export function quotePath(value: string, quote: string): string {

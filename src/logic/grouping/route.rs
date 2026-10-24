@@ -5,12 +5,17 @@ use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-const TYPESCRIPT_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mts", "cts", "mjs", "cjs"];
+/// `astro` files are handled by the TypeScript engine: it reads the code of
+/// their frontmatter and scripts, and moves them like any other module.
+const TYPESCRIPT_EXTENSIONS: &[&str] = &[
+    "ts", "tsx", "js", "jsx", "mts", "cts", "mjs", "cjs", "astro",
+];
 
 /// Files Markdown points at that no language backend owns: moving one moves
 /// the file and fixes the Markdown links to it, in the same pass as the
 /// Markdown files of the request. Formats that code reads or
-/// imports (`json`, `yaml`, `toml`, `css`, `html`, `txt`, `csv`) are not here,
+/// imports (`json`, `yaml`, `toml`, `html`, `txt`, `csv`; `css` is moved by the
+/// TypeScript engine) are not here,
 /// because a move would leave those references broken without a word.
 const ASSET_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "svg", "webp", "avif", "ico", "bmp", "tif", "tiff", "heic", "pdf",
@@ -23,7 +28,7 @@ const ASSET_EXTENSIONS: &[&str] = &[
 const CODE_EXTENSIONS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "mts", "cts", "mjs", "cjs", "py", "pyi", "rs", "go", "dart", "kt",
     "kts", "java", "scala", "c", "h", "cc", "cpp", "hpp", "cs", "rb", "php", "swift", "sh", "bash",
-    "lua", "vue", "svelte", "gradle", "m", "mm",
+    "lua", "vue", "svelte", "astro", "gradle", "m", "mm",
 ];
 
 /// The driver that moves the files of `lang` (a name `language_of` returns).
@@ -57,10 +62,13 @@ pub fn language_of(source: &str, root: Option<&Path>) -> Result<Option<&'static 
         if is_document_folder(&resolved)? {
             return Ok(Some("markdown"));
         }
+        if is_stylesheet_folder(&resolved)? {
+            return Ok(Some("typescript"));
+        }
         bail!(
-            "Directory moves are supported for TypeScript/JavaScript and Kotlin projects and for \
-             folders that hold only Markdown and asset files. '{}' holds none of those, or holds \
-             code of another language.",
+            "Directory moves are supported for TypeScript/JavaScript and Kotlin projects, for \
+             folders of stylesheets and for folders that hold only Markdown and asset files. '{}' \
+             holds none of those, or holds code of another language.",
             source
         );
     }
@@ -79,6 +87,9 @@ pub fn language_of(source: &str, root: Option<&Path>) -> Result<Option<&'static 
         "go" => Some("go"),
         "dart" => Some("dart"),
         "kt" => Some("kotlin"),
+        // A stylesheet names files with `url()` and `@import`, which the
+        // engine rewrites; other formats that code reads are still not moved.
+        "css" => Some("typescript"),
         extension if TYPESCRIPT_EXTENSIONS.contains(&extension) => Some("typescript"),
         _ => None,
     })
@@ -109,6 +120,24 @@ fn is_document_folder(dir: &Path) -> Result<bool> {
             is_markdown_extension(&extension) || ASSET_EXTENSIONS.contains(&extension.as_str());
     }
     Ok(documents)
+}
+
+/// A folder of stylesheets (and assets, if any): the TypeScript engine moves
+/// it and fixes the paths in the stylesheets and the code that imports them.
+fn is_stylesheet_folder(dir: &Path) -> Result<bool> {
+    let mut stylesheets = false;
+    for entry in WalkDir::new(dir) {
+        let entry = entry.with_context(|| format!("Cannot read inside {}", dir.display()))?;
+        let Some(extension) = entry.path().extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        let extension = extension.to_ascii_lowercase();
+        if CODE_EXTENSIONS.contains(&extension.as_str()) {
+            return Ok(false);
+        }
+        stylesheets |= extension == "css";
+    }
+    Ok(stylesheets)
 }
 
 pub(in crate::logic) fn resolve(path: &Path, root: Option<&Path>) -> PathBuf {

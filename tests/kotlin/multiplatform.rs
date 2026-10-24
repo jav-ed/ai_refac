@@ -232,6 +232,7 @@ async fn rename(
         line: None,
         column: None,
         dry_run: false,
+        astro: false,
     })
     .await
 }

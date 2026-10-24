@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RenameRequest {
     pub project_path: PathBuf,
     pub file: PathBuf,
@@ -11,6 +11,10 @@ pub struct RenameRequest {
     pub line: Option<u32>,
     pub column: Option<u32>,
     pub dry_run: bool,
+    /// TypeScript only: also rename inside `.astro` files, by letting the
+    /// engine run the project's Astro content mapper. That executes code from
+    /// the project's `node_modules`, so it is never the default.
+    pub astro: bool,
 }
 
 #[derive(Debug)]

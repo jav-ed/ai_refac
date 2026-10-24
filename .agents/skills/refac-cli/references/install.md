@@ -38,6 +38,7 @@ Each language requires its own external tooling. Only install what you need.
 | Language | Required | Install |
 |---|---|---|
 | TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
+| Astro rename (`--astro`) | `node`, and `@astrojs/ts-content-mapper` installed in the project | [nodejs.org](https://nodejs.org), `npm i -D @astrojs/ts-content-mapper` |
 | Python | `rope` importable from `.venv` or `python3` | `pip install rope` |
 | Python (fallback) | `pyrefly` (only if Rope is absent) | `pip install pyrefly` |
 | Python (`rename`) | `basedpyright` (plain pyright is not enough) | `pip install basedpyright` (or `pipx`, `uv tool`) |

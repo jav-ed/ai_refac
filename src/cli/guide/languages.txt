@@ -4,12 +4,25 @@ The language of a file comes from its extension. One `move` call may mix languag
 files by language and moves each group with its own tool. Within one group the move is all or
 nothing; across groups it is not (see `refac guide safety`).
 
-TYPESCRIPT / JAVASCRIPT  (.ts .tsx .js .jsx .mts .cts .mjs .cjs)
+TYPESCRIPT / JAVASCRIPT / ASTRO / MDX  (.ts .tsx .js .jsx .mts .cts .mjs .cjs .astro, and .mdx imports)
   move    Files and folders. At most 30 source files per call; a folder counts the files below it, and
           the error tells the measured number. The tsconfig.json of --project-path decides which files
-          are callers: a file it does not include is not updated.
+          are callers: a file it does not include is not updated. .astro components and .mdx pages
+          are callers too (frontmatter, bundled <script>, import/export lines), and a moved .astro
+          component has its own imports fixed. A page or picture that code imports (.mdx, .md,
+          images, folders of them) is moved by the Markdown driver after the engine has fixed the code.
+          url() and @import paths in <style> blocks and .css files follow too (a .css file can be
+          moved), and so do a bundled <script src>, strings that are the root-relative path of a
+          moved file or folder (a content collection's base), the folder of import.meta.glob
+          patterns and relative paths in the frontmatter of .mdx/.md pages (image: ../a.webp). Not rewritten: <img src> and other template attributes (Astro treats them as
+          URLs), the files a glob matches, public/ URLs, .scss/.sass/.less, .vue/.svelte importers.
+          A file the engine cannot parse stops the move and is named.
   rename  Variables, parameters, functions, types, members. Several renames in one session with --batch.
-  tools   Oxc parser and the TypeScript native language server. The helper process is held to a RAM
+          .astro and .mdx files are not read by the language server: a rename they would not follow
+          is refused with the files listed. --astro (REFAC_ASTRO=1) runs the project's Astro content
+          mapper (needs Node.js and `contentMappers` in tsconfig.json) so .astro files are renamed
+          too; .mdx files still stop the rename.
+  tools   Oxc parser, Astro's compiler, and the TypeScript native language server (7.1 beta). The helper process is held to a RAM
           limit of 4096 MiB (REFAC_TYPESCRIPT_MAX_RSS_MB) and 300 seconds.
 
 KOTLIN / ANDROID  (.kt)

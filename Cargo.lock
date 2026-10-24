@@ -1937,6 +1937,7 @@ dependencies = [
 name = "refac"
 version = "0.1.4"
 dependencies = [
+ "aho-corasick",
  "anyhow",
  "async-trait",
  "clap",

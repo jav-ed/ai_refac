@@ -8,6 +8,10 @@ Bun runs `scripts/ts_refactor.ts`. Missing dependencies are installed from `scri
 
 Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads config inheritance, `files`, `include`, `exclude`, aliases, and resolution options. Every configured source is scanned, plus explicitly moved sources; dependencies are resolved on demand without loading their ASTs. Without a tsconfig, the helper uses TypeScript's default file discovery with `allowJs`, ESNext modules, and bundler resolution.
 
+## Astro and MDX
+
+`.astro` components and `.mdx` pages are read by the same engine: their imports are moved and fixed like those of `.ts` files, pages and pictures that code imports are fixed before the Markdown driver moves them, and a rename reaches `.astro` files with `--astro`. See [Astro and MDX](astro_And_Mdx.md).
+
 ## Symbol rename
 
 `refac rename` renames one variable, function, class, interface, enum, or member and every reference to it. The TypeScript 7 native binary (`tsc --lsp --stdio`, installed from the locked `typescript-native` alias in `scripts/package.json`) finds the references. Refac plans all edits first, proves in memory that the new name neither clashes with nor shadows another symbol, and only then writes, with rollback. Details, flags, limits, and hard failures are in [Symbol Rename](symbol_Rename.md). Why this engine was chosen over TypeScript 6, ts-morph, Biome, and Oxc is in [TypeScript rename engines](../../Investigation/typescript_Rename_Engines.md).
@@ -15,8 +19,8 @@ Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads c
 ## Implementation owners
 
 - [CLI entry](../../../../scripts/ts_refactor.ts): argument parsing and error reporting.
-- [TypeScript modules](../../../../scripts/TypeScript/): `project.ts` reads config; `imports.ts` collects literal spans; `resolver.ts` resolves and spells paths; `moves.ts` validates requests; `plan.ts` plans and verifies the batch; `apply.ts` owns filesystem changes and rollback.
-- [Rename driver](../../../../src/drivers/typescript/rename.rs): request validation, limits, and orchestration. Its folder holds one file per job: `engine.rs` finds the native binary and runs the config pre-flight, `session.rs` speaks the language-server protocol, `locate.rs` finds candidate occurrences, `plan.rs` resolves them to one symbol and collects edits, `verify.rs` runs the in-memory references check, `edits.rs` converts and applies edits, and `apply.rs` writes with rollback.
+- [TypeScript modules](../../../../scripts/TypeScript/): `project.ts` reads config; `imports.ts` collects literal spans; `Embedded/` reads the code inside `.astro` and `.mdx` files (`astro.ts`, `mdx.ts`, one entry point `regions.ts`); `resolver.ts` resolves and spells paths; `moves.ts` validates requests, including the `--external` moves another tool carries out; `plan.ts` plans and verifies the batch; `apply.ts` owns filesystem changes and rollback; `users.ts` finds the component files a rename would leave behind.
+- [Rename driver](../../../../src/drivers/typescript/rename.rs): request validation, limits, and orchestration. Its folder holds one file per job: `engine.rs` finds the native binary and runs the config pre-flight, `components.rs` refuses a rename that `.astro` or `.mdx` files would not follow, `session.rs` speaks the language-server protocol, `locate.rs` finds candidate occurrences, `plan.rs` resolves them to one symbol and collects edits, `verify.rs` runs the in-memory references check, `edits.rs` converts and applies edits, and `apply.rs` writes with rollback.
 - [Behavior tests](../../../../scripts/Tests/TypeScript/): syntax, paths, batches, safety, and a 3,005-file stress fixture.
 - [Rename tests](../../../../tests/typescript/rename.rs): 19 CLI tests on `tests/fixtures/typescript/rename_project`, including the clash, shadow-capture, UTF-8, BOM, and config-rejection cases.
 - [CLI stress test](../../../../tests/typescript/large_project.rs): five dependent moves and 3,000 callers under a 1 GiB RSS budget.

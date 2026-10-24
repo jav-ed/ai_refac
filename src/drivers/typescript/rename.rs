@@ -5,6 +5,7 @@
 
 mod apply;
 mod batch;
+mod components;
 mod edits;
 mod engine;
 mod locate;
@@ -103,6 +104,7 @@ async fn plan_and_verify(
     request: &RenameRequest,
     file: &Path,
     project: &Path,
+    astro: bool,
 ) -> Result<plan::Plan> {
     let text = crate::drivers::symbol::view::read_to_string(file)
         .with_context(|| format!("Cannot read {}", file.display()))?;
@@ -112,6 +114,7 @@ async fn plan_and_verify(
     session.sync_document(file, text).await?;
     let plan = plan::plan_rename(session, file, text, &matches, &request.new_name, project).await?;
     verify::verify(session, &plan, &request.new_name).await?;
+    components::refuse_unread_users(project, &request.symbol, &plan, astro).await?;
     Ok(plan)
 }
 

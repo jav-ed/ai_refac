@@ -11,12 +11,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@astrojs/compiler-rs": "0.5.2",
     "oxc-parser": "0.153.0",
     "oxc-resolver": "11.24.2",
     "typescript": "6.0.3",
-    "typescript-native": "npm:typescript@7.0.2"
+    "typescript-native": "npm:typescript@7.1.0-beta"
   },
   "devDependencies": {
+    "@astrojs/ts-content-mapper": "0.2.0",
     "@types/bun": "1.4.2"
   },
   "private": true

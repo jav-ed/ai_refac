@@ -54,6 +54,7 @@ fn request(file: &Path) -> RenameRequest {
         line: None,
         column: None,
         dry_run: true,
+        astro: false,
     }
 }
 
