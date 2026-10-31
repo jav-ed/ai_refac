@@ -10,7 +10,7 @@ use crate::drivers::MovePreview;
 use crate::drivers::typescript::TypeScriptDriver;
 use crate::logic::grouping::prepare::{Prepared, prepare};
 use anyhow::{Result, bail};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// What a dry run found, as text and as data for `--json`. Paths are relative
@@ -36,6 +36,7 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
         companion,
     } = prepare(&req).await?;
 
+    let mentions = super::code_references::still_mentioned::collect_for(&groups, &companion, root);
     let mut planned: BTreeMap<String, MovePreview> = BTreeMap::new();
     let mut failed: Vec<FailedGroup> = Vec::new();
     let mut markdown_pairs: Pairs = Vec::new();
@@ -108,6 +109,17 @@ pub async fn plan_refactor(req: RefactorRequest) -> Result<DryRun> {
                 markdown_pairs,
                 &error,
             )),
+        }
+    }
+
+    // Files the move edits anyway are not left behind.
+    if let Some(mentions) = mentions {
+        let edited: HashSet<PathBuf> = planned
+            .values()
+            .flat_map(|preview| preview.edits.keys().cloned())
+            .collect();
+        if let Some(preview) = planned.get_mut("typescript") {
+            preview.notes.extend(mentions.scan(&edited));
         }
     }
 

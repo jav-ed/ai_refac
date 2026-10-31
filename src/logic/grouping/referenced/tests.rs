@@ -311,3 +311,24 @@ fn a_moved_page_with_a_relative_frontmatter_path_is_used() {
 
     assert_eq!(used, [true, true, false, false, false]);
 }
+
+/// A glob names a folder and a pattern, never the files it selects.
+#[test]
+fn a_project_with_a_glob_uses_every_moved_file() {
+    let dir = tempdir().unwrap();
+    write(
+        dir.path(),
+        "src/Team.astro",
+        "---\nconst photos = import.meta.glob(\"../assets/team/*.webp\");\n---\n",
+    );
+    write(dir.path(), "assets/team/ada.webp", "");
+    write(dir.path(), "assets/other/lin.webp", "");
+
+    let used = used_by_code(
+        &[pair("assets/team/ada.webp"), pair("assets/other/lin.webp")],
+        Some(dir.path()),
+    )
+    .unwrap();
+
+    assert_eq!(used, [true, true]);
+}

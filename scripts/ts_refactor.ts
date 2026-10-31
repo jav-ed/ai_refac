@@ -46,6 +46,7 @@ try {
         moves: moves.moves.filter(move => !move.external).map(move => ({ from: move.source, to: move.target })),
         files: plan.changes.filter(change => change.edits > 0).map(change => ({ path: change.file, edits: change.edits })),
         unchecked,
+        notes: plan.notes,
     });
     if (dryRun) {
         // The same check a real move makes once the files are in their new

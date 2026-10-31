@@ -77,3 +77,39 @@ test("a glob folder that an external move carries out is followed and nothing is
     expect(f.read("src/components/Team.astro")).toContain('"../assets/people/*.webp"');
     expect(f.exists("src/assets/team/a.webp")).toBe(true);
 });
+
+test("a file that leaves the folder a glob reads, or lands in it, is reported, because no edit can keep it in the glob", () => {
+    const f = site();
+    f.write("src/other/b.webp", "b");
+    const leaving = f.move([["src/assets/team/a.webp", "src/other/a.webp"]]);
+    expect(leaving.notes).toEqual([
+        'src/assets/team/a.webp is selected by the glob "../assets/team/*.webp" in src/components/Team.astro and will not be after the move.',
+    ]);
+    const joining = f.move([["src/other/b.webp", "src/assets/team/b.webp"]]);
+    expect(joining.notes).toEqual([
+        'src/assets/team/b.webp will be selected by the glob "../assets/team/*.webp" in src/components/Team.astro; src/other/b.webp was not.',
+    ]);
+});
+
+test("a folder that moves with its glob, and a file that stays inside the pattern, report nothing", () => {
+    const f = site();
+    f.write("src/assets/team/more/c.webp", "c");
+    f.write("src/other/skip.webp", "skip");
+    f.write("src/components/Gallery.astro", '---\nconst all = import.meta.glob(["../assets/**/*.webp", "!../assets/hidden/*.webp"]);\n---\n');
+    // The folder moves together with the pattern that reads it; the key warning is the only note.
+    expect(f.move([["src/assets/team", "src/assets/people"]]).notes.filter(note => note.includes("selected"))).toEqual([]);
+    // Inside the `**` pattern the file keeps being selected; the exclude does not apply to it.
+    expect(f.move([["src/assets/people/more/c.webp", "src/assets/people/c.webp"]]).notes.filter(note => note.includes("Gallery.astro"))).toEqual([]);
+    // An excluded file stays excluded when it is renamed; one level deeper the exclude no longer covers it.
+    f.write("src/assets/hidden/h.webp", "h");
+    expect(f.move([["src/assets/hidden/h.webp", "src/assets/hidden/h2.webp"]]).notes).toEqual([]);
+    expect(f.move([["src/assets/hidden/h2.webp", "src/assets/hidden/deep/h2.webp"]]).notes).toEqual([
+        'src/assets/hidden/deep/h2.webp will be selected by the glob "../assets/**/*.webp" in src/components/Gallery.astro; src/assets/hidden/h2.webp was not.',
+    ]);
+});
+
+test("a rewritten pattern is reported once per file, with the reason", () => {
+    const f = site();
+    const { notes } = f.move([["src/assets/team", "src/assets/people"]]);
+    expect(notes).toEqual(["The glob pattern in src/components/Team.astro changed, and so did the keys of its result; code that writes a key by hand needs the same change."]);
+});

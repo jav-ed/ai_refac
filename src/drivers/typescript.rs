@@ -1,10 +1,12 @@
 use super::{MovePreview, RefactorDriver};
 use anyhow::{Context, Ok, Result};
 use async_trait::async_trait;
+use helper_plan::{parse_helper_plan, parse_plan};
 use std::path::PathBuf;
 
 mod dependencies;
 pub mod files;
+mod helper_plan;
 mod process;
 pub mod rename;
 
@@ -60,6 +62,16 @@ impl RefactorDriver for TypeScriptDriver {
         Ok(())
     }
 
+    /// The notes of the helper: what the move changes about the files a glob
+    /// selects, which no edit can repair.
+    async fn move_files_with_notes(
+        &self,
+        file_map: Vec<(String, String)>,
+        root_path: Option<&std::path::Path>,
+    ) -> Result<Vec<String>> {
+        self.move_alongside(file_map, Vec::new(), root_path).await
+    }
+
     /// The helper plans the whole move before it writes anything; with
     /// `--dry-run` it prints that plan instead of applying it. It also checks
     /// that each rewritten specifier resolves, against a model of the files as
@@ -78,7 +90,8 @@ impl TypeScriptDriver {
     /// Moves `file_map` and fixes the code that imports `alongside` as well: the
     /// pages and pictures another driver moves right after this returns. The
     /// files of `alongside` are not renamed here. Returns a note naming the
-    /// files whose imports changed, or nothing when none did.
+    /// files whose imports changed (when there are pages or pictures) and the
+    /// notes of the helper.
     pub async fn move_alongside(
         &self,
         file_map: Vec<(String, String)>,
@@ -88,13 +101,15 @@ impl TypeScriptDriver {
         let stdout = run_helper(&file_map, &alongside, root_path, false).await?;
         tracing::info!("TypeScript/Oxc batch output: {}", stdout);
         let plan = parse_helper_plan(&stdout)?;
-        if alongside.is_empty() || plan.files.is_empty() {
-            return Ok(Vec::new());
+        let mut notes = Vec::new();
+        if !alongside.is_empty() && !plan.files.is_empty() {
+            notes.push(format!(
+                "Updated the imports in {} code file(s) for the moved pages and pictures.",
+                plan.files.len()
+            ));
         }
-        Ok(vec![format!(
-            "Updated the imports in {} code file(s) for the moved pages and pictures.",
-            plan.files.len()
-        )])
+        notes.extend(plan.notes);
+        Ok(notes)
     }
 
     /// The plan of `move_alongside`.
@@ -191,60 +206,6 @@ pub async fn component_users(
         .ok_or_else(|| anyhow::anyhow!("The TypeScript helper printed no file list: {stdout:?}"))?;
     serde_json::from_str(line)
         .context("The TypeScript helper printed a file list refac cannot read")
-}
-
-/// The plan the helper prints as its last line, with `--dry-run` and after a
-/// real move: `{"moves": [{from, to}], "files": [{path, edits}], "unchecked":
-/// n}`. `unchecked` counts the rewritten imports the helper could not resolve
-/// without the moved files.
-#[derive(serde::Deserialize)]
-struct HelperPlan {
-    moves: Vec<HelperMove>,
-    files: Vec<HelperFile>,
-    unchecked: usize,
-}
-
-#[derive(serde::Deserialize)]
-struct HelperMove {
-    from: PathBuf,
-    to: PathBuf,
-}
-
-#[derive(serde::Deserialize)]
-struct HelperFile {
-    path: PathBuf,
-    edits: usize,
-}
-
-fn parse_helper_plan(stdout: &str) -> Result<HelperPlan> {
-    let line = stdout
-        .lines()
-        .rev()
-        .find(|line| line.trim_start().starts_with('{'))
-        .ok_or_else(|| anyhow::anyhow!("The TypeScript helper printed no plan: {stdout:?}"))?;
-    serde_json::from_str(line).context("The TypeScript helper printed a plan refac cannot read")
-}
-
-fn parse_plan(stdout: &str) -> Result<MovePreview> {
-    let plan = parse_helper_plan(stdout)?;
-    let mut preview = MovePreview {
-        moves: plan
-            .moves
-            .into_iter()
-            .map(|entry| (entry.from, entry.to))
-            .collect(),
-        ..Default::default()
-    };
-    for file in plan.files {
-        preview.add_edits(file.path, file.edits);
-    }
-    if plan.unchecked > 0 {
-        preview.notes.push(format!(
-            "{} rewritten import(s) of asset files through an alias could not be checked against the moved files in a dry run; the move itself checks them.",
-            plan.unchecked
-        ));
-    }
-    Ok(preview)
 }
 
 #[cfg(test)]

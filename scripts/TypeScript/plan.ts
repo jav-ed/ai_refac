@@ -5,7 +5,8 @@ import { quoteAttribute, quoteCssPath, quotePath, scanFile, type ModuleReference
 import { type MoveSet } from "./moves";
 import { isSource, type ProjectConfig } from "./project";
 import { makeResolver, replacement, splitSuffix } from "./resolver";
-import { globEdits, pathStringEdits, relativePathEdits, verifyPathStrings } from "./strings";
+import { globEdits, globNotes, type GlobPattern } from "./globs";
+import { pathStringEdits, relativePathEdits, verifyPathStrings } from "./strings";
 
 export interface Check {
     specifier: string;
@@ -27,7 +28,12 @@ export interface FileChange {
     /** Paths written as strings that the plan rewrites; each must exist after the move. */
     paths: string[];
 }
-export interface Plan { moves: MoveSet; changes: FileChange[]; }
+export interface Plan {
+    moves: MoveSet;
+    changes: FileChange[];
+    /** What the plan cannot repair and the person should know (see `globNotes`). */
+    notes: string[];
+}
 
 export function planMoves(project: ProjectConfig, moves: MoveSet): Plan {
     const resolver = makeResolver(project);
@@ -35,6 +41,7 @@ export function planMoves(project: ProjectConfig, moves: MoveSet): Plan {
     // project scan. Explicitly moved sources may sit outside tsconfig's include.
     const files = new Set([...project.files.filter(isSource), ...[...moves.files.keys()].filter(isSource)]);
     const changes: FileChange[] = [];
+    const globCalls: { file: string; globs: GlobPattern[]; edited: boolean }[] = [];
     for (const file of files) {
         const bytes = fs.readFileSync(file);
         // A plain `.md` without frontmatter names nothing, and its encoding is not our business.
@@ -44,9 +51,11 @@ export function planMoves(project: ProjectConfig, moves: MoveSet): Plan {
         const checks: Check[] = [];
         const edits: { start: number; end: number; text: string }[] = [];
         const { modules, strings, globs, paths } = scanFile(file, before);
+        const globChanges = globEdits(project, moves, file, target, globs, before);
+        if (globs.length) globCalls.push({ file, globs, edited: globChanges.length > 0 });
         const pathEdits = [
             ...pathStringEdits(project, moves, strings, before),
-            ...globEdits(project, moves, file, target, globs, before),
+            ...globChanges,
             ...relativePathEdits(moves, file, target, paths, before),
         ];
         edits.push(...pathEdits);
@@ -88,7 +97,7 @@ export function planMoves(project: ProjectConfig, moves: MoveSet): Plan {
         }
         changes.push({ file, target, before, after, edits: edits.length, checks, paths: pathEdits.map(edit => edit.expected) });
     }
-    return { moves, changes };
+    return { moves, changes, notes: globNotes(project, moves, globCalls) };
 }
 
 function hasFrontmatterFence(bytes: Uint8Array): boolean {

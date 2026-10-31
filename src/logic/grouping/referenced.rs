@@ -14,7 +14,10 @@
 //! lines or relative frontmatter paths of its own (they change with the
 //! folder). A page's frontmatter names pictures too (`image: ../a/hero.png`),
 //! which no Markdown link covers. A Markdown link to the same file
-//! (`](img/hero.png)`) is not a use; the Markdown driver handles it. The reading over-approximates (a quoted attribute counts), and
+//! (`](img/hero.png)`) is not a use; the Markdown driver handles it. A project
+//! with an `import.meta.glob` or `Astro.glob` call uses every file: a glob names
+//! a folder, and only the engine tells whether a moved file is one of the files
+//! it selects. The reading over-approximates (a quoted attribute counts), and
 //! the engine then finds nothing to change, which costs time and nothing else.
 
 use super::route::resolve;
@@ -26,6 +29,11 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 type Pairs = Vec<(String, String)>;
+
+/// Calls that select files by pattern. The engine tells whether a moved file
+/// starts or stops being selected, so a project that has one asks it for every
+/// move.
+const GLOB_CALLS: &[&str] = &["import.meta.glob", "Astro.glob"];
 
 /// The files the TypeScript engine reads for imports.
 const CODE_EXTENSIONS: &[&str] = &[
@@ -74,9 +82,16 @@ fn used_by_code(pairs: &[(String, String)], root: Option<&Path>) -> Result<Vec<b
         return Ok(used);
     }
 
+    // The file names, then the calls that select files by pattern: a glob names a
+    // folder, not the files it selects, so any moved file may be one of them.
     let names: Vec<&String> = owners.keys().collect();
-    let automaton =
-        AhoCorasick::new(&names).context("Cannot search the code for the requested file names")?;
+    let patterns: Vec<&str> = names
+        .iter()
+        .map(|name| name.as_str())
+        .chain(GLOB_CALLS.iter().copied())
+        .collect();
+    let automaton = AhoCorasick::new(&patterns)
+        .context("Cannot search the code for the requested file names")?;
     let scan_root = match root {
         Some(root) => root.to_path_buf(),
         None => std::env::current_dir().context("Cannot read the current directory")?,
@@ -87,7 +102,11 @@ fn used_by_code(pairs: &[(String, String)], root: Option<&Path>) -> Result<Vec<b
         let bytes =
             std::fs::read(&file).with_context(|| format!("Cannot read {}", file.display()))?;
         for found in automaton.find_iter(&bytes) {
-            let owner = &owners[names[found.pattern().as_usize()]];
+            let Some(name) = names.get(found.pattern().as_usize()) else {
+                used.fill(true);
+                return Ok(used);
+            };
+            let owner = &owners[*name];
             if !ends_a_path(
                 &bytes,
                 found.start(),

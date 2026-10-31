@@ -46,57 +46,8 @@ export function pathStringEdits(project: ProjectConfig, moves: MoveSet, strings:
     return edits;
 }
 
-/**
- * The folder part of a `import.meta.glob` pattern, which is a path and follows the moves, and the
- * rest of the pattern (`/*.webp`), which is kept as written. A pattern without glob characters is
- * a path as a whole.
- */
-function splitGlob(pattern: string): { folder: string; rest: string } {
-    const at = pattern.search(/[*?[\]{}()!]/);
-    if (at < 0) return { folder: pattern, rest: "" };
-    const slash = pattern.lastIndexOf("/", at);
-    return { folder: pattern.slice(0, slash), rest: pattern.slice(slash) };
-}
-
-/**
- * Glob patterns that start in a moved folder, and relative patterns of a file that moves. The
- * pattern keeps reading the same folder; the keys of its result are the paths it names, so they
- * change with it. Patterns that start with neither `./`, `../` nor `/` (an alias, a package) are
- * not paths of ours.
- */
-export function globEdits(project: ProjectConfig, moves: MoveSet, file: string, target: string, globs: PathString[], source: string): PathEdit[] {
-    const edits: PathEdit[] = [];
-    for (const { value, start, end } of globs) {
-        const negated = value.startsWith("!");
-        const pattern = negated ? value.slice(1) : value;
-        const relative = pattern.startsWith("./") || pattern.startsWith("../");
-        if (!relative && !pattern.startsWith("/")) continue;
-        let { folder, rest } = splitGlob(pattern);
-        const resolve = (name: string) => relative ? path.resolve(path.dirname(file), name) : path.resolve(project.root, `.${name}`);
-        // A name without glob characters that is no file, such as `!./skip.ts`, still sits in a folder.
-        if (!rest && !fs.existsSync(resolve(folder))) {
-            const slash = folder.lastIndexOf("/");
-            rest = folder.slice(slash);
-            folder = folder.slice(0, slash);
-        }
-        const current = resolve(folder);
-        if (!fs.existsSync(current)) continue;
-        const moved = targetOf(moves, current) ?? current;
-        if (moved === current && (!relative || path.dirname(target) === path.dirname(file))) continue;
-        let written: string;
-        if (relative) {
-            written = relativeSpelling(path.dirname(target), moved);
-        } else {
-            const from = path.relative(project.root, moved).split(path.sep).join("/");
-            written = from === "" ? "" : `/${from}`;
-        }
-        edits.push({ start, end, text: quoteString(`${negated ? "!" : ""}${written}${rest}`, source[start]!), expected: moved });
-    }
-    return edits;
-}
-
 /** How a path is spelled from `folder` to `target`: `./` or `../` first, as a pattern or a relative value needs. */
-function relativeSpelling(folder: string, target: string): string {
+export function relativeSpelling(folder: string, target: string): string {
     const from = path.relative(folder, target).split(path.sep).join("/");
     return from === ".." || from.startsWith("../") ? from : from === "" ? "." : `./${from}`;
 }
@@ -130,7 +81,7 @@ function yamlScalar(value: string, quote: string): string {
     return value;
 }
 
-function quoteString(value: string, quote: string): string {
+export function quoteString(value: string, quote: string): string {
     const escaped = JSON.stringify(value).slice(1, -1);
     if (quote === '"') return `"${escaped}"`;
     if (quote === "'") return `'${escaped.replaceAll("'", "\\'")}'`;

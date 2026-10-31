@@ -1,9 +1,9 @@
 use crate::logic::grouping::prepare::{Prepared, prepare};
 use anyhow::{Result, bail};
 use report::{FailedGroup, MoveOutcome, Pairs};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-mod code_imports;
+mod code_references;
 mod dry_run;
 mod go_collaterals;
 mod grouping;
@@ -65,6 +65,9 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
         companion,
     } = prepare(&req).await?;
 
+    // The old paths, for the files that still name them after the move.
+    let mentions = code_references::still_mentioned::collect_for(&groups, &companion, root);
+
     // Folders are gone once moved, so ask now for the Markdown link pass later.
     let directories = markdown_links::directories(&req.source_path, root);
     let mut moved: BTreeMap<String, Pairs> = BTreeMap::new();
@@ -76,7 +79,8 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
     // move is fixed first. If the engine cannot, nothing has moved and the
     // whole request fails.
     if !companion.is_empty() {
-        let fixed = code_imports::fix_before_moving(&mut groups, &companion, root).await?;
+        let fixed =
+            code_references::imports::fix_before_moving(&mut groups, &companion, root).await?;
         if !fixed.typescript_files.is_empty() {
             moved.insert("typescript".to_string(), fixed.typescript_files);
         }
@@ -115,6 +119,15 @@ pub async fn handle_refactor(req: RefactorRequest) -> Result<String> {
                 failed.push(FailedGroup::new(lang, files, &error));
             }
         }
+    }
+
+    if let Some(mentions) = mentions
+        && !moved.is_empty()
+    {
+        notes
+            .entry("typescript".to_string())
+            .or_default()
+            .extend(mentions.scan(&HashSet::new()));
     }
 
     // Markdown links to what the other languages moved.

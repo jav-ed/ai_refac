@@ -1,6 +1,7 @@
 import { Visitor, type CallExpression, type Expression, type ImportAttribute, type ObjectExpression } from "oxc-parser";
 import { cssReferences } from "./Embedded/css";
 import { partsOf } from "./Embedded/regions";
+import type { GlobPattern } from "./globs";
 import { looksLikeRootPath, type PathString } from "./strings";
 
 export type ResolutionMode = "source" | "import" | "require";
@@ -51,10 +52,11 @@ export function collectImports(file: string, source: string): ModuleReference[] 
  * `Astro.glob` calls, the paths relative to the file that its frontmatter holds and, apart
  * from those, the strings of its code that may be root paths.
  */
-export function scanFile(file: string, source: string): { modules: ModuleReference[]; strings: PathString[]; globs: PathString[]; paths: PathString[] } {
+export function scanFile(file: string, source: string): { modules: ModuleReference[]; strings: PathString[]; globs: GlobPattern[]; paths: PathString[] } {
     const references: ModuleReference[] = [];
     const strings: PathString[] = [];
-    const globs: PathString[] = [];
+    const globs: GlobPattern[] = [];
+    let globCalls = 0;
     // Offsets of the region being visited, turned into offsets of the whole file.
     let shift = 0;
     let boundRequire = false;
@@ -92,6 +94,7 @@ export function scanFile(file: string, source: string): { modules: ModuleReferen
         const isGlob = callee.type === "MemberExpression" && !callee.computed && callee.property.type === "Identifier" && callee.property.name === "glob"
             && (callee.object.type === "MetaProperty" || (callee.object.type === "Identifier" && callee.object.name === "Astro"));
         if (!isGlob) return;
+        const call = globCalls++;
         const [patterns, options] = node.arguments;
         if (options?.type === "ObjectExpression" && options.properties.some(property => property.type === "Property" && (property.key.type === "Identifier" ? property.key.name : property.key.type === "Literal" ? property.key.value : undefined) === "base")) return;
         for (const item of patterns?.type === "ArrayExpression" ? patterns.elements : [patterns]) {
@@ -99,7 +102,7 @@ export function scanFile(file: string, source: string): { modules: ModuleReferen
             const value = item.type === "Literal" && typeof item.value === "string" ? item.value
                 : item.type === "TemplateLiteral" && item.expressions.length === 0 ? item.quasis[0]!.value.cooked
                 : undefined;
-            if (value) globs.push({ value, start: item.start + shift, end: item.end + shift });
+            if (value) globs.push({ value, start: item.start + shift, end: item.end + shift, call });
         }
     }
     // Oxc nodes are scoped to one source file; only spans and decoded paths

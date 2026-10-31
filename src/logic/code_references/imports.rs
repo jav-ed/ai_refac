@@ -7,17 +7,17 @@
 //! those files: the Markdown driver does, and keeps fixing the Markdown links
 //! exactly as it does for a request without code.
 
-use super::report::Pairs;
 use crate::drivers::RefactorDriver;
 use crate::drivers::typescript::TypeScriptDriver;
+use crate::logic::report::Pairs;
 use anyhow::{Context, Result};
 use std::path::Path;
 
 /// The groups of a request: language, its pairs, and its driver.
-pub(super) type Groups = Vec<(String, Pairs, Box<dyn RefactorDriver>)>;
+pub(in crate::logic) type Groups = Vec<(String, Pairs, Box<dyn RefactorDriver>)>;
 
 /// What the engine did.
-pub(super) struct Fixed {
+pub(in crate::logic) struct Fixed {
     /// The TypeScript pairs of the request, which the engine moved in the same
     /// pass; their group is taken out of `groups`.
     pub typescript_files: Pairs,
@@ -26,7 +26,7 @@ pub(super) struct Fixed {
 
 /// Fixes the code that imports the `companion` pairs, and moves the request's
 /// own TypeScript. An error means nothing has moved or changed.
-pub(super) async fn fix_before_moving(
+pub(in crate::logic) async fn fix_before_moving(
     groups: &mut Groups,
     companion: &Pairs,
     root: Option<&Path>,

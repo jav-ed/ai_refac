@@ -227,3 +227,108 @@ fn moving_a_folder_of_stylesheets_fixes_importers_and_their_own_paths() {
         assert!(!project.exists("src/styles/pages"), "picture: {picture}");
     }
 }
+
+fn gallery_project() -> Project {
+    let project = Project::empty();
+    project.write("tsconfig.json", TSCONFIG);
+    project.write("src/assets/team/ada.webp", "image");
+    project.write("src/assets/other/lin.webp", "image");
+    project.write(
+        "src/components/Team.astro",
+        "---\nconst photos = import.meta.glob(\"../assets/team/*.webp\", { eager: true });\n---\n<div />\n",
+    );
+    project
+}
+
+/// No edit keeps a picture in a glob once it leaves the folder the glob reads,
+/// so the move says so.
+#[test]
+fn moving_a_picture_out_of_a_globbed_folder_says_that_the_glob_loses_it() {
+    let project = gallery_project();
+
+    let output = project.move_ok(&[("src/assets/team/ada.webp", "src/assets/other/ada.webp")]);
+
+    assert!(
+        output.contains(
+            "src/assets/team/ada.webp is selected by the glob \"../assets/team/*.webp\" in src/components/Team.astro and will not be after the move"
+        ),
+        "{output}"
+    );
+    assert!(project.exists("src/assets/other/ada.webp"));
+}
+
+#[test]
+fn the_dry_run_names_the_files_that_a_glob_would_lose() {
+    let project = gallery_project();
+
+    let plan = crate::common::dry_run::assert_plan_matches_move(
+        &project,
+        &[("src/assets/team/ada.webp", "src/assets/other/ada.webp")],
+    );
+
+    let notes = plan["notes"].to_string();
+    assert!(notes.contains("is selected by the glob"), "{plan}");
+}
+
+fn project_with_a_script_in_package_json() -> Project {
+    let project = Project::empty();
+    project.write("tsconfig.json", TSCONFIG);
+    project.write("src/scripts/build.ts", "console.log(\"build\");\n");
+    project.write(
+        "Public/brand/logo.svg",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\"/>\n",
+    );
+    project.write(
+        "package.json",
+        "{\"scripts\": {\"build\": \"bun src/scripts/build.ts\"}}\n",
+    );
+    project.write("data/seo.json", "{\"image\": \"/brand/logo.svg\"}\n");
+    project
+}
+
+/// Configuration and data files are not edited, so the move lists them
+/// instead of leaving the break for the build to find.
+#[test]
+fn a_move_lists_the_config_and_data_files_that_still_name_the_old_path() {
+    let project = project_with_a_script_in_package_json();
+
+    let output = project.move_ok(&[
+        ("src/scripts/build.ts", "src/scripts/ci/build.ts"),
+        ("Public/brand/logo.svg", "Public/brand/mark.svg"),
+    ]);
+
+    assert!(
+        output.contains("These files still name a path that moved and were not changed"),
+        "{output}"
+    );
+    assert!(
+        output.contains("package.json (src/scripts/build.ts)"),
+        "{output}"
+    );
+    assert!(
+        output.contains("data/seo.json (/brand/logo.svg)"),
+        "{output}"
+    );
+    // Left as they were: refac lists these files, it does not guess.
+    assert!(
+        project
+            .read("package.json")
+            .contains("bun src/scripts/build.ts")
+    );
+}
+
+#[test]
+fn the_dry_run_lists_the_same_files() {
+    let project = project_with_a_script_in_package_json();
+
+    let plan = crate::common::dry_run::assert_plan_matches_move(
+        &project,
+        &[("src/scripts/build.ts", "src/scripts/ci/build.ts")],
+    );
+
+    let notes = plan["notes"].to_string();
+    assert!(
+        notes.contains("package.json (src/scripts/build.ts)"),
+        "{plan}"
+    );
+}

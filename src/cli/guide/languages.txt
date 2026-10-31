@@ -14,8 +14,11 @@ TYPESCRIPT / JAVASCRIPT / ASTRO / MDX  (.ts .tsx .js .jsx .mts .cts .mjs .cjs .a
           url() and @import paths in <style> blocks and .css files follow too (a .css file can be
           moved), and so do a bundled <script src>, strings that are the root-relative path of a
           moved file or folder (a content collection's base), the folder of import.meta.glob
-          patterns and relative paths in the frontmatter of .mdx/.md pages (image: ../a.webp). Not rewritten: <img src> and other template attributes (Astro treats them as
-          URLs), the files a glob matches, public/ URLs, .scss/.sass/.less, .vue/.svelte importers.
+          patterns and relative paths in the frontmatter of .mdx/.md pages (image: ../a.webp). Notes after
+          the move: a file entering or leaving a glob, and config or data files (.json .yaml .toml .html
+          ...) that still name a moved path. Not rewritten: <img src> and other template attributes
+          (Astro treats them as URLs), public/ URLs, content-collection ids, tsconfig paths,
+          .scss/.sass/.less, .vue/.svelte importers.
           A file the engine cannot parse stops the move and is named.
   rename  Variables, parameters, functions, types, members. Several renames in one session with --batch.
           .astro and .mdx files are not read by the language server: a rename they would not follow
