@@ -81,16 +81,27 @@ A skill is copied into many repositories and read by an agent that knows nothing
 - Name other skills ("the `coding` skill"), do not path-link them, and keep the common case completable without opening one. A pointer to a convention of the current project (`Project_Manag/Docs/doc_Start.md`) is fine.
 - Examples use neutral names (`my-service`).
 
+## Shipping a change
+
+A skill lives in a vault, a git-tracked folder separate from any project, that `skillmirror`, a small CLI tool, copies into every project's `.agents/skills/`. No project edits the vault directly; the order protects every other project from an unreviewed change:
+
+1. **Edit the project's own installed copy first.** Try the change where it is actually read, and get it approved there before anything leaves that project.
+2. **Replace the vault's copy completely, never merge into it.** `skillmirror promote <skill-name>` removes the vault's existing folder and puts the project's in its place (kept as a backup, staged in git, never committed). Copying only the changed files over the top leaves behind whatever the edit deleted or renamed: a page the new structure no longer links to would keep sitting in the vault, and then in every project the next sync reaches.
+3. **Push it out.** `skillmirror sync <skill-name>` updates every other project that already has the skill; it never adds the skill somewhere new. `promote --sync` does both steps together, asking again before the sync runs.
+
+A brand-new skill starts with `skillmirror new <name>` (a template, staged in git) or `skillmirror adopt <name> --from <project>` (a skill a project already wrote, brought into the vault for the first time). `skillmirror init <dir> [skills...]` creates a new project with the vault's mandatory skills plus a chosen selection. `skillmirror diff` and `skillmirror status` preview what a sync would change before anything changes. The full command reference is in [Shipping skills with skillmirror](References/skillmirror.md).
+
 ## Skills that need project customization
 
-Some subjects vary per project: a design or quality bar, a product's voice, a content structure. Their skill gives the general guideline, and the repository's own rules must be able to win without anyone editing the skill, because a sync overwrites every project's copy. Such a skill carries the mechanism itself:
+Some subjects vary per project: a design or quality bar, a product's voice, a content structure, a cost or benefit bar. Their skill gives the general guideline, and the repository's own rules must be able to win without anyone editing the skill, because a sync overwrites every project's copy. Such a skill names, on the page that carries the overridable guidance (SKILL.md itself, or the one sub-page that owns the topic), one exact path where a repository's override would live. Choose that path to fit the skill's own subject and how a project installing it already organizes its own docs, never a fixed `Decisions/<Skill_Name>/linker_<Skill_Name>.md` convention applied regardless of fit: a testing page reuses whatever folder a project already uses for tooling docs; a design or voice skill more often fits under a project's `Decisions/`, where approved product choices already live.
 
-- a paragraph near the top of SKILL.md, "The repository wins", that names the override map at `Decisions/<Skill_Name>/linker_<Skill_Name>.md` under the project's docs root, says it is opened first for the folder being worked in, and says it overrides the skill where it speaks while the skill applies where it is silent;
-- a `Repository/override_Map.md` page that explains the map, how to use it, and what belongs in the skill or in the repository; and, only when customising can break an agreement between files, a `Repository/what_Must_Hold.md`.
+State the whole mechanism in one paragraph, wherever the path is named: the exact path; open it before relying on the skill's guidance for that topic; what it names overrides the skill where it speaks, and the skill applies where the document is silent; and, stated plainly rather than left implicit, that the path or file not existing means nothing is overridden, not an error and not a reason to search further.
+
+A skill whose overridable facts are scattered across many of its own pages still names only one path, at the skill level, in SKILL.md; the document living there may be an index with one section per skill folder, since that is real content the project owns, not mechanism to explain. A skill with a single overridable fact confined to one page names its path inline, on that page, in a sentence or two. Neither case needs a dedicated page whose only job is to explain how the mechanism works. Only when customising can break an agreement between files (a name two scripts share, a number two stylesheets repeat) does the skill also carry a `Repository/what_Must_Hold.md`: real content (a table of contracts), not mechanism explanation, so it keeps its own page.
 
 Say how firmly each piece of guidance holds, so a project knows what it may adapt: a *contract* (two files must agree, change both or neither), a *default* (follow it unless the project has a reason, and say why) or a *starting point* (a suggestion to adapt freely, with no record needed). Design, wording, values and motion are starting points; do not guide them harder than the skill can justify. Guidance that is not labelled is read as a rule, and projects then stop adapting it.
 
-A skill that only documents a tool, a command or a fixed procedure does not need this. The test, the paragraph to copy, the page outline and the three strengths are in [Repository overrides](References/repository_Overrides.md).
+A skill that only documents a tool, a command or a fixed procedure does not need this. The test, the paragraph to write, and worked examples at both scales, are in [Repository overrides](References/repository_Overrides.md).
 
 ## SKILL.md shape
 
@@ -139,13 +150,14 @@ Before declaring the skill done:
 - Each linked reference or domain file follows the same orientation + common case + links pattern. No linked file is a dump.
 - Operator pages contain normal usage without requiring developer internals; contextual maintainer material lives under singular `Detail/` with explicit read/skip labels in both directions.
 - Independent: the common case still works after the folder is copied into an unrelated repository.
-- If the subject varies per project (design, voice, structure), the skill has the "repository wins" paragraph and a `Repository/override_Map.md`; if it only documents a tool or a fixed procedure, it has neither. Guidance that is only a suggestion is labelled a starting point.
+- If the subject varies per project (design, voice, structure, a cost or benefit bar), the page that carries the overridable guidance names one exact path, chosen to fit the skill, with the full mechanism in one paragraph; if it only documents a tool or a fixed procedure, it names none. Guidance that is only a suggestion is labelled a starting point.
 - Self-test: if the agent only reads SKILL.md, can it do the common case end-to-end?
 
 ## References
 
 - [Process](References/process.md): drafting a skill from scratch with the user, gathering requirements, reviewing, iterating.
+- [Shipping skills with skillmirror](References/skillmirror.md): the full command set for moving a skill between a project and the vault and out to every other project: `promote`, `sync`, `adopt`, `new`, `init`, and the read-only `diff`, `status`, `changes`, `doctor`, `info`, `undo`. Read it before promoting a change, adopting a project's skill into the vault, or bootstrapping a new project.
 - [Labels and descriptions](References/labels.md): rules for the frontmatter description and inline link descriptions, with format, character limits, length guidance, and worked good/bad examples.
 - [Failure modes](References/failure_Modes.md): over-splitting, misjudged common case, atomization, premature linker creation, and other ways the navigation-first pattern gets misapplied.
-- [Repository overrides](References/repository_Overrides.md): when a skill needs a place for the project's own rules, the paragraph to copy into SKILL.md, the outline of the override page and what-must-hold page, and what the repository's override map contains. Read it when the skill's subject varies per project, such as design, voice or content structure.
+- [Repository overrides](References/repository_Overrides.md): when a skill needs a place for the project's own rules, one named path chosen to fit the skill, and the two scales (a single inline fact versus facts scattered across many pages). Read it when the skill's subject varies per project, such as design, voice or content structure.
 - [When to add code](References/code.md): criteria for bundling executable helpers in the skill, and when generated code is fine.

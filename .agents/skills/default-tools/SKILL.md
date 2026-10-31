@@ -1,6 +1,6 @@
 ---
 name: default-tools
-description: "Hub for recurring repository tooling: shared system-tool installation through mise and Just, git hooks with hk, and web automation with Playwright CLI. Use when installing or updating the shared tool baseline, editing the shared mise manifest or hk.pkl, writing Just recipes, or working with browsers and screenshots."
+description: "Hub for recurring repository tooling: shared system-tool installation through mise and Just, git hooks with hk, web automation with Playwright CLI, and moving skills between the vault and projects with skillmirror. Use when installing or updating the shared tool baseline, editing the shared mise manifest or hk.pkl, writing Just recipes, working with browsers and screenshots, or shipping a skill change."
 ---
 
 # default-tools
@@ -90,3 +90,13 @@ ss -tlnp | grep <port>
 ```
 
 Any output means the server is up; empty output means start it (`bun run dev`, `npm run dev`, etc.).
+
+## Skillmirror — moving skills between the vault and projects
+
+Read this section when:
+
+- You edited a skill in this project and the change is approved to leave it.
+- You are bringing a new skill into the vault, or bootstrapping a new project with a chosen skill set.
+- A skill here looks out of date, out of sync, or you need to check what differs from the vault.
+
+`skillmirror` is the CLI tool: this project's skills are its copies, kept in sync from a separate git-tracked vault. It is **not** documented here; the `skill-writer` skill owns it, since shipping a skill change is part of writing one. Load that skill for the full command reference (`promote`, `sync`, `adopt`, `new`, `init`, and the read-only `diff`, `status`, `changes`, `doctor`, `undo`).

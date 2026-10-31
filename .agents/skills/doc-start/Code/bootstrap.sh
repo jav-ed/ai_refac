@@ -179,6 +179,12 @@ create_dir "Scratch/Design"
 create_dir "Scratch/Audit"
 ensure_gitignore_line "Scratch/"
 
+# Per-machine state of the agent tools that work in the repo (see References/gitignore.md): the impeccable design
+# skill's working folder and its downloaded program, and the playwright-cli folder.
+ensure_gitignore_line ".impeccable/"
+ensure_gitignore_line ".playwright*"
+ensure_gitignore_line "**/skills/impeccable/scripts/bin/"
+
 bash "$BOOTSTRAP_SCRIPT_DIR/install_Scratch.sh" "$PWD"
 
 echo "done."

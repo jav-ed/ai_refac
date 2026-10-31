@@ -54,6 +54,8 @@ second_code
 
 If you create, run, or change a test, you must read [Testing](Tooling/Testing/testing.md) first.
 
+For Gradle-owned work, prefer native caching by default. The testing page routes to setup, daily use and maintenance, and explains when Moon or Nx adds value.
+
 ## Searching code
 
 Before you change code you do not know, find its definitions, callers and implementors with the `search` skill.
@@ -76,4 +78,4 @@ Group related work by purpose so developers can easily find and understand it. T
 
 Read the relevant language guide only after the mandatory universal rules. Language-specific conventions may refine naming and syntax, but they do not override the universal rules.
 
-- [Languages](Languages/linker_Languages.md): naming conventions (standard JS/TS, Improved_Camel_Snake, Markdown and non-code files) and language-specific knowledge such as JS/TS testing. Open it when you write or review code in a language it lists, or when you pick a naming style.
+- [Languages](Languages/linker_Languages.md): naming conventions (standard JS/TS, Improved_Camel_Snake, Markdown and non-code files) and language-specific knowledge such as JS/TS testing and Rust testing with Moon caching. Open it when you write or review code in a language it lists, or when you pick a naming style.

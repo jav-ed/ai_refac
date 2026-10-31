@@ -6,22 +6,24 @@ Read this after a test is justified (see [Testing](../testing.md)). The question
 
 ## When to use it
 
-Use Moon when a test or check runs more than once and its result depends only on files: type checks, linters, formatters, unit tests. The second run is free while nothing changed. Skip it for a one-off command, and for work with side effects such as deployments or migrations, which must never replay from a cache.
+Use Moon when a repeatable check has no adequate native reuse, or the repository needs its shared task orchestration. Inputs must include the files, relevant environment and toolchain that determine the result. Keep an existing repository workflow unless there is a reason to change it. For Gradle-owned work, prefer the native workflow described in the guide below. Skip caching for a one-off command and for work with side effects such as deployments or migrations, which must never replay from a cache.
 
 ## Which languages fit
 
 Caching works for any command. What differs is how deeply Moon understands the language (its docs call these tiers):
 
-- **Deep support: JavaScript and TypeScript (Bun, Deno, Node with npm, pnpm, or yarn), Go, and Rust (Cargo).** Moon reads manifests and lockfiles to infer dependencies and tasks, hashes dependency changes for you, and downloads the pinned toolchain version. JavaScript is Moon's home ground.
+- **Deep support: JavaScript and TypeScript (Bun, Deno, Node with npm, pnpm, or yarn), Go, and Rust (Cargo).** Moon reads manifests and lockfiles to infer dependencies and tasks, hashes dependency changes for you, and downloads the pinned toolchain version. JavaScript is Moon's home ground. For Rust, check the inference before trusting it: a crate dependency inherited with `workspace = true` was not inferred, and a dependent crate's test replayed a stale pass until the dependency edge was hashed (see [Moon for Rust](../../../Languages/Rust/moon_Cache.md)).
 - **Partial or experimental: Python (pip, Poetry, uv) and Ruby (gems, Bundler).** Project categorization works; the ecosystem integration is still marked experimental. PHP and Bash have project categorization only.
 - **Everything else (C# and so on):** Moon runs the command as a plain `system` task. The cache still works, but Moon infers nothing and installs nothing, so every input is yours to list.
-- **Java, Kotlin, and Android (Gradle): not tested by us yet.** Moon's docs list them at the lowest tier only, so they would run as plain `system` tasks. We do not know how well that works, and nobody should assume it does. See [Java, Kotlin, and Android](#java-kotlin-and-android).
+- **Java, Kotlin, and Android (Gradle):** Moon can wrap the Gradle command as a `system` task; verify integration support for the installed Moon version. This adds an outer input/output contract. Use native Gradle caching by default and evaluate a wrapper for the repository's orchestration needs. See [Java, Kotlin, and Android](#java-kotlin-and-android).
 
-Moon adds the most where the language's own tool reruns everything on every call: test runners such as `pytest`, `cargo test`, and `vitest`, linters, type checkers, and formatters. It adds little where the native tool already skips unchanged work: `go test` caches its results, and Gradle (Android, JVM) skips up-to-date tasks and has its own build cache. There, use Moon only as one shared entry point, or not at all, rather than keeping two caches correct.
+Moon adds the most where the language's own tool reruns everything on every call: test runners such as `pytest`, `cargo test`, and `vitest`, linters, type checkers, and formatters. A replay still costs the startup of Moon (0.2 to 0.3 s measured), so it gains nothing on a task that runs in under a second; measure before adding it (see [Rust testing](../../../Languages/Rust/testing.md) for the numbers). It adds little where the native tool already skips unchanged work: `go test` caches its results, and Gradle (Android, JVM) skips up-to-date tasks and has its own build cache. There, use Moon only as one shared entry point, or not at all, rather than keeping two caches correct.
 
 ## Java, Kotlin, and Android
 
-Moon's support for Java and Kotlin is untested here, and Android projects (Gradle) are the case that matters. Treat Moon as unproven there until we have run our own experiment and documented the result in the project's docs. Gradle already skips up-to-date tasks and has its own build cache, so Moon must add something on top to be worth keeping.
+Start with Gradle's own task reuse and build cache. Moon can wrap a Gradle command, but an outer cache must track every relevant source, dependency, build setting, toolchain/runtime value and external test input before it can safely skip Gradle. A wrapper must add useful orchestration or measured performance beyond the native baseline. Do not assume results for JVM tasks establish support for Android device tests or every KMP target.
+
+- [Gradle setup, use and maintenance](../Gradle/gradle.md): enable and verify native caching, run focused or fresh tests, and keep task inputs complete before evaluating an outer layer.
 
 The experiment: in a throwaway copy of an Android or Gradle project, wrap the test and lint commands in Moon tasks, and record what happens. The checks that matter, each proven by a log of which commands actually ran (replayed console output proves nothing):
 
@@ -32,7 +34,7 @@ The experiment: in a throwaway copy of an Android or Gradle project, wrap the te
 - A failing task stops the tasks that depend on it.
 - The result is not slower or less correct than Gradle's own caching alone.
 
-Write down the tool versions, the commands, what passed, what failed, and the timings, with the limits of the measurement. If Moon does not work well here, the fallback is Nx, which is reported to support Java, Kotlin, and Gradle through its Gradle plugin. Test Nx with the same checks instead of trusting that claim.
+Write down the tool versions, commands, actual selected test counts, outcomes, wall time and memory, with the limits of the measurement. Nx is an independent option when its project graph or CI orchestration is needed; its `@nx/gradle` plugin supports Gradle project/task inference. It is not an automatic next step after a Moon problem. Test either wrapper against the same native baseline and input contract. For fresh tests through a wrapper, bypass the outer cache and pass Gradle's `--rerun`; forcing only the outer layer does not force the tests.
 
 For UI automation and tests of an Android app on a device or emulator, see [Maestro](../Maestro/maestro.md): a separate tool, not part of Moon's caching.
 

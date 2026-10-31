@@ -41,7 +41,7 @@ Use stable shortcut names in docs and commands first. Link to `internal_Repo_Pat
 
 ## Gitignore
 
-The `bootstrap.sh` script appends `Repos/` to `.gitignore` (creating the file if absent) when run. If the folder appears later in a project that did not bootstrap, add the line by hand. There is no exception pattern: nothing inside `/Repos/` is tracked.
+The `bootstrap.sh` script appends `Repos/` to `.gitignore` (creating the file if absent) when run. If the folder appears later in a project that did not bootstrap, add the line by hand. There is no exception pattern: nothing inside `/Repos/` is tracked. The other lines a repo ignores, and where they go, are in [Gitignore](gitignore.md).
 
 ## Cloning rules
 
