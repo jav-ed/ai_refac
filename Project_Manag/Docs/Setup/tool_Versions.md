@@ -30,7 +30,7 @@ The point of this file is to make the next audit quick: the pin column says wher
 
 | Tool | Version | Where it comes from | Notes |
 |---|---|---|---|
-| Kotlin language server | `ILS-263.6379.0` (newest release) | `REFAC_KOTLIN_SERVER`, see [Kotlin server setup](kotlin_Server.md) | Early access build; the license key it carries runs out on 2026-10-30. |
+| Kotlin language server | the build pinned in `src/servers/catalog/kotlin.rs` | `REFAC_KOTLIN_SERVER`, see [Kotlin server setup](kotlin_Server.md) | Early access build; it stops starting about four weeks after its release. `refac doctor kotlin` shows it; replace it with `just kotlin-server-update <build> --clean` ([Replacing the build](kotlin_Server.md#replacing-the-build)). |
 | gopls | v0.23.0 (latest) | `go install golang.org/x/tools/gopls@latest` | Tested with Go 1.27.1 (latest) and 1.24.7. Moves and symbol rename. |
 | rust-analyzer | 1.99.0 (the rustup component of the pinned toolchain) | `rustup component add rust-analyzer` | Symbol rename and same-directory file renames. rustup picks the toolchain from the project directory. |
 | basedpyright | 1.40.2 (based on pyright 1.1.414) | `pip install basedpyright` | The Python symbol-rename server: the only one that offers `implementationProvider`, which the override family needs. Plain pyright is refused for that reason; Pyrefly 1.3.2 and ty 0.0.85 were compared and miss cross-file references ([Symbol rename options](../Investigation/symbol_Rename_Options.md)). |

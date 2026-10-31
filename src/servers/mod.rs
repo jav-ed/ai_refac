@@ -16,7 +16,7 @@ use crate::drivers::lsp::client::Server as Profile;
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};
 
-pub use catalog::{all, for_language};
+pub use catalog::{KOTLIN_SETUP_GUIDE, all, for_language};
 pub use doctor::{
     Report, Status, doctor_all, doctor_one, render_json, render_one, render_overview,
 };

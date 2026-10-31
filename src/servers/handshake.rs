@@ -1,9 +1,11 @@
 //! Proving a found server can start: the `initialize` conversation on an
 //! empty folder, then a clean shutdown. It takes a second or two and catches
-//! what a version command cannot: a server that runs but cannot serve.
+//! what a version command cannot: a server that runs but cannot serve, or a
+//! build that refuses to start because its license ran out.
 
 use super::locate::Located;
 use super::{Find, Server};
+use crate::drivers::kotlin::server::check_start;
 use crate::drivers::lsp::session::{LspSession, SessionConfig};
 use anyhow::{Result, bail};
 use std::path::Path;
@@ -21,14 +23,21 @@ pub enum StartCheck {
 }
 
 pub async fn start_check(server: &'static Server, located: &Located, project: &Path) -> StartCheck {
-    let Find::Executable { launch, .. } = &server.find else {
-        return StartCheck::Skipped(match server.find {
-            Find::Folder { .. } => "starting it imports a Gradle project and takes 20 to 45 seconds; run a rename to see it work".to_string(),
-            _ => "it is started by refac's own helper scripts".to_string(),
-        });
-    };
     let began = Instant::now();
-    match tokio::time::timeout(START_TIMEOUT, handshake(server, launch, located, project)).await {
+    let started = match &server.find {
+        Find::Bundled { .. } => {
+            return StartCheck::Skipped("it is started by refac's own helper scripts".to_string());
+        }
+        Find::Executable { launch, .. } => {
+            tokio::time::timeout(START_TIMEOUT, handshake(server, launch, located, project)).await
+        }
+        // The Kotlin server: `initialize` only, because its Gradle import
+        // (20 to 45 seconds) starts after `initialized`.
+        Find::Folder { .. } => {
+            tokio::time::timeout(START_TIMEOUT, check_start(&located.executable)).await
+        }
+    };
+    match started {
         Ok(Ok(())) => StartCheck::Started {
             seconds: began.elapsed().as_secs_f32(),
         },

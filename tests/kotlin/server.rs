@@ -33,6 +33,23 @@ async fn the_server_imports_the_project_and_answers_requests() {
     server.shutdown().await;
 }
 
+/// What `refac doctor kotlin` runs: `initialize` on an empty folder and a stop,
+/// with no Gradle import. A server that changed what it offers fails here.
+#[tokio::test]
+#[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER)"]
+async fn the_start_check_proves_the_server_starts_without_importing_a_project() {
+    common::kotlin::require_slow_tests();
+    let folder = std::env::var_os(server::SERVER_ENV).expect("REFAC_KOTLIN_SERVER is set");
+    let executable = std::path::Path::new(&folder).join("bin/intellij-server");
+    let began = std::time::Instant::now();
+    server::check_start(&executable).await.unwrap();
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(30),
+        "the start check imported a project: {:?}",
+        began.elapsed()
+    );
+}
+
 #[tokio::test]
 #[ignore = "needs the Kotlin language server (REFAC_KOTLIN_SERVER) and a JDK"]
 async fn a_broken_gradle_build_fails_loudly_with_the_import_log() {

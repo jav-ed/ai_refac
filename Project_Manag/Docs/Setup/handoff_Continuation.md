@@ -26,7 +26,7 @@ Written on 2026-10-07 at the end of the session that added the Kotlin backend, r
 
 | Item | Where | How to get it |
 |---|---|---|
-| Kotlin language server `ILS-263.6379.0` | wherever `REFAC_KOTLIN_SERVER` points | The URL and sha256 in [Kotlin server setup](kotlin_Server.md). refac never downloads it. Its bundled early-access key is valid through 2026-10-30; after that a newer build is needed. |
+| Kotlin language server (the build pinned in `src/servers/catalog/kotlin.rs`) | wherever `REFAC_KOTLIN_SERVER` points | The URL and sha256 in [Kotlin server setup](kotlin_Server.md). refac never downloads it. It is an early-access build that stops starting about every four weeks; `refac doctor kotlin` reports it and [Replacing the build](kotlin_Server.md#replacing-the-build) is the procedure. |
 | Android SDK (platform 36, build-tools 36.0.0) | `ANDROID_HOME` | Only the Android tests need it; they panic with an explanation when it is missing. |
 | Reference clones | `Repos/` (gitignored) | Commands in [External reference repos](repos_List.md) |
 | `scripts/node_modules` | gitignored | `bun install --frozen-lockfile` inside `scripts/` (the Rust code also runs it when missing) |

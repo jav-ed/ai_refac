@@ -4,19 +4,50 @@ Kotlin moves and renames need the JetBrains Kotlin language server. It is the on
 
 ## Install
 
-The verified build is `ILS-263.6379.0` for Linux x64 (368,488,700 bytes, bundled JetBrains Runtime 25).
+The verified build is `ILS-263.7084.0` for Linux x64 (368,521,225 bytes, bundled JetBrains Runtime 25).
 
 ```bash
-curl -LO https://download.jetbrains.com/language-server/kotlin-server/263.6379.0/kotlin-server-263.6379.0.tar.gz
-echo "ab8ca4455dc2fc5fe1a24db2bccc46c104254d2c465155c4251ee65df8f3f7cc  kotlin-server-263.6379.0.tar.gz" | sha256sum -c -
+curl -LO https://download.jetbrains.com/language-server/kotlin-server/263.7084.0/kotlin-server-263.7084.0.tar.gz
+echo "ae0c4b01e17ab73a4a5227a78ea99e6dcbe3e499600315b22759a4e4cddd11df  kotlin-server-263.7084.0.tar.gz" | sha256sum -c -
 mkdir -p ~/.local/share/refac
-tar -xzf kotlin-server-263.6379.0.tar.gz -C ~/.local/share/refac
-export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
+tar -xzf kotlin-server-263.7084.0.tar.gz -C ~/.local/share/refac
+export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.7084.0
 ```
 
-`REFAC_KOTLIN_SERVER` must name the folder that holds `bin/intellij-server` and `build.txt`, and `build.txt` must start with `ILS-`. Put the export in the shell profile of whoever runs `refac`, including an agent's environment. The folder can be anywhere: the install above uses `~/.local/share/refac`, and a machine that keeps its tools elsewhere (for example `/home/jav/Progs/kotlin-lsp/kotlin-server-263.6379.0`) only changes the path in the export. `refac doctor kotlin` prints `[ready]` and the found build when the variable is right.
+`REFAC_KOTLIN_SERVER` must name the folder that holds `bin/intellij-server` and `build.txt`, and `build.txt` must start with `ILS-`. Put the export in the shell profile of whoever runs `refac`, including an agent's environment. The folder can be anywhere: the install above uses `~/.local/share/refac`, and a machine that keeps its tools elsewhere (for example `/home/jav/Progs/kotlin-lsp/kotlin-server-<build>`) only changes the path in the export. `refac doctor kotlin` prints `[ready]` and the found build when the variable is right.
 
 A JDK 17 or newer must be on `PATH` for the Gradle import that the server runs. For Android projects `ANDROID_HOME` (or `local.properties`) must point at an SDK, exactly as for a normal Gradle build.
+
+## Replacing the build
+
+JetBrains publishes this server only as early-access (EAP) builds, and every build stops starting at a fixed date: it prints `This build of kotlin-server has expired.` and exits with status 7. refac builds nothing; JetBrains does, and we download, check and install the new build. Expect to do this about every four weeks, until JetBrains ships a stable release.
+
+**State** (change this line on each replacement): pinned build `263.7084.0`, released 2026-10-17, valid through **2026-11-13**.
+
+Observed lifetimes, from the release date to the expiry: 262.4739.0 (2026-04-27) about five and a half weeks, 262.9593.0 (2026-07-26) about six weeks, 263.6379.0 (2026-10-03) 27 days, 263.7084.0 (2026-10-17) 27 days. Twice (June and September) the next build reached GitHub only after the old one had expired, so look for the next build about a week before the date above.
+
+**How you notice**
+
+- `refac doctor kotlin` starts the server up to `initialize` (no Gradle import, 3 to 9 s) and prints `[BROKEN]` with what the server printed.
+- A Kotlin move or rename fails with `The Kotlin language server did not start: this build has expired`, the steps, and a link to this page.
+- `bin/intellij-server license status` in the server folder prints the date of a build that still starts.
+
+**Steps** (about five minutes, plus one test run)
+
+1. Find the newest build: `gh release list -R Kotlin/kotlin-lsp --limit 3` (the tag is `kotlin-lsp/v<build>`), or https://github.com/Kotlin/kotlin-lsp/releases. Its `license status` date must be in the future (step 2 prints it).
+2. Install it and clean up, in the refac repository:
+
+   ```bash
+   just kotlin-server-update <build> --clean
+   ```
+
+   `Code/Just/Scripts/update_Kotlin_Server.sh` downloads the build from JetBrains, compares it with the SHA-256 that JetBrains publishes next to it, unpacks it next to the build `REFAC_KOTLIN_SERVER` names (else into `~/.local/share/refac`), prints its license date and the checksum for the pin, then deletes every older `kotlin-server-*` folder there and the older builds' indexes in `~/.cache/refac` (about 1.2 GB and 0.5 GB per old build). Without `--clean` it only lists what it would delete. Run it twice with the same build and the second run downloads nothing.
+3. Point the shell at the new folder: change the build number in the `REFAC_KOTLIN_SERVER` export in the shell profile (the script prints the line), open a new shell, and run `refac doctor kotlin`; it must say `[ready]`.
+4. Change the pin in the code: `src/servers/catalog/kotlin.rs` (the download URL, the checksum and the version in the install steps, and the three constants in its test), and in this page the build in *Install* and the *State* line above. These are the only places that name the build; `rg <old build>` should find nothing else outside `Project_Manag/Docs/Investigation/`, which records what was measured on which build and is left alone.
+5. Run the real-server tests once against the new build (see below). The protocol code was verified against the pinned build; a failing test means the new build changed something. Fix it before the pin is pushed.
+6. Move the date in `Project_Manag/Live_Working/open_Issues.md` (item 5) to the new expiry.
+
+If the build named in the install steps has expired, every new install fails the same way until the pin is replaced, so the monthly replacement is also what keeps `refac doctor kotlin` honest for other people.
 
 ## Behavior to know
 
@@ -24,7 +55,7 @@ A JDK 17 or newer must be on `PATH` for the Gradle import that the server runs. 
 - **Gradle daemon, off by default:** the server's Gradle import starts a Gradle daemon, which Gradle keeps for three hours; refac sets its idle time to 10 s so nothing stays after the command. `REFAC_KOTLIN_GRADLE_IDLE_SECS=<1 to 3600>` keeps it that many seconds instead, and the next command skips the cold import: measured with two consecutive `refac move` calls, 23.5 s then **15.1 s** with 120, against 25.0 s and 23.6 s by default. It costs the daemon's memory (several hundred MB) for those seconds after every command, so it is the user's opt-in for scripts that must run single changes one after the other, and it is not on by default. A value that is not a whole number of seconds from 1 to 3600 is an error naming the variable (`install::parse_gradle_idle`).
 - **Readiness is signalled, not guessed:** refac waits for the server's `intellij/workspaceImportState` to finish with every folder successful, then for `intellij/ready-for-test`. A broken Gradle build ends the wait early with the tail of the import log; otherwise the wait ends at `REFAC_KOTLIN_TIMEOUT_SECS` (default 600) with an error.
 - **Warm cache:** the server writes its index (the JDK, the Kotlin libraries, what it learned of the project; 110 to 160 MB) into a system directory. Refac keeps it between calls (`src/drivers/kotlin/server/cache.rs`): a run starts from a private copy of the warm directory, so two commands never share a live one, and a run that ends cleanly (the server left by itself after `exit` and the end of its input) publishes its directory as the new warm one. A run that failed publishes nothing. The index is passed with `initializationOptions.indexDir`; without it the server keeps one full index per project path, and a copy of the project (a dry run, a test) would start empty. Measured: 32 to 38 s to ready with an empty directory, **9 s with a warm one and a running Gradle daemon, 16 s with a cold one**, for the same path and for another one. Edits, new files, deletions and moves made while no server ran are seen (checked with the references of a class after each). Where: `REFAC_KOTLIN_CACHE` (a directory, or `off` for an empty directory every time, as before), else `$XDG_CACHE_HOME/refac`, else `~/.cache/refac`, in a folder per server build. It is deleted when it grows past 2 GB. Delete it by hand (`rm -rf ~/.cache/refac/kotlin-*`) if a start misbehaves; a copy that cannot be read is an error that says so.
-- **License:** this build asks for no EULA and needs no license. Its bundled EAP key is valid through 2026-10-30. When a later start fails with a license message, install a newer build, run the real-server tests below against it, and only then update the build constants in `src/drivers/kotlin/server.rs`.
+- **Expiry:** the build is an early-access build and stops starting at a fixed date, about every four weeks. See *Replacing the build* above; `refac doctor kotlin` shows it.
 - **Offline:** the Gradle import needs whatever the project needs to resolve its dependencies; refac adds no network use of its own. The one exception is a Kotlin Multiplatform build: the server cannot import it, so refac imports a plain-JVM copy of its sources instead (see [Kotlin Multiplatform](../Features/Kotlin/multiplatform_Mirror.md)), which needs the Kotlin Gradle plugin of the project's Kotlin version from the plugin portal or Maven Central, and the version from `gradle/libs.versions.toml`, the plugin line of a build script, or `REFAC_KOTLIN_MIRROR_VERSION`.
 
 ## Running the real-server tests
@@ -56,7 +87,7 @@ REFAC_KOTLIN_TESTS=all cargo test --test kotlin -- --ignored --test-threads=1 <m
 Measured on 2026-10-10 (4 cores, 16 GB): the whole group takes **419 s (7 minutes) in one command** with a warm cache (measured with 40 tests; with the tests added since it is 46 and takes **389 s**, measured on 2026-10-12), 534 s with an empty one (it took 2355 s when every test started its own server and nothing was kept). By module, with the starts inside: `multiplatform::` 96 s, `dry_run::` 77 s, `rename::` 69 s, `android::` 68 s, `dispatch::` 36 s, `moves::` 26 s, `server::` 13 s. After the start the 8 `moves::` tests take 25 s together, the 10 `rename::` tests that need no copy about 25 s, the 5 `android::` tests 45 s (they compile an Android build after each scenario). Run the whole group once before a push that changes the server start or the shared move and rename engine, never repeatedly.
 
 ```bash
-export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
+export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-<build>   # the installed build, see Install
 export ANDROID_HOME=~/Android/Sdk   # only the Android tests need it
 # (in a script: export them in the SAME shell that runs cargo, not inside a pipe)
 

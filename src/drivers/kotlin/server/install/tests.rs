@@ -43,7 +43,7 @@ fn a_foreign_build_is_refused() {
 
 #[test]
 fn a_missing_executable_is_refused() {
-    let dir = install_dir(Some("ILS-263.6379.0\n"), false);
+    let dir = install_dir(Some("ILS-1.2.3\n"), false);
     let error = locate_in(Some(dir.path().into()))
         .err()
         .unwrap()
@@ -53,9 +53,9 @@ fn a_missing_executable_is_refused() {
 
 #[test]
 fn a_complete_install_reports_its_build() {
-    let dir = install_dir(Some("ILS-263.6379.0\n"), true);
+    let dir = install_dir(Some("ILS-1.2.3\n"), true);
     let install = locate_in(Some(dir.path().into())).unwrap();
-    assert_eq!(install.build, "263.6379.0");
+    assert_eq!(install.build, "1.2.3");
 }
 
 #[test]

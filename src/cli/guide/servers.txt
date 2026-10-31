@@ -25,7 +25,11 @@ WHEN ONE IS MISSING
     refac doctor              one line per language, no server started
     refac doctor <language>   the steps to install it, and a start check that proves it works
   After installing, run the original command again. For Kotlin the server is a large download
-  (about 1.2 GB unpacked) and REFAC_KOTLIN_SERVER names its folder.
+  (about 1.2 GB unpacked) and REFAC_KOTLIN_SERVER names its folder. That server is published as
+  early-access builds that stop starting about four weeks after their release: a command that says
+  "has expired", or `refac doctor kotlin` showing BROKEN, needs a newer build. The refac repository
+  explains how: Project_Manag/Docs/Setup/kotlin_Server.md, "Replacing the build"
+  (https://github.com/jav-ed/ai_refac/blob/main/Project_Manag/Docs/Setup/kotlin_Server.md).
 
 LIMITS AND SWITCHES
   REFAC_PROJECT_PATH           default for --project-path

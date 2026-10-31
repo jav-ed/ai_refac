@@ -74,3 +74,43 @@ Environment: build `ILS-263.6379.0` (Linux x64, 368,488,700 bytes, bundled JetBr
 ### Not measured or not tested
 
 Cross-module moves (refused), a real Compose Multiplatform application (only the small `kmp_project` fixture through the plain-JVM copy), Maven projects through refac's Android layer, a large multi-module Android project, and the server's memory on one. One run of the broken-build test hung for more than five minutes and could not be reproduced in eight further runs; the 600-second timeout and the import-log tail in the error are the guard.
+
+## kmp-lsp (evaluated 2026-10-31)
+
+[kmp-lsp](https://github.com/Hessesian/kmp-lsp) is a Kotlin, Java and Swift language server in Rust on tree-sitter (MIT, created 2026-04-02, one author wrote 939 of 956 commits, monthly releases, v0.27.0 on 2026-09-24, 205 stars, about 2,100 unit tests). It was looked at because it has no JVM, no Gradle import and no expiring build (see [Kotlin server setup](../Setup/kotlin_Server.md#replacing-the-build)), and because it reads Kotlin Multiplatform source sets directly. It was built from a shallow clone at commit `fbc0f0d` (2026-10-20; the clone was removed afterwards, `git clone --depth 1 https://github.com/Hessesian/kmp-lsp Repos/kmp-lsp` brings it back) and driven over LSP on a copy of `tests/fixtures/kotlin/jvm_project` plus a file of traps (the project compiles with Gradle).
+
+**Verdict: not a replacement, and not an addition.** It cannot move a file, and its rename is not safe enough to be the engine that refac proves and writes.
+
+**What it cannot do**
+
+- **No file move.** It announces `file_operations: None` (`src/backend/capabilities.rs`), so there is no `workspace/willRenameFiles`: the package line and the imports of a moved file would have to be written by refac itself, which is the Kotlin analyzer this project decided not to write (see the start of this page).
+- **Rename is syntactic.** Its own limitations list says there is no type inference and no type checking. A method name that exists in several classes is refused ("identity is ambiguous", `src/features/rename.rs`, kept on purpose by the author), so the common case of two classes with a `decorate` cannot be renamed at all.
+
+**What it got wrong** (same seven renames; the JetBrains server through refac is the baseline and got all seven right)
+
+| Case | JetBrains server through refac | kmp-lsp |
+|---|---|---|
+| C1 method used in Kotlin, Java, through an import alias and a callable reference; same name in three unrelated types | the 6 uses, nothing else | also renamed the declarations of `Other.decorate`, `Decorator.decorate` and `Plain.decorate`, but not their calls: the code would not compile |
+| C2 property; `"$h.counter"` is text, `"${h.counter}"` is a use; a second class has a `counter` | Kotlin uses, `${h.counter}`, and the Java accessor `getCounter()` becomes `getCallCount()`; the text and the other class stay | renamed the text in the string, missed `${h.counter}`, no Java accessor |
+| C3 parameter name used by two functions | one function | correct (local scope) |
+| C4 rename an extension to the name of a member (the member would win) | refused ("not faithful") | renamed, no warning |
+| C5 rename a class | 14 occurrences: imports, Java, the alias import, the file | 8 of 14: no `import` line and not the Java `new Helper(` |
+| C6 method of an unrelated class that shares the name | correct | refused |
+| C7 interface method with an override | the override and its call follow | refused |
+
+On the multiplatform fixture it found the `expect fun platformName()`, the `actual` in `jvmMain` and the callers without any Gradle import, which the JetBrains server cannot do (refac imports a plain-JVM copy instead). It also edited a comment and missed the `import` line.
+
+**A bug in the build that was tested.** Every edit that comes from its text search (all cross-file renames) has a zero-width range (`Range::new(pos, pos)` in `src/rg.rs`, around line 2125), so a client inserts the new name in front of the old one: `decorate` became `embellishdecorate` in every file. Its own rename tests only count the edits (`src/features/rename_tests.rs`), so they do not see it. This was verified on the raw LSP response, and it is not reported upstream.
+
+**Cost**
+
+| | kmp-lsp | JetBrains server through refac |
+|---|---|---|
+| Start until it can rename | 0.1 to 0.6 s | 24 to 70 s (Gradle import, 63 to 70 s per rename measured here on a loaded machine) |
+| Memory | about 130 MB | 1.3 to 1.8 GB |
+| Expiry | none | about every four weeks |
+
+**Look again when** one of these happens: it announces `workspace/willRenameFiles`; the zero-width edits are fixed (the kit's C1 passes without `embellishdecorate`); its rename becomes type-aware (the author's roadmap is issue #138 in its repository); or JetBrains stops shipping builds that expire and the monthly replacement stops being worth the effort.
+
+**Re-running the evaluation.** The kit is in `Trials/Kotlin/kmp_lsp_eval/` (local, gitignored, like the Astro sweep kit): `README.txt` has the four commands, `make_project.py` builds the trap project, `eval_kmp_lsp.py` drives kmp-lsp, `baseline_jetbrains.py` runs the same cases through refac. The trap project must compile before any result is trusted: the first version used an alias import (`import ...Helper as H`) in a file of the same package, which Kotlin does not allow (the original name becomes unresolved), and the baseline looked wrong until `./gradlew compileKotlin compileJava` showed it.
+

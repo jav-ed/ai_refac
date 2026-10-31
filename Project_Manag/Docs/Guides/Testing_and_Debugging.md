@@ -125,7 +125,7 @@ The Dart suite also has one normal test (a project without `package_config.json`
 The Kotlin scenarios use the real JetBrains Kotlin language server and a Gradle import (20 to 47 seconds), so they are `#[ignore]`d and a plain `cargo test` skips them. **Put the tests you want into ONE command with `--test-threads=1`: one test, several named tests, or a module.** They share one server per fixture inside the command (`tests/common/pool.rs`): the first test of a fixture pays the start (20 to 32 seconds with the warm cache), every later one costs seconds, and a failed test costs no restart. The whole group (39 tests) takes about 7 minutes (419 s measured with 40); only `server::` and the dry-run plans (the `refac` binary plans on a copy with a server of its own, about 25 seconds each) start servers of their own. The commands, the table of which tests cover which change, and the rules that keep the machine alive are in [Kotlin server setup](../Setup/kotlin_Server.md#running-the-real-server-tests):
 
 ```bash
-export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-263.6379.0
+export REFAC_KOTLIN_SERVER=~/.local/share/refac/kotlin-server-<build>   # the installed build
 export ANDROID_HOME=~/Android/Sdk   # Android tests only
 # one test:
 cargo test --test kotlin quick:: -- --ignored --test-threads=1

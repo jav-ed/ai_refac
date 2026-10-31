@@ -1,7 +1,8 @@
 //! A single Kotlin change is refused by default, before any server starts;
 //! `--allow-single` and `REFAC_KOTLIN_BATCH_ONLY=0` let it through. These tests
 //! need no Kotlin server: a refused command never gets that far, and one that
-//! is let through stops at a source file that does not exist.
+//! is let through stops at a source file that does not exist, or at a stand-in
+//! server that says its build has expired.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -235,4 +236,78 @@ fn a_list_file_with_one_kotlin_move_is_refused_like_the_flags_and_one_with_two_i
         text(&refused)
     );
     assert!(!text(&past).contains("refuses those"), "{}", text(&past));
+}
+
+/// A stand-in for an installed Kotlin server whose build has expired: the
+/// folder has `build.txt` and a `bin/intellij-server` that prints what the
+/// real one prints and leaves with its licensing exit status.
+fn expired_server() -> tempfile::TempDir {
+    use std::os::unix::fs::PermissionsExt;
+    let server = tempfile::tempdir().unwrap();
+    std::fs::write(server.path().join("build.txt"), "ILS-1.2.3\n").unwrap();
+    std::fs::create_dir(server.path().join("bin")).unwrap();
+    let executable = server.path().join("bin/intellij-server");
+    std::fs::write(
+        &executable,
+        "#!/bin/sh\necho 'This build of kotlin-server has expired.' >&2\nexit 7\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    server
+}
+
+/// What a person sees when the installed server has expired: the cause, the
+/// steps, and where the refac repository explains how to get a newer build.
+#[test]
+fn a_kotlin_change_with_an_expired_server_says_how_to_get_a_new_build() {
+    let project = tempfile::tempdir().unwrap();
+    std::fs::write(project.path().join("settings.gradle.kts"), "\n").unwrap();
+    std::fs::write(
+        project.path().join("A.kt"),
+        "package app\n\nfun old() = 1\n",
+    )
+    .unwrap();
+    let server = expired_server();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_refac"))
+        .current_dir(project.path())
+        .env("REFAC_KOTLIN_SERVER", server.path())
+        // The run would otherwise make a cache folder for the stand-in's build in the real one.
+        .env("REFAC_KOTLIN_CACHE", "off")
+        .args(with(RENAME, &["--allow-single"]))
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let message = text(&output);
+    assert!(message.contains("this build has expired"), "{message}");
+    assert!(message.contains("refac doctor kotlin"), "{message}");
+    assert!(message.contains("kotlin_Server.md"), "{message}");
+    assert!(message.contains("Replacing the build"), "{message}");
+    assert!(message.contains("What the server printed"), "{message}");
+    // Nothing was changed.
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("A.kt")).unwrap(),
+        "package app\n\nfun old() = 1\n"
+    );
+}
+
+/// The doctor starts the server, so an expired build is BROKEN there too, not
+/// "ready" because its `build.txt` and executable are in place.
+#[test]
+fn the_doctor_reports_an_expired_kotlin_build_as_broken() {
+    let server = expired_server();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_refac"))
+        .env("REFAC_KOTLIN_SERVER", server.path())
+        .args(["doctor", "kotlin"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let message = text(&output);
+    assert!(message.contains("[BROKEN]"), "{message}");
+    assert!(message.contains("Start check FAILED"), "{message}");
+    assert!(message.contains("this build has expired"), "{message}");
+    assert!(message.contains("Replacing the build"), "{message}");
 }

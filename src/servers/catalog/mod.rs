@@ -8,6 +8,8 @@ mod python;
 mod rust;
 mod typescript;
 
+pub use kotlin::SETUP_GUIDE as KOTLIN_SETUP_GUIDE;
+
 use super::{Server, unknown_language};
 use anyhow::Result;
 

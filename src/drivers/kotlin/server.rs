@@ -9,9 +9,11 @@
 
 mod cache;
 mod capabilities;
+mod expired;
 mod install;
 mod lend;
 mod mirror;
+mod probe;
 
 use crate::drivers::lsp::rename::server::RenameServer;
 use crate::drivers::lsp::session::{LspSession, SessionConfig};
@@ -39,6 +41,7 @@ pub use cache::CACHE_ENV;
 pub use install::{GRADLE_IDLE_ENV, Install, SERVER_ENV, TIMEOUT_ENV, locate};
 pub use lend::{SharedServer, lend, lent_for, recall};
 pub use mirror::{refuse_expect_actual, refuse_expect_actual_symbol};
+pub use probe::check_start;
 
 const KEPT_NOTIFICATIONS: &[&str] = &[
     "intellij/workspaceImportState",
@@ -87,10 +90,7 @@ impl KotlinServer {
         let (mut session, init) = LspSession::start(SessionConfig {
             name: "Kotlin language server",
             executable: &install.executable(),
-            args: vec![
-                "--stdio".to_string(),
-                format!("--system-path={}", system_dir.path().display()),
-            ],
+            args: server_args(system_dir.path()),
             cwd: project,
             root: project,
             capabilities: client_capabilities(),
@@ -109,7 +109,8 @@ impl KotlinServer {
                 ),
             )],
         })
-        .await?;
+        .await
+        .map_err(|error| expired::explain(error, &install.executable()))?;
         check_capabilities(&init["capabilities"])?;
         session.initialized().await?;
         let build = install.build.clone();
@@ -363,6 +364,14 @@ fn java_tool_options(existing: Option<&str>, idle_ms: u64) -> String {
         Some(options) => format!("{options} {ours}"),
         None => ours,
     }
+}
+
+/// How the server is started: over stdio, with the directory for its caches.
+fn server_args(system_dir: &Path) -> Vec<String> {
+    vec![
+        "--stdio".to_string(),
+        format!("--system-path={}", system_dir.display()),
+    ]
 }
 
 fn language_id(path: &Path) -> &'static str {

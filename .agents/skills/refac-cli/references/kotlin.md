@@ -29,6 +29,7 @@ A failed move puts every file back and prints `Kotlin — The move failed and ev
 |---|---|
 | `The Kotlin language server (...) closed its connection ...` followed by `The process was killed by signal 9` | The server was killed, usually by the Linux out-of-memory killer (it holds 1.3 to 1.8 GB, more on a big project). Free memory or swap, then retry. `dmesg` or `journalctl -k` names the kill. |
 | the same, with `exited with status N` and `Its last lines on stderr:` | The server crashed; the stderr lines are its own explanation (a JVM error, a missing JDK 17+). |
+| `The Kotlin language server did not start: this build has expired` | Not a problem of the project or of refac: JetBrains' early-access builds stop starting about four weeks after release. Tell the user. The message lists the steps; `refac doctor kotlin` prints the download, and the setup guide in the refac repository (*Replacing the build*, link in the message) explains how to get a newer build. Nothing was changed. |
 | `Last Gradle import output:` | The Gradle import of the project failed; the lines name the broken build file or plugin. Fix the build first. |
 | `did not answer ... within N seconds` / `did not signal readiness` | Too slow; raise `REFAC_KOTLIN_TIMEOUT_SECS` (default 600). |
 | `refused the move` | The server declined the move; the text is its reason. |
@@ -43,7 +44,7 @@ A Kotlin Multiplatform build (a `commonMain`, `commonTest` or `<target>Main` sou
 
 ## Install, rename, Android, notes
 
-- **Install:** `refac doctor kotlin` prints the steps and `REFAC_KOTLIN_SERVER` (a download of about 350 MB, 1.2 GB unpacked, JDK 17+). Without the server every Kotlin call fails with those steps; refac never downloads it. It keeps an index of the JDK and Kotlin libraries in `~/.cache/refac` (110 to 160 MB); `REFAC_KOTLIN_CACHE=off` keeps nothing.
+- **Install:** `refac doctor kotlin` prints the steps and `REFAC_KOTLIN_SERVER` (a download of about 350 MB, 1.2 GB unpacked, JDK 17+). Without the server every Kotlin call fails with those steps; refac never downloads it. The server is an early-access build that expires about every four weeks (see the table above for the error). It keeps an index of the JDK and Kotlin libraries in `~/.cache/refac` (110 to 160 MB); `REFAC_KOTLIN_CACHE=off` keeps nothing.
 - **Rename:** pick the symbol with `--file` and `--symbol`; an ambiguous name lists candidates for `--line`/`--column`. A rename that would clash with or shadow another declaration is refused. Renaming a class that names its file renames the file too. `--dry-run` writes nothing. Several renames: `rename --batch`.
 - **Android:** class names in the manifest, layouts and navigation graphs follow moved and renamed classes, and `import <namespace>.R` / `BuildConfig` is added where a moved file needs it. A module with a manifest but no `namespace` in its build script is an error.
 - **Reported, not edited:** old class names in ProGuard rules, build scripts (`mainClass`), service lists, configuration and string literals appear as `// Note:` lines. Search for them and run the build.
