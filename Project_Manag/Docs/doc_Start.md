@@ -8,9 +8,9 @@ Why this project exists: we open-source some of our tools to give people real va
 
 Operational decision: `scripts/install.sh` builds the release binary, links it as `~/.local/bin/refac`, and checks that the `refac` on the PATH is that build and comes from the checked-out commit. The link keeps the command stable while letting rebuilt binaries take effect without any reinstall step.
 
-**Keep the global install current:** run `scripts/install.sh` after every pull, checkout or source change. It takes seconds when nothing changed and stops with a reason when the installed command is not this checkout's build. `refac --version` shows the commit the installed binary was built from. See [Install & Build](Guides/dev_guide.md) § 6 for the full workflow.
+**Keep the global install current:** run `scripts/install.sh` after every pull, checkout or source change. It takes seconds when nothing changed and stops with a reason when the installed command is not this checkout's build. `refac --version` shows the commit the installed binary was built from. See [Install & Build](Guides/dev_Guide.md) § 6 for the full workflow.
 
-**If `refac` is "command not found":** the `~/.local/bin/refac` link dangles after the checkout is moved or renamed. Run `scripts/install.sh` from its new location instead of working by hand. Details: [Install & Build](Guides/dev_guide.md) § 2.
+**If `refac` is "command not found":** the `~/.local/bin/refac` link dangles after the checkout is moved or renamed. Run `scripts/install.sh` from its new location instead of working by hand. Details: [Install & Build](Guides/dev_Guide.md) § 2.
 
 Entry points: `src/bin/refac.rs` and `src/cli.rs` (commands `move`, `move-module`, `rename`, `doctor`), `src/cli/doctor.rs` (`refac doctor`, the self-help for missing language servers), `src/logic/mod.rs` (move dispatch by language), `src/logic/rename.rs` (rename dispatch by file extension), `src/logic/route.rs` (which language a path belongs to), `src/drivers/` (one backend per language), `src/drivers/lsp/` (the language-server client and session shared by every backend, and in `lsp/rename/` the symbol-rename engine for Go, Rust, Python, Dart, and Kotlin), `src/servers/` (finding, checking, and explaining the language servers), `scripts/ts_refactor.ts` (TypeScript move helper run by Bun).
 
@@ -27,13 +27,13 @@ Language servers are never left running: a command starts the server it needs, u
 - [Dart](Features/Dart/linker_Dart.md): where Dart is covered: package URI moves in the abilities page, symbol rename in the Symbol rename feature, the `dart pub get` requirement.
 - [Rust](Features/Rust/linker_Rust.md): LSP file renames, semantic module-subtree moves, workspace reference migration, strict v1 limits.
 - [Markdown](Features/Markdown/linker_Markdown.md): moving Markdown files, assets, and document folders with every link that follows (inline, reference, HTML, `%20`, queries), fixing Markdown links to files other backends moved, the rollback and refusal rules, and the limits (wiki-links, MDX imports, front matter).
-- [Install & Build](Guides/dev_guide.md): build from source, symlink to `~/.local/bin/`, cargo install, PATH setup.
-- [Testing & Debugging](Guides/Testing_and_Debugging.md): test suite structure, fixture projects, batch move tests, rename tests, the ignored real-server tests (Kotlin, Go, Rust, Python, Dart), the server-free `doctor` tests, debugging failures.
+- [Install & Build](Guides/dev_Guide.md): build from source, symlink to `~/.local/bin/`, cargo install, PATH setup.
+- [Testing & Debugging](Guides/testing_And_Debugging.md): test suite structure, fixture projects, batch move tests, rename tests, the ignored real-server tests (Kotlin, Go, Rust, Python, Dart), the server-free `doctor` tests, debugging failures.
 - [Agent Skill](../../.agents/skills/refac-cli/SKILL.md): using `refac` through an AI agent, Claude Code integration, language constraints summary.
 - [Project Goal](Descr/goal.md): scope, direction, and intended use.
 - [Investigations](Investigation/linker_Investigation.md): evidence behind engine choices: the TypeScript symbol-rename engine comparison with test cases, speed, memory, and the silent failures found, the Kotlin tool comparison with the hands-on results against the real server, the Markdown tool comparison, and the symbol-rename study for Go, Rust, Python, and Dart (a Python matrix across five engines, gopls partial answers under load, the Dart analysis race).
 - [Tool Research](Research/tool_Research_Report.md): why each file-move backend was chosen over alternatives.
-- [ty / Python Refactoring Notes](Research/ty_python_refactoring.md): why ty is not used for Python moves.
+- [ty / Python Refactoring Notes](Research/ty_Python_Refactoring.md): why ty is not used for Python moves.
 - [Open issues](../Live_Working/open_Issues.md): active items such as the logo, docs publishing, and the skill-file onboarding idea.
 
 ## Repo References

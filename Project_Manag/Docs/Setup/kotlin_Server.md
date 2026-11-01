@@ -134,4 +134,4 @@ Rules that keep the machine alive:
 - **The tool itself:** put all files of one change into one `refac move` call. That is one server and one Gradle import instead of one per file; a command still stops its server when it ends.
 - A killed test program cannot stop its servers (the pool stops them when the program ends normally). After a run, `ps aux | grep -i -E 'gradle|intellij' | grep -v grep` must print nothing, except a Gradle daemon that stops by itself within two minutes of the end of the test program (the 120 s linger of the tests).
 
-See [Testing & Debugging](../Guides/Testing_and_Debugging.md) for the full test map and [Resource use](resource_Use.md) for the memory numbers.
+See [Testing & Debugging](../Guides/testing_And_Debugging.md) for the full test map and [Resource use](resource_Use.md) for the memory numbers.
