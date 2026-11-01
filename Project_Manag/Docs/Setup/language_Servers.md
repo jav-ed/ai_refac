@@ -9,7 +9,7 @@ A user needs a server only for the languages they move or rename in; a `MISSING`
 - the doctor overview header, `src/servers/doctor/render.rs` (a test pins it in `tests/cli/doctor.rs`);
 - `refac --help` (`src/cli/help/top.rs`) and `refac guide servers` (`src/cli/guide/servers.txt`);
 - the README ("Prerequisites" and "Fix a missing language server");
-- the `refac-cli` skill (`SKILL.md`, which agents read first, and `references/install.md`);
+- the `refac-cli` skill (`SKILL.md`, which agents read first, and the Setup section of each language file in `Languages/`, where one language's tool, install command and `--project-path` live so an agent reads only its own language; `Setup/install.md` installs refac itself);
 - the last line of `scripts/install.sh` and the release notes in `.github/workflows/release.yml`;
 - the public pages, `getting-started/installation` and `languages/kotlin/index` in `Refac_Docs`.
 

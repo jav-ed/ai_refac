@@ -1,6 +1,6 @@
 # Install and prerequisites
 
-Read this file when `refac` is not installed or not on the PATH, or when a language backend has to be set up. `refac doctor` shows what is found on this machine and `refac doctor <language>` prints exact install steps, so run them instead of guessing.
+Read this file when `refac` itself is not installed or not on the PATH. The tools of a language (its server, its `--project-path` and how to install it) are in the Setup section of that language's file in `Languages/`; open only the language you work in. `refac doctor` shows what is found on this machine and `refac doctor <language>` prints exact install steps, so run them instead of guessing.
 
 ## Build from source
 
@@ -31,22 +31,9 @@ cargo install --path .
 
 **Platform:** Linux. macOS and Windows are not targets, so nothing is tested or promised for them.
 
-## Language backend prerequisites
+## Language tools
 
-Each language requires its own external tooling. Only install what you need.
-
-| Language | Required | Install |
-|---|---|---|
-| TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
-| Astro rename (`--astro`) | `node`, and `@astrojs/ts-content-mapper` installed in the project | [nodejs.org](https://nodejs.org), `npm i -D @astrojs/ts-content-mapper` |
-| Python | `rope` importable from `.venv` or `python3` | `pip install rope` |
-| Python (fallback) | `pyrefly` (only if Rope is absent) | `pip install pyrefly` |
-| Python (`rename`) | `basedpyright` (plain pyright is not enough) | `pip install basedpyright` (or `pipx`, `uv tool`) |
-| Rust | `rust-analyzer` for symbol rename and ordinary file renames; semantic module support is embedded | `rustup component add rust-analyzer` (run inside the project when it pins a toolchain) |
-| Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
-| Dart | Dart SDK | [dart.dev/get-dart](https://dart.dev/get-dart) |
-| Kotlin / Android | JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER` names its folder), JDK 17+, Gradle project; `ANDROID_HOME` for Android | `refac doctor kotlin` prints the download and verify steps (refac never downloads it) |
-| Markdown | none | nothing to install |
+Each language requires its own external tooling. Only install what you need: the tools for a language you never move or rename in stay uninstalled, and `refac doctor` showing them as `MISSING` needs no action. The Setup section of each file in `Languages/` names the tool, its install command and the right `--project-path`; the Markdown file needs nothing.
 
 Each of these servers is found by the same lookup (an environment variable such as `REFAC_GOPLS`, then `PATH`, then the usual install folders). `refac doctor <language>` also starts the server once to prove it works; `refac guide servers` lists the environment variables and limits.
 

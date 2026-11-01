@@ -1,108 +1,54 @@
 ---
 name: refac-cli
-description: "Runs the `refac` CLI to move or rename source files, folders and Rust modules with every import and reference updated, and to rename a symbol (variable, parameter, function, class, method, field) everywhere it is used in TypeScript/JavaScript, Kotlin/Android, Go, Rust, Python and Dart. Use when the user asks to move, rename or reorganize files, folders, modules or symbols, mentions refac, or when a move or rename fails because a language server is missing (`refac doctor <language>` explains the fix); it is for using the tool, not for changing its code."
+description: "Refactoring CLI (`refac`) that moves or renames files, folders, Rust modules and symbols and updates every import and reference, in TypeScript/JavaScript, Kotlin, Go, Rust, Python, Dart and Markdown. Use when asked to move, rename or reorganize code, when refac is mentioned, or when a move or rename fails on a missing language server."
 ---
 
 # Use Refac CLI
 
-`refac` moves or renames source files and folders and renames symbols, and rewrites every import, reference and path that points at them. Each language is handled by its own tool (language servers, Oxc, Rope), started and stopped by the command itself. Nothing is written until the change is planned and proven, and a failure puts every file back.
+`refac` moves or renames source files and folders and renames symbols, and rewrites every import, reference and path that points at them, in TypeScript/JavaScript (Astro, MDX), Kotlin/Android, Go, Rust, Python, Dart and Markdown. Each language is handled by its own tool (language servers, Oxc, Rope), started and stopped by the command itself. Nothing is written until the change is planned and proven, and a failure puts every file back.
 
-The binary carries its own documentation, so read it instead of guessing: `refac <command> -h` (a few lines), `refac <command> --help` (everything about one command: rules per language, output, examples) and `refac guide [topic]` (`languages`, `safety`, `batching`, `kotlin`, `output`, `servers`; `refac guide all` prints every topic). Read `refac guide languages` before the first change in a language you have not used, and `refac guide safety` to know what a failure leaves behind.
-
-## Languages
-
-| Language | Files | Directories | Logical modules | Symbols (`rename`) |
-|---|---|---|---|---|
-| TypeScript / JavaScript, Astro, MDX | yes | yes | no | yes (`.astro` with `--astro`) |
-| Kotlin / Android | yes | yes | no | yes |
-| Python | yes | no | no | yes |
-| Rust | yes | no | yes (`move-module`) | yes |
-| Go | yes | no | no | yes |
-| Dart | yes | no | no | yes |
-| Markdown | yes | yes (folders of Markdown and assets) | no | no |
-
-A directory in any other language fails with a clear error. The language of a file comes from its extension; one `move` call may mix languages.
+The binary documents itself, so read it instead of guessing: `refac <command> --help` (rules per language, output, examples) and `refac guide [topic]` (`languages`, `safety`, `batching`, `kotlin`, `output`, `servers`). Read `refac guide safety` to know what a failure leaves behind, and `refac guide batching` before many changes.
 
 ## The common case
 
 ```bash
-# move one file; the project path is the root listed in the next section
+# move one file, or several in ONE call (repeat the flags, paired in order)
+refac move --project-path /path/to/package --source-path src/old.ts --target-path src/new.ts
 refac move --project-path /path/to/package \
-  --source-path src/old.ts --target-path src/new.ts
+  --source-path src/a.ts --source-path src/b.ts --target-path src/x.ts --target-path src/y.ts
 
-# several moves in ONE call: repeat the flags, paired in order
-refac move --project-path /path/to/package \
-  --source-path src/a.ts --source-path src/b.ts \
-  --target-path src/x.ts --target-path src/y.ts
-
-# many moves: write the list once, check it, run it (JSON; `--batch -` reads stdin)
-cat > moves.json <<'JSON'
-[
-  {"source_path": "src/a.ts", "target_path": "src/x.ts"},
-  {"source_path": "src/b.ts", "target_path": "src/y.ts"}
-]
-JSON
+# many moves: the list in a file (`--batch -` reads stdin), checked first, then run
+echo '[{"source_path": "src/a.ts", "target_path": "src/x.ts"}]' > moves.json
 refac move --project-path /path/to/package --batch moves.json --dry-run
 refac move --project-path /path/to/package --batch moves.json
 
-# see the paths that move and the edits per file first; nothing is written
-refac move --dry-run --project-path /path/to/package --source-path src/old.ts --target-path src/new.ts
+# rename a symbol and every reference; add --line (and --column) when the name is ambiguous
+refac rename --project-path /path/to/package --file src/lib/util.ts --symbol total --new-name grandTotal
 
-# rename a symbol and every reference (the language follows the file extension)
-refac rename --project-path /path/to/package \
-  --file src/lib/util.ts --symbol total --new-name grandTotal
-
-# the name refers to several symbols in the file: choose one by line (and column)
-refac rename --project-path /path/to/package \
-  --file src/lib/util.ts --symbol total --new-name sumTotal --line 3
-
-# several renames of one project in ONE call: one language, one server start, all or nothing
-refac rename --project-path /path/to/package --batch - --dry-run <<'JSON'
-[
-  {"file": "src/lib/util.ts", "symbol": "total", "new_name": "grandTotal"},
-  {"file": "src/lib/util.ts", "symbol": "count", "new_name": "size"}
-]
+# several renames of one project in ONE call: one language, all or nothing
+refac rename --project-path /path/to/package --batch - <<'JSON'
+[{"file": "src/lib/util.ts", "symbol": "total", "new_name": "grandTotal"},
+ {"file": "src/lib/util.ts", "symbol": "count", "new_name": "size"}]
 JSON
 
-# a whole Rust module with its children, by logical path
-refac move-module --project-path /path/to/cargo-workspace crate::engine::matching crate::domain::matching
-
 # a server is missing or broken: prints what to install and how to check it
-refac doctor go        # `refac doctor` alone shows every language
+refac doctor go
 ```
 
-Install a server only for the language of the change at hand. `refac doctor` listing other languages as `MISSING` is expected and needs no action: never install them to make the list green (the Kotlin server alone is a 1.2 GB download of a build that expires monthly).
-
-Add `--json` to `move`, `move-module`, `rename` and `doctor` for one JSON document (an error is JSON on stderr). `REFAC_PROJECT_PATH` sets a default for `--project-path`. Exit code `0` means everything succeeded, `1` means something failed.
-
-## What `--project-path` is
-
-Paths may be absolute or relative to it. It is the root of the project that owns the language's configuration, not the monorepo root.
-
-| Language | `--project-path` |
-|---|---|
-| TypeScript / JavaScript | package root whose `tsconfig.json` includes every caller; TypeScript 7 must accept it (no `baseUrl`, no `moduleResolution: node10`) |
-| Kotlin / Android | Gradle root (`settings.gradle.kts`), not a module folder |
-| Go | folder with `go.mod` or `go.work` |
-| Rust | folder with `Cargo.toml` (package or workspace) |
-| Python | folder pyright treats as the root (`pyrightconfig.json` or `[tool.pyright]`) |
-| Dart | package folder with `pubspec.yaml`, after `dart pub get` |
+`--project-path` is the root of the project that owns the language's configuration (the folder with `tsconfig.json`, `Cargo.toml`, `go.mod` or `pubspec.yaml`, the Gradle root, the pyright root), not the monorepo root; paths may be absolute or relative to it. The language of a file comes from its extension, and one `move` may mix languages. `--dry-run` shows the paths that move and the edits per file and writes nothing. Add `--json` to `move`, `move-module`, `rename` and `doctor` for one JSON document (an error is JSON on stderr). `REFAC_PROJECT_PATH` sets a default for `--project-path`. Exit code `0` means everything succeeded, `1` means something failed.
 
 ## Rules that change decisions
 
-- `--source-path` and `--target-path` pair one to one in order: three sources need three targets. `--batch moves.json` takes the same pairs from a file (`[{"source_path": ..., "target_path": ...}, ...]`, exactly those two keys per entry) and cannot be combined with the flags.
-- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (Go and Python 1 to 8 s, Rust 5 to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags or use `--batch moves.json`, and renames use `--batch`. Never start a server yourself.
-- A single Kotlin move or rename is refused by default, dry runs included, before anything starts; the error prints the batch command for that request and then explains why Kotlin is slow and which options exist (the same text as `refac guide kotlin`; read it before turning anything off). When one change really is all there is, add `--allow-single`. `REFAC_KOTLIN_BATCH_ONLY=0` turns the refusal off for a whole environment, but that is the user's choice, not an agent's: do not set it to get past the refusal; collect the changes and make them in one call.
-- A failed Kotlin move prints its cause after "every change was undone": a server killed by the out-of-memory killer, a crash with the server's own last lines, a broken Gradle import. Give the user that text whole and read the table in [Kotlin and Android](references/kotlin.md) before retrying; after a Kotlin move that succeeded, run the project's build, because refac proves the package lines, not the compile.
-- TypeScript / JavaScript: at most 30 source files per call (a folder counts the files below it), and only files the tsconfig includes are updated callers. `.astro` and `.mdx` files are callers too, and pages and pictures that code imports are fixed before they move. A rename that `.astro` or `.mdx` files would not follow is refused with the files listed; `--astro` (needs Node.js, `@astrojs/ts-content-mapper` and `contentMappers` in the tsconfig) makes `.astro` files follow, `.mdx` files still stop it. `url()`/`@import` paths in `<style>` blocks and `.css` files follow too, and so do a bundled `<script src>`, strings that are the root-relative path of a moved file or folder (a content collection's `base`) the folder of `import.meta.glob` patterns and relative paths in the frontmatter of `.mdx`/`.md` pages (`image: ../a.webp`). After the move, notes name a file that enters or leaves a glob and the config or data files that still name a moved path. Not rewritten: `<img src>` and other template attributes (Astro treats them as URLs), `public/` URLs, content-collection ids, `tsconfig` `paths`, `.scss`/`.sass`/`.less`; search for the old path and run the site's build.
-- A rename that would clash with or shadow another symbol, an ambiguous name, an unrenameable symbol, a symbol that also lives outside the project, or an unsupported config stops with a message and leaves every file unchanged. An ambiguity lists the `--line`/`--column` candidates.
+- Before the first change in a language, open its file through [Languages](Languages/linker_Languages.md): the exact `--project-path`, limits and rename rules are there. Install a server only for the language of the change at hand: `refac doctor` listing other languages as `MISSING` is expected and needs no action, so never install them to make the list green (the Kotlin server alone is a 1.2 GB download of a build that expires monthly).
+- `--source-path` and `--target-path` pair one to one in order: three sources need three targets. `--batch moves.json` takes the same pairs from a file and cannot be combined with the flags.
+- Batch whenever there are two or more changes of one project. Every call starts the server it needs and stops it afterwards (seconds, Rust up to 35 s, Kotlin about 24 s and 1.3 to 1.8 GB), so moves repeat the flags or use `--batch moves.json`, and renames use `--batch` (one language and one project, all or nothing). Never start a server yourself: none is kept running between commands, because its view of the files would go stale. A single Kotlin move or rename is refused by default; the Kotlin file says what to do.
+- A rename that would clash with or shadow another symbol (the lost or gained usages are listed), an ambiguous name, an unrenameable symbol, a symbol that also lives outside the project, or an unsupported config stops with a message and leaves every file unchanged. An ambiguity lists the `--line`/`--column` candidates.
 - Read the `// Note:` lines after a success: they list where the old name is still written (strings, comments, untyped Python or Dart receivers, ProGuard rules and build scripts, `macro_rules!` bodies marked `ATTENTION`) and end with an `rg -w` command to check them.
-- A package, module or file name is not a symbol: use `move` (`move-module` for Rust modules).
+- A package, module or file name is not a symbol: use `move` (`move-module` for a Rust module).
 - Server not installed for this change's language: the error lists every place that was looked at and ends with `Run refac doctor <language>`. Run it, follow its numbered steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command.
 
 ## Navigation
 
-- [Kotlin and Android](references/kotlin.md): read before the first Kotlin or Android move or rename, and whenever one fails or leaves the build broken. The `move --batch moves.json` list, what a move imports for the moved file and for the files left behind (operators, `get`, `for` loops, destructuring, `by`, other Gradle modules), what it leaves alone, a table that explains each reason a failed move prints (a killed server, a crash, a Gradle import error, a timeout), what is refused, multiplatform builds, rename, Android and the notes.
-- [Language-specific behaviour](references/language_behaviour.md): read when a move or rename involves Go, Rust, TypeScript/JavaScript, Python, Dart or Markdown and behaves in a way the command's own help does not explain. Go whole-package moves, semantic Rust module moves and what they refuse, Dart package config, TypeScript tsconfig coverage, memory limit and reference gaps, TypeScript symbol-rename safety rules, symbol rename in Go, Rust, Python and Dart, `--batch` for renames, Python re-export limits, Markdown links.
-- [Install and prerequisites](references/install.md): read when `refac` is not installed or not on the PATH, or a language backend (bun, rope, basedpyright, gopls, Dart SDK, Kotlin server) has to be set up.
-- [Agent integration](references/agent_integration.md): read only to make an agent harness (Claude Code or another) find this skill, by symlink or copy.
+- [Languages](Languages/linker_Languages.md): what each language moves and renames, its `--project-path`, and one file per language (TypeScript/JavaScript/Astro/MDX, Kotlin/Android, Rust, Go, Python, Dart, Markdown) with its setup, limits and rename rules. Open it before the first change in a language.
+- [Install refac](Setup/install.md): read when `refac` itself is not installed or not on the PATH. Build from source, the PATH link, the platform, and where each language's tools are described.
+- [Agent integration](Setup/agent_Integration.md): read only to make an agent harness (Claude Code or another) find this skill, by symlink or copy.

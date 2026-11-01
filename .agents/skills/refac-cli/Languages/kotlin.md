@@ -2,6 +2,12 @@
 
 Read this file before the first Kotlin or Android move or rename in a session, or when one fails or leaves the build broken. `move` and `rename` on `.kt` files use the JetBrains Kotlin language server; refac adds layers around it for what the server leaves out. `--project-path` is the **Gradle root** (the folder with `settings.gradle(.kts)`), not a module folder.
 
+## Setup
+
+- Tool: the JetBrains Kotlin language server (`REFAC_KOTLIN_SERVER` names its folder), JDK 17+ and a Gradle project; `ANDROID_HOME` for Android. refac never downloads the server: `refac doctor kotlin` prints the download and verify steps (about 350 MB, 1.2 GB unpacked). Without it every Kotlin call fails with those steps.
+- The server is an early-access build that expires about every four weeks (see the table under "When it fails" for the error). It keeps an index of the JDK and Kotlin libraries in `~/.cache/refac` (110 to 160 MB); `REFAC_KOTLIN_CACHE=off` keeps nothing.
+- A Kotlin call takes about 24 s and 1.3 to 1.8 GB, which is why Kotlin changes are batched.
+
 ## The common case
 
 ```bash
@@ -11,6 +17,8 @@ refac move --project-path /path/to/gradle-root --batch moves.json             # 
 ```
 
 `moves.json` is `[{"source_path": "app/src/main/kotlin/com/x/ui/Home.kt", "target_path": "app/src/main/kotlin/com/x/home/Home.kt"}, ...]`, exactly those two keys per entry (`--batch -` reads stdin). The flags `--source-path` / `--target-path` do the same. Then run the project's build (`./gradlew compileKotlin`, and every target of a multiplatform build): refac proves the package lines, not the compile.
+
+A single Kotlin move or rename is refused by default, dry runs included, before anything starts; the error prints the batch command for that request and then explains why Kotlin is slow and which options exist (the same text as `refac guide kotlin`; read it before turning anything off). When one change really is all there is, add `--allow-single`. `REFAC_KOTLIN_BATCH_ONLY=0` turns the refusal off for a whole environment, but that is the user's choice, not an agent's: do not set it to get past the refusal; collect the changes and make them in one call. A single change that is let through ends with a note that shows the batch form.
 
 After a move read the `// Note:` lines. They name the files whose content the move changes (`This move changes the content of N files: ...`; a change in any other file is not from the move), the imports refac added, old class names that still appear in files it does not edit, and the multiplatform and cost notes.
 
@@ -23,7 +31,7 @@ After a move read the `// Note:` lines. They name the files whose content the mo
 
 ## When it fails
 
-A failed move puts every file back and prints `Kotlin — The move failed and every change was undone: Moving a -> b: <reason>`. The reason is the whole chain of causes. Tell the user that line, whole:
+A failed move puts every file back and prints `Kotlin — The move failed and every change was undone: Moving a -> b: <reason>`. The reason is the whole chain of causes. Give the user that line, whole, and read this table before retrying:
 
 | The reason says | What it means |
 |---|---|
@@ -42,9 +50,8 @@ A failed move puts every file back and prints `Kotlin — The move failed and ev
 
 A Kotlin Multiplatform build (a `commonMain`, `commonTest` or `<target>Main` source set) is served through a plain-JVM copy of its source sets: package lines and project imports follow, library imports are kept, and the output ends with a note to compile every target.
 
-## Install, rename, Android, notes
+## Rename, Android, notes
 
-- **Install:** `refac doctor kotlin` prints the steps and `REFAC_KOTLIN_SERVER` (a download of about 350 MB, 1.2 GB unpacked, JDK 17+). Without the server every Kotlin call fails with those steps; refac never downloads it. The server is an early-access build that expires about every four weeks (see the table above for the error). It keeps an index of the JDK and Kotlin libraries in `~/.cache/refac` (110 to 160 MB); `REFAC_KOTLIN_CACHE=off` keeps nothing.
 - **Rename:** pick the symbol with `--file` and `--symbol`; an ambiguous name lists candidates for `--line`/`--column`. A rename that would clash with or shadow another declaration is refused. Renaming a class that names its file renames the file too. `--dry-run` writes nothing. Several renames: `rename --batch`.
 - **Android:** class names in the manifest, layouts and navigation graphs follow moved and renamed classes, and `import <namespace>.R` / `BuildConfig` is added where a moved file needs it. A module with a manifest but no `namespace` in its build script is an error.
 - **Reported, not edited:** old class names in ProGuard rules, build scripts (`mainClass`), service lists, configuration and string literals appear as `// Note:` lines. Search for them and run the build.
