@@ -19,8 +19,11 @@ fn first_line(text: &str) -> &str {
 }
 
 pub fn render_overview(reports: &[Report]) -> String {
+    // The second paragraph is the "install only what you use" message; it is also written
+    // in --help, `refac guide servers`, the README and the skill (see Setup/language_Servers.md).
     let mut out = String::from(
-        "Language servers refac starts on demand. It stops each one when its command ends, so none stays in memory.\n\n",
+        "Language servers refac starts on demand. It stops each one when its command ends, so none stays in memory.\n\n\
+         You only need the server of a language you move or rename in. A MISSING or BROKEN line for any other language needs no action.\n\n",
     );
     for report in reports {
         let detail = match &report.located {

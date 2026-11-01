@@ -4,6 +4,9 @@ refac does not bundle language servers (except the TypeScript engine, which it i
 server is started for the command and stopped when it ends: nothing is resident, so there is nothing to
 stop and no memory held between commands.
 
+You need a server only for the languages you move or rename in. `refac doctor` showing MISSING for
+any other language needs no action: install nothing for it, and never to make the list green.
+
   Language    Server                     Environment variable
   Go          gopls                      REFAC_GOPLS
   Rust        rust-analyzer              REFAC_RUST_ANALYZER

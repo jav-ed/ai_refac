@@ -2,6 +2,19 @@
 
 Every semantic operation of refac (a symbol rename, and the file moves of Go, Rust, Dart, and Kotlin) is done by a language server that someone else wrote. refac does not ship them and does not download them. It **finds** one, **starts** it for the command, **stops** it when the command ends, and **explains** exactly what to do when it cannot find one. The explanation is the product: an agent that hits a missing server should be able to fix it alone.
 
+## Install only what you use
+
+A user needs a server only for the languages they move or rename in; a `MISSING` line for any other language needs no action. Doctor's capitals and Kotlin's size (1.2 GB, monthly expiry) make an unused server look like a defect, so the message is carried at every place a person or an agent first meets a server. Change the wording in all of them together:
+
+- the doctor overview header, `src/servers/doctor/render.rs` (a test pins it in `tests/cli/doctor.rs`);
+- `refac --help` (`src/cli/help/top.rs`) and `refac guide servers` (`src/cli/guide/servers.txt`);
+- the README ("Prerequisites" and "Fix a missing language server");
+- the `refac-cli` skill (`SKILL.md`, which agents read first, and `references/install.md`);
+- the last line of `scripts/install.sh` and the release notes in `.github/workflows/release.yml`;
+- the public pages, `getting-started/installation` and `languages/kotlin/index` in `Refac_Docs`.
+
+Not built: a doctor that scans `--project-path` and marks each language *used here* or *not used here* (see `Live_Working/open_Issues.md`).
+
 ## One command to ask
 
 ```bash

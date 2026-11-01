@@ -26,6 +26,8 @@ WHAT EACH LANGUAGE SUPPORTS
   Dart             yes        no           -            yes            Dart SDK analysis server
   Markdown         yes        yes          -            -              built in (CommonMark); also follows what other languages moved
   The language of a file comes from its extension. A single `move` may mix languages.
+  A language needs its server only when you use it: nothing is installed for a language you never
+  touch, and `refac doctor` listing it as MISSING needs no action.
 
 HOW IT STAYS SAFE
   * Plan first. Nothing is written until the whole change is planned. A rename is also proven in

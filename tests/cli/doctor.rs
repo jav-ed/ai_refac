@@ -104,6 +104,11 @@ fn the_overview_names_every_language_and_changes_nothing() {
     }
     assert!(text.contains("MISSING"), "{text}");
     assert!(text.contains("refac doctor <language>"), "{text}");
+    // A red-looking MISSING must not make anyone install servers they never use.
+    assert!(
+        text.contains("only need the server of a language you move or rename in"),
+        "{text}"
+    );
 }
 
 #[test]

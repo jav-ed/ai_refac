@@ -71,6 +71,8 @@ refac move-module --project-path /path/to/cargo-workspace crate::engine::matchin
 refac doctor go        # `refac doctor` alone shows every language
 ```
 
+Install a server only for the language of the change at hand. `refac doctor` listing other languages as `MISSING` is expected and needs no action: never install them to make the list green (the Kotlin server alone is a 1.2 GB download of a build that expires monthly).
+
 Add `--json` to `move`, `move-module`, `rename` and `doctor` for one JSON document (an error is JSON on stderr). `REFAC_PROJECT_PATH` sets a default for `--project-path`. Exit code `0` means everything succeeded, `1` means something failed.
 
 ## What `--project-path` is
@@ -96,7 +98,7 @@ Paths may be absolute or relative to it. It is the root of the project that owns
 - A rename that would clash with or shadow another symbol, an ambiguous name, an unrenameable symbol, a symbol that also lives outside the project, or an unsupported config stops with a message and leaves every file unchanged. An ambiguity lists the `--line`/`--column` candidates.
 - Read the `// Note:` lines after a success: they list where the old name is still written (strings, comments, untyped Python or Dart receivers, ProGuard rules and build scripts, `macro_rules!` bodies marked `ATTENTION`) and end with an `rg -w` command to check them.
 - A package, module or file name is not a symbol: use `move` (`move-module` for Rust modules).
-- Server not installed: the error lists every place that was looked at and ends with `Run refac doctor <language>`. Run it, follow its numbered steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command.
+- Server not installed for this change's language: the error lists every place that was looked at and ends with `Run refac doctor <language>`. Run it, follow its numbered steps (or set the environment variable it names), run it again until it prints `ready`, then repeat the original command.
 
 ## Navigation
 

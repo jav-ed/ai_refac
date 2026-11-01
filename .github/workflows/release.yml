@@ -78,5 +78,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "refac ${GITHUB_REF_NAME#v}" \
+            --notes 'refac does not bundle language servers. Install only those of the languages you move or rename in: `refac doctor <language>` prints the steps for each.' \
             --generate-notes \
             --prerelease

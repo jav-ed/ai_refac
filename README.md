@@ -124,7 +124,7 @@ The TypeScript and Python helpers (`scripts/`) stay in the checkout: refac finds
 
 **Platform:** Linux. macOS and Windows are not targets (not needed), so nothing is tested or promised for them.
 
-Each language backend requires its own tooling. See [Prerequisites](#prerequisites).
+Only the languages you actually move or rename in need their tooling. Working in Rust only, for example, needs `rust-analyzer` and nothing else. See [Prerequisites](#prerequisites).
 
 ---
 
@@ -262,6 +262,8 @@ refac doctor            # every language: ready, MISSING, or BROKEN
 refac doctor go         # where gopls was looked for, the install command, a start check
 ```
 
+A `MISSING` or `BROKEN` line for a language you never move or rename in needs no action. Install a server when a command for that language asks for it, and not before.
+
 ### JSON output
 
 ```bash
@@ -350,7 +352,9 @@ These are not edge cases. Read them before deciding whether this tool is right f
 
 ## Prerequisites
 
-| Language | Required | Install |
+Install only the tools of the languages you move or rename in. A project in Rust alone needs `rust-analyzer` and nothing else; every other row can stay uninstalled, and `refac doctor` showing it as `MISSING` is fine. Kotlin is the heaviest row (a large download of an early-access build that expires about every four weeks), so skip it unless you work in Kotlin.
+
+| Language | Needed if you use it | Install |
 |---|---|---|
 | TypeScript / JS | `bun` | [bun.sh](https://bun.sh) |
 | Astro rename (`--astro`) | `node`, and `@astrojs/ts-content-mapper` in the project | [nodejs.org](https://nodejs.org), `npm i -D @astrojs/ts-content-mapper` |

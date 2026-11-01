@@ -39,3 +39,4 @@ if [ -n "$commit" ] && [[ "$version" != *"($commit"* ]]; then
 fi
 echo "installed and current: $version"
 echo "  $found -> $binary"
+echo "Language servers are not part of this install. Install one only for a language you move or rename in: refac doctor <language> prints the steps."
