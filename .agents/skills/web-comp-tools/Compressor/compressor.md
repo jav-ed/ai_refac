@@ -2,7 +2,7 @@
 
 A Linux-only Rust CLI that writes `.br` (Brotli), `.gz` (gzip) and `.zst` (Zstd) files next to the text files of a finished build, so Caddy can serve them without compressing on every request. It works on any static build output, Astro and Fumadocs alike.
 
-It handles `html`, `css`, `js`, `mjs`, `cjs`, `json`, `svg`, `xml`, `txt` and `wasm` files. Images and fonts are left alone. The list is fixed in the code.
+Its unchanged defaults handle `html`, `css`, `js`, `mjs`, `cjs`, `json`, `svg`, `xml`, `txt` and `wasm`. Additional uncompressed input extensions, such as native libraries or JSONL data, require explicit `--include-extension` flags. Images and fonts stay outside the defaults.
 
 ## Run
 
@@ -17,6 +17,8 @@ All three codecs are on, at Brotli 11, gzip 12 and Zstd 19, with the thread coun
 | Flag | Use |
 | --- | --- |
 | `--dir <path>` | Required. The build output folder, for example `dist` or `dist/client`. |
+| `--include-extension <EXT>` | Add an uncompressed input extension to the defaults; repeat or comma-separate, for example `so,jsonl`. No dot or path. |
+| `--report <path>` | Create a new JSON inventory of input/output relative paths, sizes and SHA-256 after successful encoding. |
 | `--no-brotli`, `--no-gzip`, `--no-zstd` | Turn one codec off. |
 | `--brotli-level`, `--gzip-level`, `--zstd-level` | Change a level (0 to 11, 1 to 12, 1 to 22). |
 | `--threads <N or auto>` | Default `auto`, which leaves one core free. |
@@ -28,6 +30,19 @@ All three codecs are on, at Brotli 11, gzip 12 and Zstd 19, with the thread coun
 ## The cache
 
 The cache is on by default and lives in `<parent of --dir>/Cache/Super_Compressor/`. Files whose content did not change come back as hardlinks instead of being compressed again, so a rebuild of a mostly unchanged site is fast. Hardlinks need the cache and the build folder on the same filesystem.
+
+## Native and data artifacts
+
+Use a fresh staging folder containing only the reviewed inputs. The added extensions join the web defaults, so create signing/catalogue metadata afterwards or outside that folder. Keep the report outside the input folder:
+
+```bash
+"$Compressor_Bin" --dir native-stage --include-extension so,jsonl \
+  --no-gzip --no-zstd --threads 2 --no-color --report native-report.json
+```
+
+This selects Brotli only. JSONL uses text mode; WebAssembly and opt-in binary extensions use generic mode. Encoding and cache hashing share that decision. Invalid/already-compressed extensions, discovery failures, changed inputs, missing outputs, existing report paths and report-write failures stop the command. The report also covers cache restores. Its parent directory must already exist.
+
+The report is a byte inventory, not a signature or decoder test. The caller owns source/compatibility checks, independent decompression and decoded hashes, signing and publication. Do not rename binaries to `.wasm` to bypass discovery. See the tool's CLI reference for the schema and exact failure contract.
 
 ## In a pipeline
 

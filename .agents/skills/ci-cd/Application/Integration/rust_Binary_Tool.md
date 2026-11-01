@@ -1,6 +1,6 @@
 # Rust Binary Tool Integration
 
-Use this path for a Rust repository whose `main` push should quality-check, compile, and atomically install one executable on a remote host. The workflow was proven with IndexNow through a real Forgejo webhook, Woodpecker local-backend run, and g12 installation.
+Use this path for a Rust repository whose `main` push should quality-check, compile, and atomically install one executable on a remote host. The workflow was proven with IndexNow through a real Forgejo webhook, Woodpecker local-backend run, and g12 installation. A Rust HTTP service whose releases are built and activated by an operator, with CI limited to the quality gate, does not install anything from the pipeline: use the quality-gate template of the `rust-service-hosting` skill instead of the build and install steps here.
 
 ## Contents
 
