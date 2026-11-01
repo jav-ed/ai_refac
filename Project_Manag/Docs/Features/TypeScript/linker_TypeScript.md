@@ -6,7 +6,7 @@ TypeScript and JavaScript have two operations with two engines. File and directo
 
 Bun runs `scripts/ts_refactor.ts`. Missing dependencies are installed from `scripts/bun.lock` with `bun install --frozen-lockfile`.
 
-Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads config inheritance, `files`, `include`, `exclude`, aliases, and resolution options. Every configured source is scanned, plus explicitly moved sources; dependencies are resolved on demand without loading their ASTs. Without a tsconfig, the helper uses TypeScript's default file discovery with `allowJs`, ESNext modules, and bundler resolution.
+Point `--project-path` at the package owning `tsconfig.json`. TypeScript reads config inheritance, `files`, `include`, `exclude`, aliases, and resolution options. Every configured source is scanned, plus explicitly moved sources; dependencies are resolved on demand without loading their ASTs. Without a tsconfig, the helper uses TypeScript's default file discovery with `allowJs`, ESNext modules, and bundler resolution, narrowed to the files git lists (`git ls-files --cached --others --exclude-standard`: tracked files, and untracked files that no `.gitignore` names), so a vendored or build folder is never scanned or parsed (`scripts/TypeScript/unignored.ts`). Outside a git work tree nothing says what is ignored, and the whole folder is read as before; when git is not installed the command stops with an error that says to install it or add a tsconfig. A tsconfig keeps its own `include` and `exclude`; the ignore list is not applied to it. Files of a git submodule are not listed by git, so they are not scanned. A file inside the project that the engine cannot parse still stops the move and is named.
 
 ## Astro and MDX
 

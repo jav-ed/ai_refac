@@ -7,7 +7,8 @@ nothing; across groups it is not (see `refac guide safety`).
 TYPESCRIPT / JAVASCRIPT / ASTRO / MDX  (.ts .tsx .js .jsx .mts .cts .mjs .cjs .astro, and .mdx imports)
   move    Files and folders. At most 30 source files per call; a folder counts the files below it, and
           the error tells the measured number. The tsconfig.json of --project-path decides which files
-          are callers: a file it does not include is not updated. .astro components and .mdx pages
+          are callers: a file it does not include is not updated (without one, the files git does
+          not ignore are callers). .astro components and .mdx pages
           are callers too (frontmatter, bundled <script>, import/export lines), and a moved .astro
           component has its own imports fixed. A page or picture that code imports (.mdx, .md,
           images, folders of them) is moved by the Markdown driver after the engine has fixed the code.

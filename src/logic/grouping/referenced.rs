@@ -17,8 +17,12 @@
 //! (`](img/hero.png)`) is not a use; the Markdown driver handles it. A project
 //! with an `import.meta.glob` or `Astro.glob` call uses every file: a glob names
 //! a folder, and only the engine tells whether a moved file is one of the files
-//! it selects. The reading over-approximates (a quoted attribute counts), and
-//! the engine then finds nothing to change, which costs time and nothing else.
+//! it selects. Only a call counts (`glob_calls`): prose, a fenced example and a
+//! bare mention do not. The reading over-approximates (a quoted attribute
+//! counts), and the engine then finds nothing to change, which costs time and
+//! nothing else.
+
+mod glob_calls;
 
 use super::route::resolve;
 use crate::drivers::typescript::files;
@@ -103,8 +107,11 @@ fn used_by_code(pairs: &[(String, String)], root: Option<&Path>) -> Result<Vec<b
             std::fs::read(&file).with_context(|| format!("Cannot read {}", file.display()))?;
         for found in automaton.find_iter(&bytes) {
             let Some(name) = names.get(found.pattern().as_usize()) else {
-                used.fill(true);
-                return Ok(used);
+                if glob_calls::is_call(&bytes, found.start(), found.end(), &extension(&file)) {
+                    used.fill(true);
+                    return Ok(used);
+                }
+                continue;
             };
             let owner = &owners[*name];
             if !ends_a_path(

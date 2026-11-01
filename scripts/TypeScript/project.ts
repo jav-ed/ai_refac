@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
+import { unignoredFiles } from "./unignored";
 
 export interface ProjectConfig {
     root: string;
@@ -40,7 +41,14 @@ export function readProject(root: string): ProjectConfig {
     if (config.projectReferences?.length) {
         throw new Error("Oxc moves currently require one owning tsconfig without project references; cross-project moves need an explicit project graph.");
     }
-    return { root, configPath: configured ? configPath : undefined, files: config.fileNames, options: config.options };
+    // A tsconfig.json says itself which files belong to the project. Without one, TypeScript's
+    // default is every file under the root, so the files the project ignores are dropped.
+    let files = config.fileNames;
+    if (!configured) {
+        const unignored = unignoredFiles(root);
+        if (unignored) files = files.filter(file => unignored.has(path.resolve(file)));
+    }
+    return { root, configPath: configured ? configPath : undefined, files, options: config.options };
 }
 
 export function isSource(file: string): boolean {
